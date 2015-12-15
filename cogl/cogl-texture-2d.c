@@ -59,6 +59,21 @@
 #include "cogl-wayland-server.h"
 #endif
 
+#ifdef COGL_HAS_EGL_DMABUF_SUPPORT
+#include <libdrm/drm_fourcc.h>
+
+/* Missing formats in libdrm but available in Mesa. */
+#ifndef DRM_FORMAT_R8
+#define DRM_FORMAT_R8   fourcc_code('R', '8', ' ', ' ') /* [7:0] R */
+#endif
+#ifndef DRM_FORMAT_RG88
+#define DRM_FORMAT_RG88 fourcc_code('R', 'G', '8', '8') /* [15:0] R:G 8:8 little endian */
+#endif
+#ifndef DRM_FORMAT_GR88
+#define DRM_FORMAT_GR88 fourcc_code('G', 'R', '8', '8') /* [15:0] G:R 8:8 little endian */
+#endif
+#endif
+
 static void _cogl_texture_2d_free (CoglTexture2D *tex_2d);
 
 COGL_TEXTURE_DEFINE (Texture2D, texture_2d);
@@ -448,6 +463,110 @@ cogl_wayland_texture_2d_new_from_buffer (CoglContext *ctx,
   return NULL;
 }
 #endif /* COGL_HAS_WAYLAND_EGL_SERVER_SUPPORT */
+
+#ifdef COGL_HAS_EGL_DMABUF_SUPPORT
+static EGLint
+cogl_pixel_format_to_drm_format (CoglPixelFormat format)
+{
+  switch (format)
+    {
+    case COGL_PIXEL_FORMAT_G_8:
+      return DRM_FORMAT_R8;
+    case COGL_PIXEL_FORMAT_RG_88:
+      return DRM_FORMAT_RG88;
+    case COGL_PIXEL_FORMAT_RGB_888:
+      return DRM_FORMAT_BGR888;
+    case COGL_PIXEL_FORMAT_BGR_888:
+      return DRM_FORMAT_RGB888;
+    case COGL_PIXEL_FORMAT_ARGB_8888:
+      return DRM_FORMAT_BGRA8888;
+    case COGL_PIXEL_FORMAT_ABGR_8888:
+      return DRM_FORMAT_RGBA8888;
+    case COGL_PIXEL_FORMAT_RGBA_8888:
+      return DRM_FORMAT_ABGR8888;
+    case COGL_PIXEL_FORMAT_BGRA_8888:
+      return DRM_FORMAT_ARGB8888;
+    default:
+      return 0;
+    }
+}
+
+CoglTexture2D *
+cogl_texture_2d_new_from_dmabuf (CoglContext *ctx,
+                                 int width,
+                                 int height,
+                                 CoglPixelFormat format,
+                                 int offset,
+                                 int rowstride,
+                                 int fd,
+                                 CoglError **error)
+{
+  CoglTexture2D *tex = NULL;
+  EGLImageKHR image;
+  EGLint drm_format;
+  EGLint attribs[32];
+  int i = 0;
+
+  if (!cogl_has_feature (ctx, COGL_FEATURE_ID_TEXTURE_DMABUF))
+    {
+      _cogl_set_error (error,
+                       COGL_SYSTEM_ERROR,
+                       COGL_SYSTEM_ERROR_UNSUPPORTED,
+                       "Image creation from dmabuf is not supported");
+      return NULL;
+    }
+
+  drm_format = cogl_pixel_format_to_drm_format (format);
+  if (drm_format == 0)
+    {
+      _cogl_set_error (error,
+                       COGL_SYSTEM_ERROR,
+                       COGL_SYSTEM_ERROR_UNSUPPORTED,
+                       "Unsupported pixel format");
+      return NULL;
+    }
+
+  if (rowstride == 0)
+    rowstride = width * _cogl_pixel_format_get_bytes_per_pixel (format);
+
+  attribs[i++] = EGL_WIDTH;
+  attribs[i++] = width;
+  attribs[i++] = EGL_HEIGHT;
+  attribs[i++] = height;
+
+  attribs[i++] = EGL_LINUX_DRM_FOURCC_EXT;
+  attribs[i++] = drm_format;
+
+  attribs[i++] = EGL_DMA_BUF_PLANE0_OFFSET_EXT;
+  attribs[i++] = offset;
+  attribs[i++] = EGL_DMA_BUF_PLANE0_PITCH_EXT;
+  attribs[i++] = rowstride;
+  attribs[i++] = EGL_DMA_BUF_PLANE0_FD_EXT;
+  attribs[i++] = fd;
+  attribs[i++] = EGL_NONE;
+
+  image = _cogl_egl_create_image (ctx,
+                                  EGL_LINUX_DMA_BUF_EXT,
+                                  NULL,
+                                  attribs);
+  if (image == EGL_NO_IMAGE_KHR)
+    {
+      _cogl_set_error (error,
+                       COGL_SYSTEM_ERROR,
+                       COGL_SYSTEM_ERROR_UNSUPPORTED,
+                       "Image creation failed");
+      return NULL;
+    }
+
+  tex = _cogl_egl_texture_2d_new_from_image (ctx,
+                                             width, height,
+                                             format,
+                                             image,
+                                             error);
+  _cogl_egl_destroy_image (ctx, image);
+  return tex;
+}
+#endif
 
 void
 _cogl_texture_2d_externally_modified (CoglTexture *texture)

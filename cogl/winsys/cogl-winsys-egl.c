@@ -511,6 +511,10 @@ _cogl_winsys_context_init (CoglContext *context, CoglError **error)
                       COGL_WINSYS_FEATURE_SWAP_REGION_THROTTLE, TRUE);
     }
 
+  if (context->glEGLImageTargetTexture2D &&
+      egl_renderer->private_features & COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_DMABUF)
+    COGL_FLAGS_SET (context->features, COGL_FEATURE_ID_TEXTURE_DMABUF, TRUE);
+
   if ((egl_renderer->private_features & COGL_EGL_WINSYS_FEATURE_FENCE_SYNC) &&
       _cogl_has_private_feature (context, COGL_PRIVATE_FEATURE_OES_EGL_SYNC))
     COGL_FLAGS_SET (context->features, COGL_FEATURE_ID_FENCE, TRUE);
@@ -1026,6 +1030,11 @@ _cogl_egl_create_image (CoglContext *ctx,
    * always be used in conjunction with the EGL_NATIVE_PIXMAP_KHR target */
 #ifdef EGL_KHR_image_pixmap
   if (target == EGL_NATIVE_PIXMAP_KHR)
+    egl_ctx = EGL_NO_CONTEXT;
+  else
+#endif
+#ifdef COGL_HAS_EGL_DMABUF_SUPPORT
+  if (target == EGL_LINUX_DMA_BUF_EXT)
     egl_ctx = EGL_NO_CONTEXT;
   else
 #endif

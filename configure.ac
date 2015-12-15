@@ -1202,6 +1202,25 @@ AS_IF([test "x$enable_xlib_egl_platform" = "xyes"],
 AM_CONDITIONAL(SUPPORT_EGL_PLATFORM_XLIB,
                [test "x$enable_xlib_egl_platform" = "xyes"])
 
+AC_ARG_ENABLE(
+  [egl-dmabuf],
+  [AC_HELP_STRING([--enable-egl-dmabuf=@<:@no/yes@:>@], [Enable dmabuf support on egl platform @<:@default=auto@:>@])],
+  [],
+  AS_IF([test $EGL_PLATFORM_COUNT -gt 0 && \
+         test "x$HAVE_GLES2" = "x1"],
+        [enable_egl_dmabuf=yes], [enable_egl_dmabuf=no])
+)
+AS_IF([test "x$enable_egl_dmabuf" = "xyes"],
+      [
+        EGL_PLATFORM_COUNT=$((EGL_PLATFORM_COUNT+1))
+        NEED_EGL=yes
+
+        COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_EGL_DMABUF_SUPPORT"
+      ])
+
+AM_CONDITIONAL(SUPPORT_EGL_DMABUF,
+               [test "x$enable_egl_dmabuf" = "xyes"])
+
 AS_IF([test "x$NEED_EGL" = "xyes" && test "x$EGL_CHECKED" != "xyes"],
       [
         PKG_CHECK_EXISTS([egl],

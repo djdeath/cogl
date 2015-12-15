@@ -962,6 +962,9 @@ cogl_texture_2d_get_gtype
 #endif
 cogl_texture_2d_new_from_bitmap
 cogl_texture_2d_new_from_data
+#ifdef COGL_HAS_EGL_DMABUF_SUPPORT
+cogl_texture_2d_new_from_dmabuf
+#endif
 cogl_texture_2d_new_from_file
 cogl_texture_2d_new_with_size
 #ifdef COGL_HAS_GTYPE_SUPPORT
