@@ -76,6 +76,11 @@ COGL_WINSYS_FEATURE_FUNCTION (EGLBoolean, eglDestroyImage,
                                EGLImageKHR image))
 COGL_WINSYS_FEATURE_END ()
 #endif
+COGL_WINSYS_FEATURE_BEGIN (image_dma_buf_import,
+                           "EXT\0",
+                           "image_dma_buf_import\0",
+                           COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_DMABUF)
+COGL_WINSYS_FEATURE_END ()
 COGL_WINSYS_FEATURE_BEGIN (image_pixmap,
                            "KHR\0",
                            "image_pixmap\0",

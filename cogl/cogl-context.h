@@ -256,6 +256,8 @@ cogl_is_context (void *object);
  *     the depth buffer to a texture.
  * @COGL_FEATURE_ID_PRESENTATION_TIME: Whether frame presentation
  *    time stamps will be recorded in #CoglFrameInfo objects.
+ * @COGL_FEATURE_ID_TEXTURE_DMABUF: Whether a texture can be created from
+ *    a dmabuf buffer.
  *
  * All the capabilities that can vary between different GPUs supported
  * by Cogl. Applications that depend on any of these features should explicitly
@@ -290,6 +292,7 @@ typedef enum _CoglFeatureID
   COGL_FEATURE_ID_PER_VERTEX_POINT_SIZE,
   COGL_FEATURE_ID_TEXTURE_RG,
   COGL_FEATURE_ID_BUFFER_AGE,
+  COGL_FEATURE_ID_TEXTURE_DMABUF,
 
   /*< private >*/
   _COGL_N_FEATURE_IDS   /*< skip >*/

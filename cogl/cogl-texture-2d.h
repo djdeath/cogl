@@ -229,6 +229,38 @@ cogl_texture_2d_new_from_data (CoglContext *ctx,
 CoglTexture2D *
 cogl_texture_2d_new_from_bitmap (CoglBitmap *bitmap);
 
+#ifdef COGL_HAS_EGL_DMABUF_SUPPORT
+/**
+ * cogl_texture_2d_new_from_dmabuf:
+ * @width: width of texture in pixels
+ * @height: height of texture in pixels
+ * @format: the #CoglPixelFormat the buffer is stored in in RAM
+ * @offset: the memory offset in bytes of the starts of the data.
+ * @rowstride: the memory offset in bytes between the starts of
+ *    scanlines in the data. A value of 0 will make Cogl automatically
+ *    calculate @rowstride from @width and @format.
+ * @fd: A dmabuf file descriptor
+ * @error: A #CoglError for exceptions
+ *
+ * Creates a low-level #CoglTexture2D texture based on data residing
+ * in a dmabuf.
+ *
+ * Returns: (transfer full): A newly allocated #CoglTexture2D
+ *
+ * Since: 2.0
+ * Stability: unstable
+ */
+CoglTexture2D *
+cogl_texture_2d_new_from_dmabuf (CoglContext *ctx,
+                                 int width,
+                                 int height,
+                                 CoglPixelFormat format,
+                                 int offset,
+                                 int rowstride,
+                                 int fd,
+                                 CoglError **error);
+#endif
+
 COGL_END_DECLS
 
 #endif /* __COGL_TEXTURE_2D_H */
