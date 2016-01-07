@@ -243,9 +243,24 @@ cogl_debug_object_foreach_type (CoglDebugObjectForeachTypeCallback func,
 void
 cogl_debug_object_print_instances (void);
 
+/**
+ * cogl_debug_object_get_list:
+ * @type_name: The name of a Cogl type your want the instances for
+ *
+ * Returns a list of Cogl objects of a given name.
+ *
+ * Returns: (transfer container) (element-type Cogl.Object): A new list of
+ *   qobject of type name @type.
+ *
+ * Since: 1.24
+ * Stability: unstable
+ */
+GList *
+cogl_debug_object_get_list (const char *type_name);
+
+
 #endif /* COGL_ENABLE_EXPERIMENTAL_API */
 
 COGL_END_DECLS
 
 #endif /* __COGL_OBJECT_H */
-
