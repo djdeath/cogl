@@ -138,31 +138,34 @@ struct _CoglObject
 #define COGL_OBJECT_COMMON_DEFINE_WITH_CODE(TypeName, type_name, code)  \
                                                                         \
 CoglObjectClass _cogl_##type_name##_class;                              \
-static unsigned long _cogl_object_##type_name##_count;                  \
+static GHashTable *_cogl_object_##type_name##_table;                    \
                                                                         \
 static inline void                                                      \
-_cogl_object_##type_name##_inc (void)                                   \
+_cogl_object_##type_name##_inc (void *obj)                              \
 {                                                                       \
-  _cogl_object_##type_name##_count++;                                   \
+  g_hash_table_insert (_cogl_object_##type_name##_table,                \
+                       obj, obj);                                       \
 }                                                                       \
                                                                         \
 static inline void                                                      \
-_cogl_object_##type_name##_dec (void)                                   \
+_cogl_object_##type_name##_dec (void *obj)                              \
 {                                                                       \
-  _cogl_object_##type_name##_count--;                                   \
+  g_hash_table_remove (_cogl_object_##type_name##_table,                \
+                       obj);                                            \
 }                                                                       \
                                                                         \
 static void                                                             \
 _cogl_object_##type_name##_indirect_free (CoglObject *obj)              \
 {                                                                       \
   _cogl_##type_name##_free ((Cogl##TypeName *) obj);                    \
-  _cogl_object_##type_name##_dec ();                                    \
+  _cogl_object_##type_name##_dec (obj);                                 \
 }                                                                       \
                                                                         \
 static void                                                             \
 _cogl_object_##type_name##_class_init (void)                            \
 {                                                                       \
-  _cogl_object_##type_name##_count = 0;                                 \
+  _cogl_object_##type_name##_table = g_hash_table_new(g_direct_hash,    \
+                                                      g_direct_equal);  \
                                                                         \
     if (_cogl_debug_instances == NULL)                                  \
       _cogl_debug_instances =                                           \
@@ -176,7 +179,7 @@ _cogl_object_##type_name##_class_init (void)                            \
                                                                         \
     g_hash_table_insert (_cogl_debug_instances,                         \
                          (void *) _cogl_##type_name##_class.name,       \
-                         &_cogl_object_##type_name##_count);            \
+                         &_cogl_object_##type_name##_table);            \
                                                                         \
     { code; }                                                           \
 }                                                                       \
@@ -196,7 +199,7 @@ _cogl_##type_name##_object_new (Cogl##TypeName *new_obj)                \
       _cogl_object_##type_name##_class_init ();                         \
     }                                                                   \
                                                                         \
-  _cogl_object_##type_name##_inc ();                                    \
+  _cogl_object_##type_name##_inc (obj);                                 \
   _COGL_OBJECT_DEBUG_NEW (TypeName, obj);                               \
   return new_obj;                                                       \
 }

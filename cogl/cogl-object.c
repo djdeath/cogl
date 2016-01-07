@@ -275,15 +275,16 @@ cogl_debug_object_foreach_type (CoglDebugObjectForeachTypeCallback func,
                                 void *user_data)
 {
   GHashTableIter iter;
+  GHashTable *obj_table;
   unsigned long *instance_count;
   CoglDebugObjectTypeInfo info;
 
   g_hash_table_iter_init (&iter, _cogl_debug_instances);
   while (g_hash_table_iter_next (&iter,
                                  (void *) &info.name,
-                                 (void *) &instance_count))
+                                 (void *) &obj_table))
     {
-      info.instance_count = *instance_count;
+      info.instance_count = g_hash_table_size (obj_table);
       func (&info, user_data);
     }
 }
@@ -301,4 +302,16 @@ cogl_debug_object_print_instances (void)
   g_print ("Cogl instances:\n");
 
   cogl_debug_object_foreach_type (print_instances_cb, NULL);
+}
+
+GList *
+cogl_debug_object_get_list (const char *type_name)
+{
+  GHashTable *obj_table = g_hash_table_lookup (_cogl_debug_instances,
+                                               type_name);
+
+  if (!obj_table)
+    return NULL;
+
+  return g_hash_table_get_values (obj_table);
 }
