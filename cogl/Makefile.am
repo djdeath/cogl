@@ -226,6 +226,12 @@ cogl_driver_sources += \
 	$(NULL)
 endif
 
+if COGL_DRIVER_VULKAN_SUPPORTED
+cogl_driver_sources += \
+	driver/vulkan/cogl-driver-vulkan.c \
+	$(NULL)
+endif
+
 # winsys sources, common to all backends
 cogl_winsys_common_sources = \
 	winsys/cogl-winsys-private.h \

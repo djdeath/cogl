@@ -337,6 +337,13 @@ struct _CoglContext
   CoglPollSource *fences_poll_source;
   CoglList fences;
 
+#ifdef COGL_HAS_VULKAN
+  VkInstance vk_instance;
+  VkPhysicalDevice vk_physical_device;
+  VkDevice vk_device;
+  VkQueue vk_queue;
+#endif
+
   /* This defines a list of function pointers that Cogl uses from
      either GL or GLES. All functions are accessed indirectly through
      these pointers rather than linking to them directly */

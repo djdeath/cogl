@@ -816,9 +816,33 @@ AS_IF([test "x$enable_gl" = "xyes"],
         HAVE_GL=1
       ])
 
+HAVE_VULKAN=0
+AC_ARG_ENABLE(
+  [vulkan],
+  [AC_HELP_STRING([--enable-vulkan=@<:@no/yes@:>@], [Enable support for Vulkan @<:@default=no@:>@])],
+  [],
+  enable_vulkan=no
+)
+AS_IF([test "x$enable_vulkan" = "xyes"],
+      [
+        enabled_drivers="$enabled_drivers vulkan"
+
+        cogl_gl_headers="vulkan/vulkan.h"
+        AC_DEFINE([HAVE_COGL_VULKAN], 1, [Have Vulkan for rendering])
+        COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN"
+        HAVE_VULKAN=1
+
+        AC_CHECK_HEADER([vulkan/vulkan.h],
+                        [],
+                        [AC_MSG_ERROR([Unable to locate vulkan/vulkan.h])])
+
+        COGL_VULKAN_LIBNAME="libvulkan.so"
+      ])
+
 AM_CONDITIONAL([COGL_DRIVER_GL_SUPPORTED], [test "x$enable_gl" = "xyes"])
 AM_CONDITIONAL([COGL_DRIVER_GLES_SUPPORTED],
                [test "x$enable_gles1" = "xyes" || test "x$enable_gles2" = "xyes"])
+AM_CONDITIONAL([COGL_DRIVER_VULKAN_SUPPORTED], [test "x$enable_vulkan" = "xyes"])
 
 dnl Allow the GL library names and default driver to be overridden with configure options
 AC_ARG_WITH([gl-libname],
@@ -1563,7 +1587,7 @@ echo " • Features:"
 echo "        Drivers: ${enabled_drivers}"
 AS_IF([test "x$GL_LIBRARY_DIRECTLY_LINKED" != xyes],
       [for driver in $enabled_drivers; do
-         driver=`echo $driver | tr "[gles]" "[GLES]"`
+         driver=`echo $driver | tr "[gles]" "[GLES]" | tr "[vulkan]" "[VULKAN]"`
          libname=`eval echo \\$COGL_${driver}_LIBNAME`
          echo "        Library name for $driver: $libname"
        done])
