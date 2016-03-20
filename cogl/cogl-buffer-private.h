@@ -99,7 +99,6 @@ struct _CoglBuffer
 
   CoglBufferFlags flags;
 
-  GLuint gl_handle; /* OpenGL handle */
   unsigned int size; /* size of the buffer, in bytes */
   CoglBufferUsageHint usage_hint;
   CoglBufferUpdateHint update_hint;
@@ -111,6 +110,19 @@ struct _CoglBuffer
   int immutable_ref;
 
   unsigned int store_created:1;
+
+  GLuint gl_handle; /* OpenGL handle */
+#ifdef COGL_HAS_VULKAN
+  VkBuffer vk_buffer;
+  CoglBool vk_buffer_valid;
+
+  VkDeviceMemory vk_memory;
+  CoglBool vk_memory_valid;
+
+  CoglBool vk_memory_need_flush;
+  size_t vk_memory_map_offset;
+  size_t vk_memory_map_size;
+#endif
 };
 
 /* This is used to register a type to the list of handle types that

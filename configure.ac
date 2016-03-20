@@ -827,7 +827,7 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
       [
         enabled_drivers="$enabled_drivers vulkan"
 
-        cogl_gl_headers="vulkan/vulkan.h"
+        cogl_vulkan_headers="vulkan/vulkan.h"
         AC_DEFINE([HAVE_COGL_VULKAN], 1, [Have Vulkan for rendering])
         COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN"
         HAVE_VULKAN=1
@@ -836,7 +836,19 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
                         [],
                         [AC_MSG_ERROR([Unable to locate vulkan/vulkan.h])])
 
+        PKG_CHECK_MODULES([XCB], [xcb],
+                          [
+                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS VK_USE_PLATFORM_XCB_KHR"
+                          ],
+                          [])
+        PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= wayland_req_version],
+                          [
+                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS VK_USE_PLATFORM_WAYLAND_KHR"
+                          ],
+                          [])
+
         COGL_VULKAN_LIBNAME="libvulkan.so"
+        COGL_EXTRA_LDFLAGS="$COGL_EXTRA_LDFLAGS -lvulkan"
       ])
 
 AM_CONDITIONAL([COGL_DRIVER_GL_SUPPORTED], [test "x$enable_gl" = "xyes"])
@@ -1490,6 +1502,10 @@ dnl include. We'll now convert them to a single variable with a
 dnl #include line for each header
 COGL_GL_HEADER_INCLUDES=""
 for x in $cogl_gl_headers; do
+  COGL_GL_HEADER_INCLUDES="$COGL_GL_HEADER_INCLUDES
+#include <$x>"
+done;
+for x in $cogl_vulkan_headers; do
   COGL_GL_HEADER_INCLUDES="$COGL_GL_HEADER_INCLUDES
 #include <$x>"
 done;

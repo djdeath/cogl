@@ -228,7 +228,14 @@ endif
 
 if COGL_DRIVER_VULKAN_SUPPORTED
 cogl_driver_sources += \
+	driver/vulkan/cogl-buffer-vulkan.c \
+	driver/vulkan/cogl-buffer-vulkan-private.h \
 	driver/vulkan/cogl-driver-vulkan.c \
+	driver/vulkan/cogl-texture-2d-vulkan.c \
+	driver/vulkan/cogl-texture-2d-vulkan-private.h \
+	driver/vulkan/cogl-texture-driver-vulkan.c \
+	driver/vulkan/cogl-util-vulkan.c \
+	driver/vulkan/cogl-util-vulkan-private.h \
 	$(NULL)
 endif
 

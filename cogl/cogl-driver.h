@@ -265,4 +265,3 @@ uint32_t
 _cogl_driver_error_quark (void);
 
 #endif /* __COGL_DRIVER_H */
-

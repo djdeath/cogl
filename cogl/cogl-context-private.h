@@ -342,6 +342,10 @@ struct _CoglContext
   VkPhysicalDevice vk_physical_device;
   VkDevice vk_device;
   VkQueue vk_queue;
+  VkPipelineLayout vk_pipeline_layout;
+  VkPipeline vk_pipeline;
+  VkDeviceMemory vk_mem;
+  VkCommandPool vk_cmd_pool;
 #endif
 
   /* This defines a list of function pointers that Cogl uses from

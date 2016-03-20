@@ -32,21 +32,20 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
 #include <string.h>
-
-#include <vulkan/vulkan.h>
 
 #include "cogl-private.h"
 #include "cogl-context-private.h"
-#include "cogl-util-gl-private.h"
+#include "cogl-util-vulkan-private.h"
 #include "cogl-feature-private.h"
 #include "cogl-renderer-private.h"
 #include "cogl-error-private.h"
-#include "cogl-framebuffer-gl-private.h"
-#include "cogl-texture-2d-gl-private.h"
-#include "cogl-attribute-gl-private.h"
-#include "cogl-clip-stack-gl-private.h"
-#include "cogl-buffer-gl-private.h"
+#include "cogl-framebuffer-vulkan-private.h"
+#include "cogl-texture-2d-vulkan-private.h"
+/* #include "cogl-attribute-gl-private.h" */
+/* #include "cogl-clip-stack-gl-private.h" */
+#include "cogl-buffer-vulkan-private.h"
 
 static CoglBool
 _cogl_driver_pixel_format_from_gl_internal (CoglContext *context,
@@ -72,12 +71,16 @@ get_extension_for_winsys_id (CoglWinsysID winsys_id)
 {
   switch (winsys_id)
     {
+#ifdef VK_KHR_xcb_surface
     case COGL_WINSYS_ID_GLX:
       return VK_KHR_XCB_SURFACE_EXTENSION_NAME;
     case COGL_WINSYS_ID_EGL_XLIB:
       return VK_KHR_XCB_SURFACE_EXTENSION_NAME;
+#endif
+#ifdef VK_KHR_wayland_surface
     case COGL_WINSYS_ID_EGL_WAYLAND:
       return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
+#endif
     default:
       return NULL;
     }
@@ -98,10 +101,11 @@ _cogl_driver_update_features (CoglContext *ctx,
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
 
   /* Cache features */
-  for (i = 0; i < G_N_ELEMENTS (private_features); i++)
-    ctx->private_features[i] |= private_features[i];
+  /* for (i = 0; i < G_N_ELEMENTS (private_features); i++) */
+  /*   ctx->private_features[i] |= private_features[i]; */
   ctx->feature_flags |= flags;
 
+  const char *extension = get_extension_for_winsys_id (cogl_renderer_get_winsys_id (ctx->display->renderer));
   vkCreateInstance(&(VkInstanceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       .pApplicationInfo = &(VkApplicationInfo) {
@@ -116,7 +120,6 @@ _cogl_driver_update_features (CoglContext *ctx,
     &ctx->vk_instance);
 
   uint32_t count = 1;
-  const char *extension = get_extension_for_winsys_id (cogl_renderer_get_winsys_id (ctx->display->renderer));
   vkEnumeratePhysicalDevices(ctx->vk_instance, &count,
                              &ctx->vk_physical_device);
   printf("%d physical devices\n", count);
@@ -135,83 +138,57 @@ _cogl_driver_update_features (CoglContext *ctx,
 
   vkGetDeviceQueue(ctx->vk_device, 0, 0, &ctx->vk_queue);
 
-  /* TODO: per framebuffer? */
-  vkCreateRenderPass(vc->device,
-                     &(VkRenderPassCreateInfo) {
-                       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                         .attachmentCount = 1,
-                         .pAttachments = (VkAttachmentDescription[]) {
-                         {
-                           .format = VK_FORMAT_R8G8B8A8_SRGB,
-                           .samples = 1,
-                           .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                           .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                           .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                           .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                         }
+  vkCreateFence (ctx->vk_device,
+                 &(VkFenceCreateInfo) {
+                   .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                   .flags = 0
+                 },
+                 NULL,
+                 &ctx->vk_fence);
+
+  vkCreateCommandPool (ctx->vk_device,
+                       &(const VkCommandPoolCreateInfo) {
+                         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                         .queueFamilyIndex = 0,
+                         .flags = 0
                        },
-                         .subpassCount = 1,
-                            .pSubpasses = (VkSubpassDescription []) {
-                         {
-                           .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                           .inputAttachmentCount = 0,
-                           .colorAttachmentCount = 1,
-                           .pColorAttachments = (VkAttachmentReference []) {
-                             {
-                               .attachment = 0,
-                               .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                             }
-                           },
-                           .pResolveAttachments = (VkAttachmentReference []) {
-                             {
-                               .attachment = VK_ATTACHMENT_UNUSED,
-                               .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                             }
-                           },
-                           .pDepthStencilAttachment = NULL,
-                           .preserveAttachmentCount = 1,
-                           .pPreserveAttachments = (uint32_t []) { 0 },
-                         }
-                       },
-                            .dependencyCount = 0
-                               },
-                     NULL,
-                     &ctx->render_pass);
+                       NULL,
+                       &ctx->vk_cmd_pool);
 
 
   return TRUE;
 }
 
 const CoglDriverVtable
-_cogl_driver_gl =
+_cogl_driver_vulkan =
   {
     _cogl_driver_pixel_format_from_gl_internal,
     _cogl_driver_pixel_format_to_gl,
     _cogl_driver_update_features,
-    _cogl_offscreen_gl_allocate,
-    _cogl_offscreen_gl_free,
-    _cogl_framebuffer_gl_flush_state,
-    _cogl_framebuffer_gl_clear,
-    _cogl_framebuffer_gl_query_bits,
-    _cogl_framebuffer_gl_finish,
-    _cogl_framebuffer_gl_discard_buffers,
-    _cogl_framebuffer_gl_draw_attributes,
-    _cogl_framebuffer_gl_draw_indexed_attributes,
-    _cogl_framebuffer_gl_read_pixels_into_bitmap,
-    _cogl_texture_2d_gl_free,
-    _cogl_texture_2d_gl_can_create,
-    _cogl_texture_2d_gl_init,
-    _cogl_texture_2d_gl_allocate,
-    _cogl_texture_2d_gl_copy_from_framebuffer,
-    _cogl_texture_2d_gl_get_gl_handle,
-    _cogl_texture_2d_gl_generate_mipmap,
-    _cogl_texture_2d_gl_copy_from_bitmap,
-    _cogl_texture_2d_gl_get_data,
-    _cogl_gl_flush_attributes_state,
-    _cogl_clip_stack_gl_flush,
-    _cogl_buffer_gl_create,
-    _cogl_buffer_gl_destroy,
-    _cogl_buffer_gl_map_range,
-    _cogl_buffer_gl_unmap,
-    _cogl_buffer_gl_set_data,
+    _cogl_offscreen_vulkan_allocate,
+    _cogl_offscreen_vulkan_free,
+    _cogl_framebuffer_vulkan_flush_state,
+    _cogl_framebuffer_vulkan_clear,
+    _cogl_framebuffer_vulkan_query_bits,
+    _cogl_framebuffer_vulkan_finish,
+    _cogl_framebuffer_vulkan_discard_buffers,
+    _cogl_framebuffer_vulkan_draw_attributes,
+    _cogl_framebuffer_vulkan_draw_indexed_attributes,
+    _cogl_framebuffer_vulkan_read_pixels_into_bitmap,
+    _cogl_texture_2d_vulkan_free,
+    _cogl_texture_2d_vulkan_can_create,
+    _cogl_texture_2d_vulkan_init,
+    _cogl_texture_2d_vulkan_allocate,
+    _cogl_texture_2d_vulkan_copy_from_framebuffer,
+    _cogl_texture_2d_vulkan_get_gl_handle,
+    _cogl_texture_2d_vulkan_generate_mipmap,
+    _cogl_texture_2d_vulkan_copy_from_bitmap,
+    _cogl_texture_2d_vulkan_get_data,
+    _cogl_vulkan_flush_attributes_state,
+    _cogl_clip_stack_vulkan_flush,
+    _cogl_buffer_vulkan_create,
+    _cogl_buffer_vulkan_destroy,
+    _cogl_buffer_vulkan_map_range,
+    _cogl_buffer_vulkan_unmap,
+    _cogl_buffer_vulkan_set_data,
   };

@@ -96,6 +96,10 @@ extern const CoglDriverVtable _cogl_driver_gl;
 extern const CoglTextureDriver _cogl_texture_driver_gles;
 extern const CoglDriverVtable _cogl_driver_gles;
 #endif
+#ifdef HAVE_COGL_VULKAN
+extern const CoglTextureDriver _cogl_texture_driver_vulkan;
+extern const CoglDriverVtable _cogl_driver_vulkan;
+#endif
 
 extern const CoglDriverVtable _cogl_driver_nop;
 
@@ -182,6 +186,18 @@ static CoglDriverDescription _cogl_drivers[] =
       -1 },
     &_cogl_driver_gles,
     &_cogl_texture_driver_gles,
+    NULL,
+  },
+#endif
+#ifdef HAVE_COGL_VULKAN
+  {
+    COGL_DRIVER_VULKAN,
+    "vulkan",
+    0,
+    { COGL_PRIVATE_FEATURE_GL_PROGRAMMABLE,
+      -1 },
+    &_cogl_driver_vulkan,
+    &_cogl_texture_driver_vulkan,
     NULL,
   },
 #endif

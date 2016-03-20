@@ -208,11 +208,21 @@ typedef struct _CoglGLFramebuffer
   int samples_per_pixel;
 } CoglGLFramebuffer;
 
+#ifdef COGL_HAS_VULKAN
+typedef struct _CoglVulkanFramebuffer
+{
+  VkRenderPass vk_render_pass;
+} CoglVulkanFrameBuffer;
+#endif
+
 struct _CoglOffscreen
 {
   CoglFramebuffer  _parent;
 
   CoglGLFramebuffer gl_framebuffer;
+#ifdef COGL_HAS_VULKAN
+  CoglVulkanFrameBuffer vk_framebuffer;
+#endif
 
   CoglTexture    *texture;
   int             texture_level;

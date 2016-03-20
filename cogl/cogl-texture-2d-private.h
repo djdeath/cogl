@@ -64,6 +64,20 @@ struct _CoglTexture2D
   GLint gl_legacy_texobj_wrap_mode_s;
   GLint gl_legacy_texobj_wrap_mode_t;
   CoglTexturePixel first_pixel;
+
+#ifdef COGL_HAS_VULKAN
+  VkImage vk_image;
+  CoglBool vk_image_valid;
+
+  VkFilter vk_min_filter;
+  VkFilter vk_mag_filter;
+
+  VkSamplerAddressMode vk_mode_u;
+  VkSamplerAddressMode vk_mode_v;
+
+  VkSampler vk_sampler;
+  CoglBool vk_sampler_valid;
+#endif
 };
 
 CoglTexture2D *
