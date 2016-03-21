@@ -636,15 +636,10 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   result = vkCreateImageView (ctx->vk_device,
                               &(VkImageViewCreateInfo) {
                                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                .image = b->image,
+                                .image = _cogl_texture_2d_get_vulkan_texture (COGL_TEXTURE_2d (offscreen->texture)),
                                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                .format = VK_FORMAT_B8G8R8A8_SRGB,
-                                .components = {
-                                  .r = VK_COMPONENT_SWIZZLE_R,
-                                  .g = VK_COMPONENT_SWIZZLE_G,
-                                  .b = VK_COMPONENT_SWIZZLE_B,
-                                  .a = VK_COMPONENT_SWIZZLE_A,
-                                },
+                                .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
+                                .components = COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY,
                                 .subresourceRange = {
                                   .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                                   .baseMipLevel = 0,
@@ -668,9 +663,9 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                 &(VkFramebufferCreateInfo) {
                                   .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                                   .attachmentCount = 1,
-                                  .pAttachments = &b->view,
-                                  .width = vc->width,
-                                  .height = vc->height,
+                                  .pAttachments = &vk_framebuffer->vk_image_view,
+                                  .width = cogl_texture_get_width (offscreen->texture),
+                                  .height = cogl_texture_get_height (offscreen->texture),
                                   .layers = 1
                                 },
                                 NULL,
@@ -748,14 +743,14 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 }
 
 static CoglBool
-_ensure_render_pass (CoglOffscreen *offscreen,
-                     CoglError **error)
+_ensure_command_buffer (CoglOffscreen *offscreen,
+                        CoglError **error)
 {
   CoglContext *ctx = fb->context;
   CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
   VkResult result;
 
-  if (vk_framebuffer->vk_cmd_buffer_valid)
+  if (vk_framebuffer->emitting_commands)
     return TRUE;
 
   result = vkAllocateCommandBuffers (ctx->vk_device,
@@ -775,8 +770,36 @@ _ensure_render_pass (CoglOffscreen *offscreen,
       return FALSE;
     }
 
+  result = vkBeginCommandBuffer (vk_framebuffer->vk_cmd_buffer,
+                                 &(VkCommandBufferBeginInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                   .flags = 0
+                                 });
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
+                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
+                       "Failed to begin command buffer : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
 
-  vk_framebuffer->vk_cmd_buffer_valid = TRUE;
+  vkCmdBeginRenderPass (vk_framebuffer->vk_cmd_buffer,
+                        &(VkRenderPassBeginInfo) {
+                          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                          .renderPass = vk_framebuffer->vk_render_pass,
+                          .framebuffer = vk_framebuffer->vk_framebuffer,
+                          .renderArea = {
+                            { 0, 0 },
+                            { cogl_texture_get_width (offscreen->texture),
+                              cogl_texture_get_height (offscreen->height) }
+                          },
+                          .clearValueCount = 1,
+                          .pClearValues = (VkClearValue []) {
+                            { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
+                          }
+                        },
+                        VK_SUBPASS_CONTENTS_INLINE);
 
   return TRUE;
 }
@@ -787,8 +810,11 @@ _cogl_offscreen_gl_free (CoglOffscreen *offscreen)
   CoglContext *ctx = COGL_FRAMEBUFFER (offscreen)->context;
   CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
 
-  vkDestroy
+  vkFreeCommandBuffers (ctx->vk_device, ctx->vk_cmd_pool,
+                        1, &vk_framebuffer->vk_cmd_buffer);
   vkDestroyRenderPass (ctx->vk_device, vk_framebuffer->vk_render_pass, NULL);
+  vkDestroyFramebuffer (ctx->vk_device, vk_framebuffer->vk_framebuffer, NULL);
+  vkDestroyImageView (ctx->vk_device, vk_framebuffer->vk_image_view, NULL);
 }
 
 void
@@ -800,12 +826,6 @@ _cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
                             float alpha)
 {
   CoglContext *ctx = framebuffer->context;
-
-  vkCmdBeginRenderPass (
-                        VkCommandBuffer                             commandBuffer,
-                        const VkRenderPassBeginInfo*                pRenderPassBegin,
-                       VkSubpassContents                           contents);
-
 
   vkCmdClearColorImage (ctx->vk_cmd_buffer,
                         offscreen->vk_image,
@@ -830,46 +850,17 @@ _cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
 }
 
 void
-_cogl_framebuffer_gl_finish (CoglFramebuffer *framebuffer)
+_cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
 {
   vkCmdEndRenderPass (VkCommandBuffer commandBuffer);
 }
 
 void
-_cogl_framebuffer_gl_discard_buffers (CoglFramebuffer *framebuffer,
+_cogl_framebuffer_vulkan_discard_buffers (CoglFramebuffer *framebuffer,
                                       unsigned long buffers)
 {
   CoglContext *ctx = framebuffer->context;
 
-  if (ctx->glDiscardFramebuffer)
-    {
-      GLenum attachments[3];
-      int i = 0;
-
-      if (framebuffer->type == COGL_FRAMEBUFFER_TYPE_ONSCREEN)
-        {
-          if (buffers & COGL_BUFFER_BIT_COLOR)
-            attachments[i++] = GL_COLOR;
-          if (buffers & COGL_BUFFER_BIT_DEPTH)
-            attachments[i++] = GL_DEPTH;
-          if (buffers & COGL_BUFFER_BIT_STENCIL)
-            attachments[i++] = GL_STENCIL;
-        }
-      else
-        {
-          if (buffers & COGL_BUFFER_BIT_COLOR)
-            attachments[i++] = GL_COLOR_ATTACHMENT0;
-          if (buffers & COGL_BUFFER_BIT_DEPTH)
-            attachments[i++] = GL_DEPTH_ATTACHMENT;
-          if (buffers & COGL_BUFFER_BIT_STENCIL)
-            attachments[i++] = GL_STENCIL_ATTACHMENT;
-        }
-
-      _cogl_framebuffer_flush_state (framebuffer,
-                                     framebuffer,
-                                     COGL_FRAMEBUFFER_STATE_BIND);
-      GE (ctx, glDiscardFramebuffer (GL_FRAMEBUFFER, i, attachments));
-    }
 }
 
 void
@@ -958,103 +949,13 @@ _cogl_framebuffer_gl_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   _cogl_buffer_gl_unbind (buffer);
 }
 
-static CoglBool
-mesa_46631_slow_read_pixels_workaround (CoglFramebuffer *framebuffer,
-                                        int x,
-                                        int y,
-                                        CoglReadPixelsFlags source,
-                                        CoglBitmap *bitmap,
-                                        CoglError **error)
-{
-  CoglContext *ctx;
-  CoglPixelFormat format;
-  CoglBitmap *pbo;
-  int width;
-  int height;
-  CoglBool res;
-  uint8_t *dst;
-  const uint8_t *src;
-
-  ctx = cogl_framebuffer_get_context (framebuffer);
-
-  width = cogl_bitmap_get_width (bitmap);
-  height = cogl_bitmap_get_height (bitmap);
-  format = cogl_bitmap_get_format (bitmap);
-
-  pbo = cogl_bitmap_new_with_size (ctx, width, height, format);
-
-  /* Read into the pbo. We need to disable the flipping because the
-     blit fast path in the driver does not work with
-     GL_PACK_INVERT_MESA is set */
-  res = _cogl_framebuffer_read_pixels_into_bitmap (framebuffer,
-                                                   x, y,
-                                                   source |
-                                                   COGL_READ_PIXELS_NO_FLIP,
-                                                   pbo,
-                                                   error);
-  if (!res)
-    {
-      cogl_object_unref (pbo);
-      return FALSE;
-    }
-
-  /* Copy the pixels back into application's buffer */
-  dst = _cogl_bitmap_map (bitmap,
-                          COGL_BUFFER_ACCESS_WRITE,
-                          COGL_BUFFER_MAP_HINT_DISCARD,
-                          error);
-  if (!dst)
-    {
-      cogl_object_unref (pbo);
-      return FALSE;
-    }
-
-  src = _cogl_bitmap_map (pbo,
-                          COGL_BUFFER_ACCESS_READ,
-                          0, /* hints */
-                          error);
-  if (src)
-    {
-      int src_rowstride = cogl_bitmap_get_rowstride (pbo);
-      int dst_rowstride = cogl_bitmap_get_rowstride (bitmap);
-      int to_copy =
-        _cogl_pixel_format_get_bytes_per_pixel (format) * width;
-      int y;
-
-      /* If the framebuffer is onscreen we need to flip the
-         data while copying */
-      if (!cogl_is_offscreen (framebuffer))
-        {
-          src += src_rowstride * (height - 1);
-          src_rowstride = -src_rowstride;
-        }
-
-      for (y = 0; y < height; y++)
-        {
-          memcpy (dst, src, to_copy);
-          dst += dst_rowstride;
-          src += src_rowstride;
-        }
-
-      _cogl_bitmap_unmap (pbo);
-    }
-  else
-    res = FALSE;
-
-  _cogl_bitmap_unmap (bitmap);
-
-  cogl_object_unref (pbo);
-
-  return res;
-}
-
 CoglBool
-_cogl_framebuffer_gl_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
-                                              int x,
-                                              int y,
-                                              CoglReadPixelsFlags source,
-                                              CoglBitmap *bitmap,
-                                              CoglError **error)
+_cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
+                                                  int x,
+                                                  int y,
+                                                  CoglReadPixelsFlags source,
+                                                  CoglBitmap *bitmap,
+                                                  CoglError **error)
 {
   CoglContext *ctx = framebuffer->context;
   int framebuffer_height = cogl_framebuffer_get_height (framebuffer);

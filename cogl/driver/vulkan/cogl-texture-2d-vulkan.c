@@ -40,6 +40,18 @@
 #include "cogl-error-private.h"
 #include "cogl-util-vulkan-private.h"
 
+VkImage
+_cogl_texture_2d_get_vulkan_texture (CoglTexture2D *tex_2d)
+{
+  return tex_2d->vk_image;
+}
+
+VkFormat
+_cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
+{
+  return _cogl_pixel_format_to_vulkan_format (tex_2d->internal_format);
+}
+
 void
 _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d)
 {

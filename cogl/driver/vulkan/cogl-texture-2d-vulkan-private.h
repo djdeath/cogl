@@ -35,6 +35,12 @@
 #include "cogl-context-private.h"
 #include "cogl-texture.h"
 
+VkImage
+_cogl_texture_2d_get_vulkan_texture (CoglTexture2D *tex_2d);
+
+VkFormat
+_cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d);
+
 void
 _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d);
 
