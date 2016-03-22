@@ -231,6 +231,14 @@ cogl_driver_sources += \
 	driver/vulkan/cogl-buffer-vulkan.c \
 	driver/vulkan/cogl-buffer-vulkan-private.h \
 	driver/vulkan/cogl-driver-vulkan.c \
+	driver/vulkan/cogl-framebuffer-vulkan.c \
+	driver/vulkan/cogl-framebuffer-vulkan-private.h \
+	driver/vulkan/cogl-pipeline-fragend-vulkan.c \
+	driver/vulkan/cogl-pipeline-fragend-vulkan-private.h \
+	driver/vulkan/cogl-pipeline-progend-vulkan.c \
+	driver/vulkan/cogl-pipeline-progend-vulkan-private.h \
+	driver/vulkan/cogl-pipeline-vertend-vulkan.c \
+	driver/vulkan/cogl-pipeline-vertend-vulkan-private.h \
 	driver/vulkan/cogl-texture-2d-vulkan.c \
 	driver/vulkan/cogl-texture-2d-vulkan-private.h \
 	driver/vulkan/cogl-texture-driver-vulkan.c \

@@ -31,6 +31,10 @@
 #ifndef __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 #define __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 
+void
+_cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
+                               CoglFramebuffer *framebuffer);
+
 CoglBool
 _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  CoglError **error);

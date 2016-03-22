@@ -39,9 +39,7 @@
 #include "cogl-context-private.h"
 #include "cogl-util-gl-private.h"
 #include "cogl-pipeline-private.h"
-#include "cogl-pipeline-opengl-private.h"
-
-#ifdef COGL_PIPELINE_VERTEND_VULKAN
+#include "cogl-pipeline-vulkan-private.h"
 
 #include "cogl-context-private.h"
 #include "cogl-object-private.h"
@@ -614,5 +612,3 @@ const CoglPipelineVertend _cogl_pipeline_vulkan_vertend =
     _cogl_pipeline_vertend_vulkan_pre_change_notify,
     _cogl_pipeline_vertend_vulkan_layer_pre_change_notify
   };
-
-#endif /* COGL_PIPELINE_VERTEND_VULKAN */

@@ -38,10 +38,8 @@
 #include "cogl-context-private.h"
 #include "cogl-util-gl-private.h"
 #include "cogl-pipeline-private.h"
-#include "cogl-pipeline-opengl-private.h"
+#include "cogl-pipeline-vulkan-private.h"
 #include "cogl-offscreen.h"
-
-#ifdef COGL_PIPELINE_PROGEND_VULKAN
 
 #include "cogl-context-private.h"
 #include "cogl-object-private.h"
@@ -643,9 +641,6 @@ _cogl_pipeline_progend_vulkan_start (CoglPipeline *pipeline)
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  if (!cogl_has_feature (ctx, COGL_FEATURE_ID_VULKAN))
-    return FALSE;
-
   user_program = cogl_pipeline_get_user_program (pipeline);
   if (user_program &&
       _cogl_program_get_language (user_program) != COGL_SHADER_LANGUAGE_GLSL)
@@ -1067,5 +1062,3 @@ const CoglPipelineProgend _cogl_pipeline_vulkan_progend =
     _cogl_pipeline_progend_vulkan_layer_pre_change_notify,
     _cogl_pipeline_progend_vulkan_pre_paint
   };
-
-#endif /* COGL_PIPELINE_PROGEND_VULKAN */

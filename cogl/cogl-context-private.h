@@ -342,8 +342,7 @@ struct _CoglContext
   VkPhysicalDevice vk_physical_device;
   VkDevice vk_device;
   VkQueue vk_queue;
-  VkPipelineLayout vk_pipeline_layout;
-  VkPipeline vk_pipeline;
+  VkFence vk_fence;
   VkDeviceMemory vk_mem;
   VkCommandPool vk_cmd_pool;
 #endif

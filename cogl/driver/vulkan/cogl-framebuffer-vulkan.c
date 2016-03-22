@@ -44,13 +44,92 @@
 #include <glib.h>
 #include <string.h>
 
-static void
-_cogl_framebuffer_gl_flush_viewport_state (CoglFramebuffer *framebuffer)
+static CoglVulkanFramebuffer *
+_get_vulkan_framebuffer (CoglFramebuffer *framebuffer)
 {
-  float gl_viewport_y;
+  /* TODO: Figure out how to retrieve that structure from both onscreens and
+     offscreens. */
+  return NULL;
+}
+
+static CoglBool
+_ensure_command_buffer (CoglFramebuffer *framebuffer,
+                        CoglError **error)
+{
+  CoglContext *ctx = fb->context;
+  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  VkResult result;
+
+  if (vk_framebuffer->emitting_commands)
+    return TRUE;
+
+  result = vkAllocateCommandBuffers (ctx->vk_device,
+                                     &(VkCommandBufferAllocateInfo) {
+                                       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                                       .commandPool = ctx->vk_cmd_pool,
+                                       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                                       .commandBufferCount = 1,
+                                     },
+                                     &vk_framebuffer->vk_cmd_buffer);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
+                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
+                       "Failed to allocate command buffer : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
+
+  result = vkBeginCommandBuffer (vk_framebuffer->vk_cmd_buffer,
+                                 &(VkCommandBufferBeginInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                   .flags = 0
+                                 });
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
+                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
+                       "Failed to begin command buffer : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
+
+  vkCmdBeginRenderPass (vk_framebuffer->vk_cmd_buffer,
+                        &(VkRenderPassBeginInfo) {
+                          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                          .renderPass = vk_framebuffer->vk_render_pass,
+                          .framebuffer = vk_framebuffer->vk_framebuffer,
+                          .renderArea = {
+                            { 0, 0 },
+                            { cogl_texture_get_width (framebuffer->width),
+                              cogl_texture_get_height (framebuffer->height) }
+                          },
+                          .clearValueCount = 1,
+                          .pClearValues = (VkClearValue []) {
+                            { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
+                          }
+                        },
+                        VK_SUBPASS_CONTENTS_INLINE);
+
+  return TRUE;
+}
+
+static void
+_cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
+{
+  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  VkViewport vk_viewport;
+
+  _ensure_command_buffer (framebuffer, NULL);
 
   g_assert (framebuffer->viewport_width >=0 &&
             framebuffer->viewport_height >=0);
+
+  vk_viewport.x = framebuffer->viewport_x;
+  vk_viewport.width = framebuffer->viewport_width;
+  vk_viewport.height = framebuffer->viewport_height;
+  vk_viewport.minDepth = 0;
+  vk_viewport.maxDepth = 1;
 
   /* Convert the Cogl viewport y offset to an OpenGL viewport y offset
    * NB: OpenGL defines its window and viewport origins to be bottom
@@ -58,194 +137,36 @@ _cogl_framebuffer_gl_flush_viewport_state (CoglFramebuffer *framebuffer)
    * NB: We render upside down to offscreen framebuffers so we don't
    * need to convert the y offset in this case. */
   if (cogl_is_offscreen (framebuffer))
-    gl_viewport_y = framebuffer->viewport_y;
+    vk_viewport.y = framebuffer->viewport_y;
   else
-    gl_viewport_y = framebuffer->height -
+    vk_viewport.y = framebuffer->height -
       (framebuffer->viewport_y + framebuffer->viewport_height);
 
-  COGL_NOTE (OPENGL, "Calling glViewport(%f, %f, %f, %f)",
-             framebuffer->viewport_x,
-             gl_viewport_y,
-             framebuffer->viewport_width,
-             framebuffer->viewport_height);
+  COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)",
+             vk_viewport.x,
+             vk_viewport.y,
+             vk_viewport.width,
+             vk_viewport.height);
 
-  GE (framebuffer->context,
-      glViewport (framebuffer->viewport_x,
-                  gl_viewport_y,
-                  framebuffer->viewport_width,
-                  framebuffer->viewport_height));
-}
-
-static void
-_cogl_framebuffer_gl_flush_clip_state (CoglFramebuffer *framebuffer)
-{
-  _cogl_clip_stack_flush (framebuffer->clip_stack, framebuffer);
-}
-
-static void
-_cogl_framebuffer_gl_flush_dither_state (CoglFramebuffer *framebuffer)
-{
-  CoglContext *ctx = framebuffer->context;
-
-  if (ctx->current_gl_dither_enabled != framebuffer->dither_enabled)
-    {
-      if (framebuffer->dither_enabled)
-        GE (ctx, glEnable (GL_DITHER));
-      else
-        GE (ctx, glDisable (GL_DITHER));
-      ctx->current_gl_dither_enabled = framebuffer->dither_enabled;
-    }
-}
-
-static void
-_cogl_framebuffer_gl_flush_modelview_state (CoglFramebuffer *framebuffer)
-{
-  CoglMatrixEntry *modelview_entry =
-    _cogl_framebuffer_get_modelview_entry (framebuffer);
-  _cogl_context_set_current_modelview_entry (framebuffer->context,
-                                             modelview_entry);
-}
-
-static void
-_cogl_framebuffer_gl_flush_projection_state (CoglFramebuffer *framebuffer)
-{
-  CoglMatrixEntry *projection_entry =
-    _cogl_framebuffer_get_projection_entry (framebuffer);
-  _cogl_context_set_current_projection_entry (framebuffer->context,
-                                             projection_entry);
-}
-
-static void
-_cogl_framebuffer_gl_flush_color_mask_state (CoglFramebuffer *framebuffer)
-{
-  CoglContext *context = framebuffer->context;
-
-  /* The color mask state is really owned by a CoglPipeline so to
-   * ensure the color mask is updated the next time we draw something
-   * we need to make sure the logic ops for the pipeline are
-   * re-flushed... */
-  context->current_pipeline_changes_since_flush |=
-    COGL_PIPELINE_STATE_LOGIC_OPS;
-  context->current_pipeline_age--;
-}
-
-static void
-_cogl_framebuffer_gl_flush_front_face_winding_state (CoglFramebuffer *framebuffer)
-{
-  CoglContext *context = framebuffer->context;
-  CoglPipelineCullFaceMode mode;
-
-  /* NB: The face winding state is actually owned by the current
-   * CoglPipeline.
-   *
-   * If we don't have a current pipeline then we can just assume that
-   * when we later do flush a pipeline we will check the current
-   * framebuffer to know how to setup the winding */
-  if (!context->current_pipeline)
-    return;
-
-  mode = cogl_pipeline_get_cull_face_mode (context->current_pipeline);
-
-  /* If the current CoglPipeline has a culling mode that doesn't care
-   * about the winding we can avoid forcing an update of the state and
-   * bail out. */
-  if (mode == COGL_PIPELINE_CULL_FACE_MODE_NONE ||
-      mode == COGL_PIPELINE_CULL_FACE_MODE_BOTH)
-    return;
-
-  /* Since the winding state is really owned by the current pipeline
-   * the way we "flush" an updated winding is to dirty the pipeline
-   * state... */
-  context->current_pipeline_changes_since_flush |=
-    COGL_PIPELINE_STATE_CULL_FACE;
-  context->current_pipeline_age--;
-}
-
-static void
-_cogl_framebuffer_gl_flush_stereo_mode_state (CoglFramebuffer *framebuffer)
-{
-  CoglContext *ctx = framebuffer->context;
-  GLenum draw_buffer = GL_BACK;
-
-  if (framebuffer->type == COGL_FRAMEBUFFER_TYPE_OFFSCREEN)
-    return;
-
-  if (!ctx->glDrawBuffer)
-    return;
-
-  /* The one-shot default draw buffer setting in _cogl_framebuffer_gl_bind
-   * must have already happened. If not it would override what we set here. */
-  g_assert (ctx->was_bound_to_onscreen);
-
-  switch (framebuffer->stereo_mode)
-    {
-    case COGL_STEREO_BOTH:
-      draw_buffer = GL_BACK;
-      break;
-    case COGL_STEREO_LEFT:
-      draw_buffer = GL_BACK_LEFT;
-      break;
-    case COGL_STEREO_RIGHT:
-      draw_buffer = GL_BACK_RIGHT;
-      break;
-    }
-
-  if (ctx->current_gl_draw_buffer != draw_buffer)
-    {
-      GE (ctx, glDrawBuffer (draw_buffer));
-      ctx->current_gl_draw_buffer = draw_buffer;
-    }
+  vkCmdSetViewport (vk_framebuffer->vk_cmd_buffer, 0, 1, &vk_viewport);
 }
 
 void
-_cogl_framebuffer_gl_bind (CoglFramebuffer *framebuffer, GLenum target)
+_cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
+                               CoglFramebuffer *framebuffer)
 {
-  CoglContext *ctx = framebuffer->context;
+  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  int x0, y0, x1, y1;
+  VkRect2D vk_rect;
 
-  if (framebuffer->type == COGL_FRAMEBUFFER_TYPE_OFFSCREEN)
-    {
-      CoglOffscreen *offscreen = COGL_OFFSCREEN (framebuffer);
-      GE (ctx, glBindFramebuffer (target,
-                                  offscreen->gl_framebuffer.fbo_handle));
-    }
-  else
-    {
-      const CoglWinsysVtable *winsys =
-        _cogl_framebuffer_get_winsys (framebuffer);
-      winsys->onscreen_bind (COGL_ONSCREEN (framebuffer));
-      /* glBindFramebuffer is an an extension with OpenGL ES 1.1 */
-      if (cogl_has_feature (ctx, COGL_FEATURE_ID_OFFSCREEN))
-        GE (ctx, glBindFramebuffer (target, 0));
+  _cogl_clip_stack_get_bounds (stack, &x0, &y0, &x1, &y1);
 
-      /* Initialise the glDrawBuffer state the first time the context
-       * is bound to the default framebuffer. If the winsys is using a
-       * surfaceless context for the initial make current then the
-       * default draw buffer will be GL_NONE so we need to correct
-       * that. We can't do it any earlier because binding GL_BACK when
-       * there is no default framebuffer won't work */
-      if (!ctx->was_bound_to_onscreen)
-        {
-          if (ctx->glDrawBuffer)
-            {
-              GE (ctx, glDrawBuffer (GL_BACK));
-            }
-          else if (ctx->glDrawBuffers)
-            {
-              /* glDrawBuffer isn't available on GLES 3.0 so we need
-               * to be able to use glDrawBuffers as well. On GLES 2
-               * neither is available but the state should always be
-               * GL_BACK anyway so we don't need to set anything. On
-               * desktop GL this must be GL_BACK_LEFT instead of
-               * GL_BACK but as this code path will only be hit for
-               * GLES we can just use GL_BACK. */
-              static const GLenum buffers[] = { GL_BACK };
+  vk_rect.offset.x = x0;
+  vk_rect.offset.y = y0;
+  vk_rect.extent.width = x1 - x0;
+  vk_rect.extent.height = y1 - y0;
 
-              GE (ctx, glDrawBuffers (G_N_ELEMENTS (buffers), buffers));
-            }
-
-          ctx->was_bound_to_onscreen = TRUE;
-        }
-    }
+  vkCmdSetScissor (vk_framebuffer->vk_cmd_buffer, 0, 1, &vk_rect);
 }
 
 void
@@ -253,131 +174,7 @@ _cogl_framebuffer_gl_flush_state (CoglFramebuffer *draw_buffer,
                                   CoglFramebuffer *read_buffer,
                                   CoglFramebufferState state)
 {
-  CoglContext *ctx = draw_buffer->context;
-  unsigned long differences;
-  int bit;
-
-  /* We can assume that any state that has changed for the current
-   * framebuffer is different to the currently flushed value. */
-  differences = ctx->current_draw_buffer_changes;
-
-  /* Any state of the current framebuffer that hasn't already been
-   * flushed is assumed to be unknown so we will always flush that
-   * state if asked. */
-  differences |= ~ctx->current_draw_buffer_state_flushed;
-
-  /* We only need to consider the state we've been asked to flush */
-  differences &= state;
-
-  if (ctx->current_draw_buffer != draw_buffer)
-    {
-      /* If the previous draw buffer is NULL then we'll assume
-         everything has changed. This can happen if a framebuffer is
-         destroyed while it is the last flushed draw buffer. In that
-         case the framebuffer destructor will set
-         ctx->current_draw_buffer to NULL */
-      if (ctx->current_draw_buffer == NULL)
-        differences |= state;
-      else
-        /* NB: we only need to compare the state we're being asked to flush
-         * and we don't need to compare the state we've already decided
-         * we will definitely flush... */
-        differences |= _cogl_framebuffer_compare (ctx->current_draw_buffer,
-                                                  draw_buffer,
-                                                  state & ~differences);
-
-      /* NB: we don't take a reference here, to avoid a circular
-       * reference. */
-      ctx->current_draw_buffer = draw_buffer;
-      ctx->current_draw_buffer_state_flushed = 0;
-    }
-
-  if (ctx->current_read_buffer != read_buffer &&
-      state & COGL_FRAMEBUFFER_STATE_BIND)
-    {
-      differences |= COGL_FRAMEBUFFER_STATE_BIND;
-      /* NB: we don't take a reference here, to avoid a circular
-       * reference. */
-      ctx->current_read_buffer = read_buffer;
-    }
-
-  if (!differences)
-    return;
-
-  /* Lazily ensure the framebuffers have been allocated */
-  if (G_UNLIKELY (!draw_buffer->allocated))
-    cogl_framebuffer_allocate (draw_buffer, NULL);
-  if (G_UNLIKELY (!read_buffer->allocated))
-    cogl_framebuffer_allocate (read_buffer, NULL);
-
-  /* We handle buffer binding separately since the method depends on whether
-   * we are binding the same buffer for read and write or not unlike all
-   * other state that only relates to the draw_buffer. */
-  if (differences & COGL_FRAMEBUFFER_STATE_BIND)
-    {
-      if (draw_buffer == read_buffer)
-        _cogl_framebuffer_gl_bind (draw_buffer, GL_FRAMEBUFFER);
-      else
-        {
-          /* NB: Currently we only take advantage of binding separate
-           * read/write buffers for offscreen framebuffer blit
-           * purposes.  */
-          _COGL_RETURN_IF_FAIL (_cogl_has_private_feature
-                                (ctx, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT));
-          _COGL_RETURN_IF_FAIL (draw_buffer->type == COGL_FRAMEBUFFER_TYPE_OFFSCREEN);
-          _COGL_RETURN_IF_FAIL (read_buffer->type == COGL_FRAMEBUFFER_TYPE_OFFSCREEN);
-
-          _cogl_framebuffer_gl_bind (draw_buffer, GL_DRAW_FRAMEBUFFER);
-          _cogl_framebuffer_gl_bind (read_buffer, GL_READ_FRAMEBUFFER);
-        }
-
-      differences &= ~COGL_FRAMEBUFFER_STATE_BIND;
-    }
-
-  COGL_FLAGS_FOREACH_START (&differences, 1, bit)
-    {
-      /* XXX: We considered having an array of callbacks for each state index
-       * that we'd call here but decided that this way the compiler is more
-       * likely going to be able to in-line the flush functions and use the
-       * index to jump straight to the required code. */
-      switch (bit)
-        {
-        case COGL_FRAMEBUFFER_STATE_INDEX_VIEWPORT:
-          _cogl_framebuffer_gl_flush_viewport_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_CLIP:
-          _cogl_framebuffer_gl_flush_clip_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_DITHER:
-          _cogl_framebuffer_gl_flush_dither_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW:
-          _cogl_framebuffer_gl_flush_modelview_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_PROJECTION:
-          _cogl_framebuffer_gl_flush_projection_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_COLOR_MASK:
-          _cogl_framebuffer_gl_flush_color_mask_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_FRONT_FACE_WINDING:
-          _cogl_framebuffer_gl_flush_front_face_winding_state (draw_buffer);
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_DEPTH_WRITE:
-          /* Nothing to do for depth write state change; the state will always
-           * be taken into account when flushing the pipeline's depth state. */
-          break;
-        case COGL_FRAMEBUFFER_STATE_INDEX_STEREO_MODE:
-          _cogl_framebuffer_gl_flush_stereo_mode_state (draw_buffer);
-          break;
-        default:
-          g_warn_if_reached ();
-        }
-    }
-  COGL_FLAGS_FOREACH_END;
-
-  ctx->current_draw_buffer_state_flushed |= state;
-  ctx->current_draw_buffer_changes &= ~state;
+  /* TODO... */
 }
 
 static CoglTexture *
@@ -575,28 +372,6 @@ delete_renderbuffers (CoglContext *ctx, GList *renderbuffers)
 }
 
 CoglBool
-_cogl_framebuffer_try_creating_gl_fbo (CoglContext *ctx,
-                                       CoglTexture *texture,
-                                       int texture_level,
-                                       int texture_level_width,
-                                       int texture_level_height,
-                                       CoglTexture *depth_texture,
-                                       CoglFramebufferConfig *config,
-                                       CoglOffscreenAllocateFlags flags,
-                                       CoglGLFramebuffer *gl_framebuffer)
-{
-  return try_creating_fbo (ctx,
-                           texture,
-                           texture_level,
-                           texture_level_width,
-                           texture_level_height,
-                           depth_texture,
-                           config,
-                           flags,
-                           gl_framebuffer);
-}
-
-CoglBool
 _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  CoglError **error)
 {
@@ -742,70 +517,8 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   return TRUE;
 }
 
-static CoglBool
-_ensure_command_buffer (CoglOffscreen *offscreen,
-                        CoglError **error)
-{
-  CoglContext *ctx = fb->context;
-  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
-  VkResult result;
-
-  if (vk_framebuffer->emitting_commands)
-    return TRUE;
-
-  result = vkAllocateCommandBuffers (ctx->vk_device,
-                                     &(VkCommandBufferAllocateInfo) {
-                                       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                       .commandPool = ctx->vk_cmd_pool,
-                                       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                                       .commandBufferCount = 1,
-                                     },
-                                     &vk_framebuffer->vk_cmd_buffer);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to allocate command buffer : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
-
-  result = vkBeginCommandBuffer (vk_framebuffer->vk_cmd_buffer,
-                                 &(VkCommandBufferBeginInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                   .flags = 0
-                                 });
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to begin command buffer : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
-
-  vkCmdBeginRenderPass (vk_framebuffer->vk_cmd_buffer,
-                        &(VkRenderPassBeginInfo) {
-                          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                          .renderPass = vk_framebuffer->vk_render_pass,
-                          .framebuffer = vk_framebuffer->vk_framebuffer,
-                          .renderArea = {
-                            { 0, 0 },
-                            { cogl_texture_get_width (offscreen->texture),
-                              cogl_texture_get_height (offscreen->height) }
-                          },
-                          .clearValueCount = 1,
-                          .pClearValues = (VkClearValue []) {
-                            { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
-                          }
-                        },
-                        VK_SUBPASS_CONTENTS_INLINE);
-
-  return TRUE;
-}
-
 void
-_cogl_offscreen_gl_free (CoglOffscreen *offscreen)
+_cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 {
   CoglContext *ctx = COGL_FRAMEBUFFER (offscreen)->context;
   CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
@@ -826,9 +539,12 @@ _cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
                             float alpha)
 {
   CoglContext *ctx = framebuffer->context;
+  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
 
-  vkCmdClearColorImage (ctx->vk_cmd_buffer,
-                        offscreen->vk_image,
+  _ensure_command_buffer (framebuffer);
+
+  vkCmdClearColorImage (vk_framebuffer->vk_cmd_buffer,
+                        vk_framebuffer->vk_image,
                         0,
                         &(VkClearColorValue) {
                           .float32 = { red, green, blue, alpha },
@@ -852,47 +568,46 @@ _cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
 void
 _cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
 {
-  vkCmdEndRenderPass (VkCommandBuffer commandBuffer);
+  /* TODO... */
 }
 
 void
 _cogl_framebuffer_vulkan_discard_buffers (CoglFramebuffer *framebuffer,
                                       unsigned long buffers)
 {
-  CoglContext *ctx = framebuffer->context;
-
+  /* TODO... */
 }
 
 void
-_cogl_framebuffer_gl_draw_attributes (CoglFramebuffer *framebuffer,
-                                      CoglPipeline *pipeline,
-                                      CoglVerticesMode mode,
-                                      int first_vertex,
-                                      int n_vertices,
-                                      CoglAttribute **attributes,
-                                      int n_attributes,
-                                      CoglDrawFlags flags)
+_cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
+                                          CoglPipeline *pipeline,
+                                          CoglVerticesMode mode,
+                                          int first_vertex,
+                                          int n_vertices,
+                                          CoglAttribute **attributes,
+                                          int n_attributes,
+                                          CoglDrawFlags flags)
 {
+  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
+
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
+  vkCmdBindVertexBuffers(cmd_buffer, 0, 3,
+                         (VkBuffer[]) {
+                           vc->buffer,
+                             vc->buffer,
+                                                          vc->buffer
+                             },
+                         (VkDeviceSize[]) {
+                           vc->vertex_offset,
+                             vc->colors_offset,
+                                                          vc->normals_offset
+                             });
+
+
   GE (framebuffer->context,
       glDrawArrays ((GLenum)mode, first_vertex, n_vertices));
-}
-
-static size_t
-sizeof_index_type (CoglIndicesType type)
-{
-  switch (type)
-    {
-    case COGL_INDICES_TYPE_UNSIGNED_BYTE:
-      return 1;
-    case COGL_INDICES_TYPE_UNSIGNED_SHORT:
-      return 2;
-    case COGL_INDICES_TYPE_UNSIGNED_INT:
-      return 4;
-    }
-  g_return_val_if_reached (0);
 }
 
 void
@@ -906,47 +621,7 @@ _cogl_framebuffer_gl_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                               int n_attributes,
                                               CoglDrawFlags flags)
 {
-  CoglBuffer *buffer;
-  uint8_t *base;
-  size_t buffer_offset;
-  size_t index_size;
-  GLenum indices_gl_type = 0;
-
-  _cogl_flush_attributes_state (framebuffer, pipeline, flags,
-                                attributes, n_attributes);
-
-  buffer = COGL_BUFFER (cogl_indices_get_buffer (indices));
-
-  /* Note: we don't try and catch errors with binding the index buffer
-   * here since OOM errors at this point indicate that nothing has yet
-   * been uploaded to the indices buffer which we consider to be a
-   * programmer error.
-   */
-  base = _cogl_buffer_gl_bind (buffer,
-                               COGL_BUFFER_BIND_TARGET_INDEX_BUFFER, NULL);
-  buffer_offset = cogl_indices_get_offset (indices);
-  index_size = sizeof_index_type (cogl_indices_get_type (indices));
-
-  switch (cogl_indices_get_type (indices))
-    {
-    case COGL_INDICES_TYPE_UNSIGNED_BYTE:
-      indices_gl_type = GL_UNSIGNED_BYTE;
-      break;
-    case COGL_INDICES_TYPE_UNSIGNED_SHORT:
-      indices_gl_type = GL_UNSIGNED_SHORT;
-      break;
-    case COGL_INDICES_TYPE_UNSIGNED_INT:
-      indices_gl_type = GL_UNSIGNED_INT;
-      break;
-    }
-
-  GE (framebuffer->context,
-      glDrawElements ((GLenum)mode,
-                      n_vertices,
-                      indices_gl_type,
-                      base + buffer_offset + index_size * first_vertex));
-
-  _cogl_buffer_gl_unbind (buffer);
+  /* TODO... */
 }
 
 CoglBool
@@ -957,272 +632,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                   CoglBitmap *bitmap,
                                                   CoglError **error)
 {
-  CoglContext *ctx = framebuffer->context;
-  int framebuffer_height = cogl_framebuffer_get_height (framebuffer);
-  int width = cogl_bitmap_get_width (bitmap);
-  int height = cogl_bitmap_get_height (bitmap);
-  CoglPixelFormat format = cogl_bitmap_get_format (bitmap);
-  CoglPixelFormat required_format;
-  GLenum gl_intformat;
-  GLenum gl_format;
-  GLenum gl_type;
-  CoglBool pack_invert_set;
-  int status = FALSE;
-
-  /* Workaround for cases where its faster to read into a temporary
-   * PBO. This is only worth doing if:
-   *
-   * • The GPU is an Intel GPU. In that case there is a known
-   *   fast-path when reading into a PBO that will use the blitter
-   *   instead of the Mesa fallback code. The driver bug will only be
-   *   set if this is the case.
-   * • We're not already reading into a PBO.
-   * • The target format is BGRA. The fast-path blit does not get hit
-   *   otherwise.
-   * • The size of the data is not trivially small. This isn't a
-   *   requirement to hit the fast-path blit but intuitively it feels
-   *   like if the amount of data is too small then the cost of
-   *   allocating a PBO will outweigh the cost of temporarily
-   *   converting the data to floats.
-   */
-  if ((ctx->gpu.driver_bugs &
-       COGL_GPU_INFO_DRIVER_BUG_MESA_46631_SLOW_READ_PIXELS) &&
-      (width > 8 || height > 8) &&
-      (format & ~COGL_PREMULT_BIT) == COGL_PIXEL_FORMAT_BGRA_8888 &&
-      cogl_bitmap_get_buffer (bitmap) == NULL)
-    {
-      CoglError *ignore_error = NULL;
-
-      if (mesa_46631_slow_read_pixels_workaround (framebuffer,
-                                                  x, y,
-                                                  source,
-                                                  bitmap,
-                                                  &ignore_error))
-        return TRUE;
-      else
-        cogl_error_free (ignore_error);
-    }
-
-  _cogl_framebuffer_flush_state (framebuffer,
-                                 framebuffer,
-                                 COGL_FRAMEBUFFER_STATE_BIND);
-
-  /* The y co-ordinate should be given in OpenGL's coordinate system
-   * so 0 is the bottom row
-   *
-   * NB: all offscreen rendering is done upside down so no conversion
-   * is necissary in this case.
-   */
-  if (!cogl_is_offscreen (framebuffer))
-    y = framebuffer_height - y - height;
-
-  required_format = ctx->driver_vtable->pixel_format_to_gl (ctx,
-                                                            format,
-                                                            &gl_intformat,
-                                                            &gl_format,
-                                                            &gl_type);
-
-  /* NB: All offscreen rendering is done upside down so there is no need
-   * to flip in this case... */
-  if (_cogl_has_private_feature (ctx, COGL_PRIVATE_FEATURE_MESA_PACK_INVERT) &&
-      (source & COGL_READ_PIXELS_NO_FLIP) == 0 &&
-      !cogl_is_offscreen (framebuffer))
-    {
-      GE (ctx, glPixelStorei (GL_PACK_INVERT_MESA, TRUE));
-      pack_invert_set = TRUE;
-    }
-  else
-    pack_invert_set = FALSE;
-
-  /* Under GLES only GL_RGBA with GL_UNSIGNED_BYTE as well as an
-     implementation specific format under
-     GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES and
-     GL_IMPLEMENTATION_COLOR_READ_TYPE_OES is supported. We could try
-     to be more clever and check if the requested type matches that
-     but we would need some reliable functions to convert from GL
-     types to Cogl types. For now, lets just always read in
-     GL_RGBA/GL_UNSIGNED_BYTE and convert if necessary. We also need
-     to use this intermediate buffer if the rowstride has padding
-     because GLES does not support setting GL_ROW_LENGTH */
-  if ((!_cogl_has_private_feature
-       (ctx, COGL_PRIVATE_FEATURE_READ_PIXELS_ANY_FORMAT) &&
-       (gl_format != GL_RGBA || gl_type != GL_UNSIGNED_BYTE ||
-        cogl_bitmap_get_rowstride (bitmap) != 4 * width)) ||
-      (required_format & ~COGL_PREMULT_BIT) != (format & ~COGL_PREMULT_BIT))
-    {
-      CoglBitmap *tmp_bmp;
-      CoglPixelFormat read_format;
-      int bpp, rowstride;
-      uint8_t *tmp_data;
-      CoglBool succeeded;
-
-      if (_cogl_has_private_feature
-          (ctx, COGL_PRIVATE_FEATURE_READ_PIXELS_ANY_FORMAT))
-        read_format = required_format;
-      else
-        {
-          read_format = COGL_PIXEL_FORMAT_RGBA_8888;
-          gl_format = GL_RGBA;
-          gl_type = GL_UNSIGNED_BYTE;
-        }
-
-      if (COGL_PIXEL_FORMAT_CAN_HAVE_PREMULT (read_format))
-        read_format = ((read_format & ~COGL_PREMULT_BIT) |
-                       (framebuffer->internal_format & COGL_PREMULT_BIT));
-
-      tmp_bmp = _cogl_bitmap_new_with_malloc_buffer (ctx,
-                                                     width, height,
-                                                     read_format,
-                                                     error);
-      if (!tmp_bmp)
-        goto EXIT;
-
-      bpp = _cogl_pixel_format_get_bytes_per_pixel (read_format);
-      rowstride = cogl_bitmap_get_rowstride (tmp_bmp);
-
-      ctx->texture_driver->prep_gl_for_pixels_download (ctx,
-                                                        rowstride,
-                                                        width,
-                                                        bpp);
-
-      /* Note: we don't worry about catching errors here since we know
-       * we won't be lazily allocating storage for this buffer so it
-       * won't fail due to lack of memory. */
-      tmp_data = _cogl_bitmap_gl_bind (tmp_bmp,
-                                       COGL_BUFFER_ACCESS_WRITE,
-                                       COGL_BUFFER_MAP_HINT_DISCARD,
-                                       NULL);
-
-      GE( ctx, glReadPixels (x, y, width, height,
-                             gl_format, gl_type,
-                             tmp_data) );
-
-      _cogl_bitmap_gl_unbind (tmp_bmp);
-
-      succeeded = _cogl_bitmap_convert_into_bitmap (tmp_bmp, bitmap, error);
-
-      cogl_object_unref (tmp_bmp);
-
-      if (!succeeded)
-        goto EXIT;
-    }
-  else
-    {
-      CoglBitmap *shared_bmp;
-      CoglPixelFormat bmp_format;
-      int bpp, rowstride;
-      CoglBool succeeded = FALSE;
-      uint8_t *pixels;
-      CoglError *internal_error = NULL;
-
-      rowstride = cogl_bitmap_get_rowstride (bitmap);
-
-      /* We match the premultiplied state of the target buffer to the
-       * premultiplied state of the framebuffer so that it will get
-       * converted to the right format below */
-      if (COGL_PIXEL_FORMAT_CAN_HAVE_PREMULT (format))
-        bmp_format = ((format & ~COGL_PREMULT_BIT) |
-                      (framebuffer->internal_format & COGL_PREMULT_BIT));
-      else
-        bmp_format = format;
-
-      if (bmp_format != format)
-        shared_bmp = _cogl_bitmap_new_shared (bitmap,
-                                              bmp_format,
-                                              width, height,
-                                              rowstride);
-      else
-        shared_bmp = cogl_object_ref (bitmap);
-
-      bpp = _cogl_pixel_format_get_bytes_per_pixel (bmp_format);
-
-      ctx->texture_driver->prep_gl_for_pixels_download (ctx,
-                                                        rowstride,
-                                                        width,
-                                                        bpp);
-
-      pixels = _cogl_bitmap_gl_bind (shared_bmp,
-                                     COGL_BUFFER_ACCESS_WRITE,
-                                     0, /* hints */
-                                     &internal_error);
-      /* NB: _cogl_bitmap_gl_bind() can return NULL in sucessfull
-       * cases so we have to explicitly check the cogl error pointer
-       * to know if there was a problem */
-      if (internal_error)
-        {
-          cogl_object_unref (shared_bmp);
-          _cogl_propagate_error (error, internal_error);
-          goto EXIT;
-        }
-
-      GE( ctx, glReadPixels (x, y,
-                             width, height,
-                             gl_format, gl_type,
-                             pixels) );
-
-      _cogl_bitmap_gl_unbind (shared_bmp);
-
-      /* Convert to the premult format specified by the caller
-         in-place. This will do nothing if the premult status is already
-         correct. */
-      if (_cogl_bitmap_convert_premult_status (shared_bmp, format, error))
-        succeeded = TRUE;
-
-      cogl_object_unref (shared_bmp);
-
-      if (!succeeded)
-        goto EXIT;
-    }
-
-  /* NB: All offscreen rendering is done upside down so there is no need
-   * to flip in this case... */
-  if (!cogl_is_offscreen (framebuffer) &&
-      (source & COGL_READ_PIXELS_NO_FLIP) == 0 &&
-      !pack_invert_set)
-    {
-      uint8_t *temprow;
-      int rowstride;
-      uint8_t *pixels;
-
-      rowstride = cogl_bitmap_get_rowstride (bitmap);
-      pixels = _cogl_bitmap_map (bitmap,
-                                 COGL_BUFFER_ACCESS_READ |
-                                 COGL_BUFFER_ACCESS_WRITE,
-                                 0, /* hints */
-                                 error);
-
-      if (pixels == NULL)
-        goto EXIT;
-
-      temprow = g_alloca (rowstride * sizeof (uint8_t));
-
-      /* vertically flip the buffer in-place */
-      for (y = 0; y < height / 2; y++)
-        {
-          if (y != height - y - 1) /* skip center row */
-            {
-              memcpy (temprow,
-                      pixels + y * rowstride, rowstride);
-              memcpy (pixels + y * rowstride,
-                      pixels + (height - y - 1) * rowstride, rowstride);
-              memcpy (pixels + (height - y - 1) * rowstride,
-                      temprow,
-                      rowstride);
-            }
-        }
-
-      _cogl_bitmap_unmap (bitmap);
-    }
-
-  status = TRUE;
-
-EXIT:
-
-  /* Currently this function owns the pack_invert state and we don't want this
-   * to interfere with other Cogl components so all other code can assume that
-   * we leave the pack_invert state off. */
-  if (pack_invert_set)
-    GE (ctx, glPixelStorei (GL_PACK_INVERT_MESA, FALSE));
-
-  return status;
+  /* TODO... */
+  return FALSE;
 }

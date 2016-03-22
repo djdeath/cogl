@@ -69,6 +69,8 @@ struct _CoglTexture2D
   VkImage vk_image;
   CoglBool vk_image_valid;
 
+  VkDeviceMemory vk_memory;
+
   VkFilter vk_min_filter;
   VkFilter vk_mag_filter;
 

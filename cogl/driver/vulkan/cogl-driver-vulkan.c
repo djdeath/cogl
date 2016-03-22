@@ -41,11 +41,10 @@
 #include "cogl-feature-private.h"
 #include "cogl-renderer-private.h"
 #include "cogl-error-private.h"
-#include "cogl-framebuffer-vulkan-private.h"
-#include "cogl-texture-2d-vulkan-private.h"
-/* #include "cogl-attribute-gl-private.h" */
-/* #include "cogl-clip-stack-gl-private.h" */
 #include "cogl-buffer-vulkan-private.h"
+#include "cogl-framebuffer-vulkan-private.h"
+#include "cogl-pipeline-vulkan-private.h"
+#include "cogl-texture-2d-vulkan-private.h"
 
 static CoglBool
 _cogl_driver_pixel_format_from_gl_internal (CoglContext *context,

@@ -127,6 +127,14 @@ typedef struct _CoglTextureUnit
 
 } CoglTextureUnit;
 
+void
+_cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
+                                     CoglPipeline *pipeline,
+                                     CoglFlushLayerState *layer_state,
+                                     CoglDrawFlags flags,
+                                     CoglAttribute **attributes,
+                                     int n_attributes);
+
 CoglTextureUnit *
 _cogl_get_texture_unit (int index_);
 
