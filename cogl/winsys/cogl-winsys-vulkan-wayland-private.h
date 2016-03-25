@@ -3,7 +3,7 @@
  *
  * A Low Level GPU Graphics and Utilities API
  *
- * Copyright (C) 2007,2008,2009,2010 Intel Corporation.
+ * Copyright (C) 2016 Intel Corporation.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,25 +28,10 @@
  *
  */
 
-#if !defined(__COGL_H_INSIDE__) && !defined(COGL_COMPILATION)
-#error "Only <cogl/cogl.h> can be included directly."
-#endif
+#ifndef __COGL_WINSYS_VULKAN_WAYLAND_PRIVATE_H
+#define __COGL_WINSYS_VULKAN_WAYLAND_PRIVATE_H
 
-#ifndef __COGL_DEFINES_H__
-#define __COGL_DEFINES_H__
+const CoglWinsysVtable *
+_cogl_winsys_vulkan_wayland_get_vtable (void);
 
-@COGL_DEFINES@
-
-#ifdef COGL_HAS_VULKAN_PLATFORM_XCB_SUPPORT
-#define VK_USE_PLATFORM_XCB_KHR
-#endif
-#ifdef COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT
-#define VK_USE_PLATFORM_WAYLAND_KHR
-#endif
-
-#define COGL_VERSION_MAJOR_INTERNAL 1
-#define COGL_VERSION_MINOR_INTERNAL @COGL_1_MINOR_VERSION@
-#define COGL_VERSION_MICRO_INTERNAL @COGL_1_MICRO_VERSION@
-#define COGL_VERSION_STRING_INTERNAL "@COGL_1_VERSION@"
-
-#endif
+#endif /* __COGL_WINSYS_VULKAN_WAYLAND_PRIVATE_H */

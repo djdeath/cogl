@@ -551,6 +551,16 @@ cogl_sources_c += \
 	winsys/cogl-winsys-sdl2.c \
 	cogl-sdl.c
 endif
+if SUPPORT_VULKAN_WAYLAND
+cogl_sources_c += \
+	winsys/cogl-winsys-vulkan-wayland-private.h \
+	winsys/cogl-winsys-vulkan-wayland.c
+endif
+# if SUPPORT_VULKAN_XCB
+# cogl_sources_c += \
+# 	winsys/cogl-winsys-vulkan-xcb-private.h \
+# 	winsys/cogl-winsys-vulkan-xcb.c
+# endif
 
 EXTRA_DIST += stb_image.c
 

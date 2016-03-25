@@ -49,7 +49,7 @@ _cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d)
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 {
-  return _cogl_pixel_format_to_vulkan_format (tex_2d->internal_format);
+  return _cogl_pixel_format_to_vulkan_format (tex_2d->internal_format, NULL);
 }
 
 void
@@ -71,7 +71,8 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
 {
   VkPhysicalDeviceProperties props;
 
-  if (_cogl_pixel_format_to_vulkan_format (internal_format) == VK_FORMAT_UNDEFINED)
+  if (_cogl_pixel_format_to_vulkan_format (internal_format,
+                                           NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
   vkGetPhysicalDeviceProperties(ctx->vk_physical_device, &props);
@@ -114,7 +115,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
   internal_format =
     _cogl_texture_determine_internal_format (tex, COGL_PIXEL_FORMAT_ANY);
   vk_format =
-    _cogl_pixel_format_to_vulkan_format (internal_format);
+    _cogl_pixel_format_to_vulkan_format (internal_format, NULL);
 
   if (vk_format == VK_FORMAT_UNDEFINED)
     {
@@ -139,7 +140,6 @@ allocate_with_size (CoglTexture2D *tex_2d,
                          },
                          NULL,
                          &tex_2d->vk_image);
-
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
@@ -148,7 +148,6 @@ allocate_with_size (CoglTexture2D *tex_2d,
                        _cogl_vulkan_error_to_string (result));
       return FALSE;
     }
-  tex_2d->vk_image_valid = TRUE;
 
   vkGetImageMemoryRequirements (ctx->vk_device,
                                 tex_2d->vk_image,
@@ -188,111 +187,66 @@ allocate_with_size (CoglTexture2D *tex_2d,
   return TRUE;
 }
 
-/* static CoglBool */
-/* allocate_from_bitmap (CoglTexture2D *tex_2d, */
-/*                       CoglTextureLoader *loader, */
-/*                       CoglError **error) */
-/* { */
-/*   CoglTexture *tex = COGL_TEXTURE (tex_2d); */
-/*   CoglBitmap *bmp = loader->src.bitmap.bitmap; */
-/*   CoglContext *ctx = _cogl_bitmap_get_context (bmp); */
-/*   CoglPixelFormat internal_format; */
-/*   int width = cogl_bitmap_get_width (bmp); */
-/*   int height = cogl_bitmap_get_height (bmp); */
-/*   CoglBool can_convert_in_place = loader->src.bitmap.can_convert_in_place; */
-/*   CoglBitmap *upload_bmp; */
-/*   GLenum gl_intformat; */
-/*   GLenum gl_format; */
-/*   GLenum gl_type; */
+static CoglBool
+allocate_from_bitmap (CoglTexture2D *tex_2d,
+                      CoglTextureLoader *loader,
+                      CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglBitmap *bmp = loader->src.bitmap.bitmap;
+  CoglContext *ctx = _cogl_bitmap_get_context (bmp);
+  CoglPixelFormat internal_format;
+  int width = cogl_bitmap_get_width (bmp);
+  int height = cogl_bitmap_get_height (bmp);
+  CoglBool can_convert_in_place = loader->src.bitmap.can_convert_in_place;
+  CoglBitmap *upload_bmp;
+  VkFormat vk_format;
 
-/*   internal_format = */
-/*     _cogl_texture_determine_internal_format (tex, cogl_bitmap_get_format (bmp)); */
+  internal_format =
+    _cogl_texture_determine_internal_format (tex, cogl_bitmap_get_format (bmp));
+  vk_format = _cogl_pixel_format_to_vulkan_format (internal_format, NULL);
 
-/*   if (!_cogl_texture_2d_vulkan_can_create (ctx, */
-/*                                        width, */
-/*                                        height, */
-/*                                        internal_format)) */
-/*     { */
-/*       _cogl_set_error (error, COGL_TEXTURE_ERROR, */
-/*                        COGL_TEXTURE_ERROR_SIZE, */
-/*                        "Failed to create texture 2d due to size/format" */
-/*                        " constraints"); */
-/*       return FALSE; */
-/*     } */
+  if (vk_format == VK_FORMAT_UNDEFINED)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_SIZE,
+                       "Failed to create texture 2d due to format constraints");
+      return FALSE;
+    }
 
-/*   upload_bmp = _cogl_bitmap_convert_for_upload (bmp, */
-/*                                                 internal_format, */
-/*                                                 can_convert_in_place, */
-/*                                                 error); */
-/*   if (upload_bmp == NULL) */
-/*     return FALSE; */
+  upload_bmp = _cogl_bitmap_convert_for_upload (bmp,
+                                                internal_format,
+                                                can_convert_in_place,
+                                                error);
+  if (upload_bmp == NULL)
+    return FALSE;
 
-/*   ctx->driver_vtable->pixel_format_to_gl (ctx, */
-/*                                           cogl_bitmap_get_format (upload_bmp), */
-/*                                           NULL, /\* internal format *\/ */
-/*                                           &gl_format, */
-/*                                           &gl_type); */
-/*   ctx->driver_vtable->pixel_format_to_gl (ctx, */
-/*                                           internal_format, */
-/*                                           &gl_intformat, */
-/*                                           NULL, */
-/*                                           NULL); */
+  /* tex_2d->gl_texture = */
+  /*   ctx->texture_driver->gen (ctx, GL_TEXTURE_2D, internal_format); */
+  /* if (!ctx->texture_driver->upload_to_gl (ctx, */
+  /*                                         GL_TEXTURE_2D, */
+  /*                                         tex_2d->gl_texture, */
+  /*                                         FALSE, */
+  /*                                         upload_bmp, */
+  /*                                         gl_intformat, */
+  /*                                         gl_format, */
+  /*                                         gl_type, */
+  /*                                         error)) */
+  /*   { */
+  /*     cogl_object_unref (upload_bmp); */
+  /*     return FALSE; */
+  /*   } */
 
-/*   /\* Keep a copy of the first pixel so that if glGenerateMipmap isn't */
-/*      supported we can fallback to using GL_GENERATE_MIPMAP *\/ */
-/*   if (!cogl_has_feature (ctx, COGL_FEATURE_ID_OFFSCREEN)) */
-/*     { */
-/*       CoglError *ignore = NULL; */
-/*       uint8_t *data = _cogl_bitmap_map (upload_bmp, */
-/*                                         COGL_BUFFER_ACCESS_READ, 0, */
-/*                                         &ignore); */
-/*       CoglPixelFormat format = cogl_bitmap_get_format (upload_bmp); */
+  /* tex_2d->gl_internal_format = gl_intformat; */
 
-/*       tex_2d->first_pixel.gl_format = gl_format; */
-/*       tex_2d->first_pixel.gl_type = gl_type; */
+  /* cogl_object_unref (upload_bmp); */
 
-/*       if (data) */
-/*         { */
-/*           memcpy (tex_2d->first_pixel.data, data, */
-/*                   _cogl_pixel_format_get_bytes_per_pixel (format)); */
-/*           _cogl_bitmap_unmap (upload_bmp); */
-/*         } */
-/*       else */
-/*         { */
-/*           g_warning ("Failed to read first pixel of bitmap for " */
-/*                      "glGenerateMipmap fallback"); */
-/*           cogl_error_free (ignore); */
-/*           memset (tex_2d->first_pixel.data, 0, */
-/*                   _cogl_pixel_format_get_bytes_per_pixel (format)); */
-/*         } */
-/*     } */
+  tex_2d->internal_format = internal_format;
 
-/*   tex_2d->gl_texture = */
-/*     ctx->texture_driver->gen (ctx, GL_TEXTURE_2D, internal_format); */
-/*   if (!ctx->texture_driver->upload_to_gl (ctx, */
-/*                                           GL_TEXTURE_2D, */
-/*                                           tex_2d->gl_texture, */
-/*                                           FALSE, */
-/*                                           upload_bmp, */
-/*                                           gl_intformat, */
-/*                                           gl_format, */
-/*                                           gl_type, */
-/*                                           error)) */
-/*     { */
-/*       cogl_object_unref (upload_bmp); */
-/*       return FALSE; */
-/*     } */
+  _cogl_texture_set_allocated (tex, internal_format, width, height);
 
-/*   tex_2d->gl_internal_format = gl_intformat; */
-
-/*   cogl_object_unref (upload_bmp); */
-
-/*   tex_2d->internal_format = internal_format; */
-
-/*   _cogl_texture_set_allocated (tex, internal_format, width, height); */
-
-/*   return TRUE; */
-/* } */
+  return TRUE;
+}
 
 CoglBool
 _cogl_texture_2d_vulkan_allocate (CoglTexture *tex,
@@ -307,9 +261,8 @@ _cogl_texture_2d_vulkan_allocate (CoglTexture *tex,
     {
     case COGL_TEXTURE_SOURCE_TYPE_SIZED:
       return allocate_with_size (tex_2d, loader, error);
-      /* TODO: */
-    /* case COGL_TEXTURE_SOURCE_TYPE_BITMAP: */
-    /*   return allocate_from_bitmap (tex_2d, loader, error); */
+    case COGL_TEXTURE_SOURCE_TYPE_BITMAP:
+      return allocate_from_bitmap (tex_2d, loader, error);
     }
 
   g_return_val_if_reached (FALSE);
@@ -337,15 +290,17 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
                                  COGL_FRAMEBUFFER_STATE_ALL &
                                  ~COGL_FRAMEBUFFER_STATE_CLIP);
 
-  _cogl_bind_gl_texture_transient (GL_TEXTURE_2D,
-                                   tex_2d->gl_texture,
-                                   tex_2d->is_foreign);
+  /* _cogl_bind_gl_texture_transient (GL_TEXTURE_2D, */
+  /*                                  tex_2d->gl_texture, */
+  /*                                  tex_2d->is_foreign); */
 
-  ctx->glCopyTexSubImage2D (GL_TEXTURE_2D,
-                            0, /* level */
-                            dst_x, dst_y,
-                            src_x, src_y,
-                            width, height);
+  /* ctx->glCopyTexSubImage2D (GL_TEXTURE_2D, */
+  /*                           0, /\* level *\/ */
+  /*                           dst_x, dst_y, */
+  /*                           src_x, src_y, */
+  /*                           width, height); */
+
+  VK_TODO();
 }
 
 unsigned int
@@ -357,7 +312,7 @@ _cogl_texture_2d_vulkan_get_gl_handle (CoglTexture2D *tex_2d)
 void
 _cogl_texture_2d_vulkan_generate_mipmap (CoglTexture2D *tex_2d)
 {
-  /* TODO */
+  VK_TODO();
 }
 
 CoglBool
@@ -372,6 +327,7 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
                                           int level,
                                           CoglError **error)
 {
+  VK_TODO();
   return FALSE;
 }
 
@@ -381,4 +337,5 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                                   int rowstride,
                                   uint8_t *data)
 {
+  VK_TODO();
 }

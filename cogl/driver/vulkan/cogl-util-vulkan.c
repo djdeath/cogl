@@ -35,8 +35,13 @@
 #include "cogl-util-vulkan-private.h"
 
 VkFormat
-_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format)
+_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
+                                     CoglBool *premultiplied)
 {
+
+  if (premultiplied)
+    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
+
   switch (format)
     {
     case COGL_PIXEL_FORMAT_RGB_565:
@@ -55,10 +60,13 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format)
       return VK_FORMAT_B8G8R8_UINT;
 
     case COGL_PIXEL_FORMAT_RGBA_8888:
+    case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
       return VK_FORMAT_R8G8B8A8_UINT;
-    case  COGL_PIXEL_FORMAT_BGRA_8888:
+    case COGL_PIXEL_FORMAT_BGRA_8888:
+    case COGL_PIXEL_FORMAT_BGRA_8888_PRE:
       return VK_FORMAT_B8G8R8A8_UINT;
     case COGL_PIXEL_FORMAT_ABGR_8888:
+    case COGL_PIXEL_FORMAT_ABGR_8888_PRE:
       return VK_FORMAT_A8B8G8R8_UINT_PACK32;
 
       /* TODO: */
@@ -67,10 +75,7 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format)
       /* COGL_PIXEL_FORMAT_ARGB_2101010 */
       /* COGL_PIXEL_FORMAT_ABGR_2101010 */
 
-      /* COGL_PIXEL_FORMAT_RGBA_8888_PRE */
-      /* COGL_PIXEL_FORMAT_BGRA_8888_PRE */
       /* COGL_PIXEL_FORMAT_ARGB_8888_PRE */
-      /* COGL_PIXEL_FORMAT_ABGR_8888_PRE */
       /* COGL_PIXEL_FORMAT_RGBA_4444_PRE */
       /* COGL_PIXEL_FORMAT_RGBA_5551_PRE */
 

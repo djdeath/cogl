@@ -414,4 +414,3 @@ _cogl_buffer_immutable_unref (CoglBuffer *buffer)
 
   buffer->immutable_ref--;
 }
-

@@ -127,6 +127,20 @@ typedef struct
   int stencil;
 } CoglFramebufferBits;
 
+#ifdef COGL_HAS_VULKAN
+typedef struct _CoglVulkanFramebuffer
+{
+  VkFramebuffer vk_framebuffer;
+  VkImageView vk_image_view;
+  VkImage vk_image;
+
+  VkRenderPass vk_render_pass;
+  VkCommandBuffer vk_cmd_buffer;
+
+  CoglBool emitting_commands;
+} CoglVulkanFramebuffer;
+#endif
+
 struct _CoglFramebuffer
 {
   CoglObject          _parent;
@@ -193,6 +207,10 @@ struct _CoglFramebuffer
   CoglFramebufferBits bits;
 
   int                 samples_per_pixel;
+
+#ifdef COGL_HAS_VULKAN
+  CoglVulkanFramebuffer vk_framebuffer;
+#endif
 };
 
 typedef enum {
@@ -208,28 +226,11 @@ typedef struct _CoglGLFramebuffer
   int samples_per_pixel;
 } CoglGLFramebuffer;
 
-#ifdef COGL_HAS_VULKAN
-typedef struct _CoglVulkanFramebuffer
-{
-  VkFramebuffer vk_framebuffer;
-  VkImageView vk_image_view;
-  VkImage vk_image;
-
-  VkRenderPass vk_render_pass;
-  VkCommandBuffer vk_cmd_buffer;
-
-  CoglBool emitting_commands;
-} CoglVulkanFramebuffer;
-#endif
-
 struct _CoglOffscreen
 {
   CoglFramebuffer  _parent;
 
   CoglGLFramebuffer gl_framebuffer;
-#ifdef COGL_HAS_VULKAN
-  CoglVulkanFramebuffer vk_framebuffer;
-#endif
 
   CoglTexture    *texture;
   int             texture_level;

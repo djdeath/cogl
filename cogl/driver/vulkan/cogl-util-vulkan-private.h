@@ -36,6 +36,10 @@
 #include "cogl-gl-header.h"
 #include "cogl-pipeline-private.h"
 
+#define VK_TODO() do {                                                  \
+    g_warning("Unimplemented function %s : %s", G_STRFUNC, G_STRLOC);   \
+  } while(0)
+
 //#define VK()
 
 #define COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY          \
@@ -45,7 +49,8 @@
       .a = VK_COMPONENT_SWIZZLE_A, })
 
 VkFormat
-_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format);
+_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
+                                     CoglBool *premultiplied);
 
 const char *
 _cogl_vulkan_error_to_string (VkResult error);

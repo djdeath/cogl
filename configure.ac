@@ -838,12 +838,14 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
 
         PKG_CHECK_MODULES([XCB], [xcb],
                           [
-                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS VK_USE_PLATFORM_XCB_KHR"
+                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN_PLATFORM_XCB_SUPPORT"
+                           SUPPORT_VULKAN_XCB=yes
                           ],
                           [])
         PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= wayland_req_version],
                           [
-                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS VK_USE_PLATFORM_WAYLAND_KHR"
+                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT"
+                           SUPPORT_VULKAN_WAYLAND=yes
                           ],
                           [])
 
@@ -855,6 +857,8 @@ AM_CONDITIONAL([COGL_DRIVER_GL_SUPPORTED], [test "x$enable_gl" = "xyes"])
 AM_CONDITIONAL([COGL_DRIVER_GLES_SUPPORTED],
                [test "x$enable_gles1" = "xyes" || test "x$enable_gles2" = "xyes"])
 AM_CONDITIONAL([COGL_DRIVER_VULKAN_SUPPORTED], [test "x$enable_vulkan" = "xyes"])
+AM_CONDITIONAL(SUPPORT_VULKAN_WAYLAND, [test "x$SUPPORT_VULKAN_WAYLAND" = "xyes"])
+AM_CONDITIONAL(SUPPORT_VULKAN_XCB, [test "x$SUPPORT_VULKAN_XCB" = "xyes"])
 
 dnl Allow the GL library names and default driver to be overridden with configure options
 AC_ARG_WITH([gl-libname],

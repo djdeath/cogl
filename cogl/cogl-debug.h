@@ -124,4 +124,3 @@ _cogl_parse_debug_string (const char *value,
 COGL_END_DECLS
 
 #endif /* __COGL_DEBUG_H__ */
-

@@ -47,9 +47,7 @@
 static CoglVulkanFramebuffer *
 _get_vulkan_framebuffer (CoglFramebuffer *framebuffer)
 {
-  /* TODO: Figure out how to retrieve that structure from both onscreens and
-     offscreens. */
-  return NULL;
+  return &framebuffer->vk_framebuffer;
 }
 
 static CoglBool
@@ -174,7 +172,7 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                                       CoglFramebuffer *read_buffer,
                                       CoglFramebufferState state)
 {
-  /* TODO... */
+  VK_TODO();
 }
 
 static CoglTexture *
@@ -201,6 +199,8 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   int level_width;
   int level_height;
   VkResult result;
+
+  g_warning ("allocation framebuffer %p", offscreen);
 
   _COGL_RETURN_VAL_IF_FAIL (offscreen->texture_level <
                             _cogl_texture_get_n_levels (offscreen->texture),
@@ -282,7 +282,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  .attachmentCount = offscreen->depth_texture ? 2 : 1,
                                  .pAttachments = (VkAttachmentDescription[]) {
                                    {
-                                     .format = _cogl_pixel_format_to_vulkan_format (fb->internal_format),
+                                     .format = _cogl_pixel_format_to_vulkan_format (fb->internal_format, NULL),
                                      .samples = 1,
                                      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                                      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -291,7 +291,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                    },
                                    {
                                      .format = offscreen->depth_texture ?
-                                       _cogl_pixel_format_to_vulkan_format (_cogl_texture_get_format (offscreen->depth_texture)) : 0,
+                                     _cogl_pixel_format_to_vulkan_format (_cogl_texture_get_format (offscreen->depth_texture), NULL) : 0,
                                      .samples = 1,
                                      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                                      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -391,19 +391,20 @@ void
 _cogl_framebuffer_vulkan_query_bits (CoglFramebuffer *framebuffer,
                                      CoglFramebufferBits *bits)
 {
+  VK_TODO();
 }
 
 void
 _cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
 {
-  /* TODO... */
+  VK_TODO();
 }
 
 void
 _cogl_framebuffer_vulkan_discard_buffers (CoglFramebuffer *framebuffer,
                                       unsigned long buffers)
 {
-  /* TODO... */
+  VK_TODO();
 }
 
 void
@@ -451,7 +452,7 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                                   int n_attributes,
                                                   CoglDrawFlags flags)
 {
-  /* TODO... */
+  VK_TODO();
 }
 
 CoglBool
@@ -462,6 +463,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                   CoglBitmap *bitmap,
                                                   CoglError **error)
 {
-  /* TODO... */
+  VK_TODO();
   return FALSE;
 }
