@@ -45,23 +45,14 @@
 #ifdef COGL_PIPELINE_FRAGEND_VULKAN
 
 #include "cogl-context-private.h"
+#include "cogl-glsl-shader-private.h"
 #include "cogl-object-private.h"
 #include "cogl-shader-private.h"
 #include "cogl-program-private.h"
 #include "cogl-pipeline-cache.h"
 #include "cogl-pipeline-fragend-vulkan-private.h"
-#include "cogl-vulkan-shader-private.h"
 
 #include <glib.h>
-
-/*
- * GL/GLES compatability defines for pipeline thingies:
- */
-
-/* This might not be defined on GLES */
-#ifndef GL_TEXTURE_3D
-#define GL_TEXTURE_3D                           0x806F
-#endif
 
 const CoglPipelineFragend _cogl_pipeline_vulkan_backend;
 
@@ -1057,21 +1048,21 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       snippet_data.source_buf = shader_state->source;
       _cogl_pipeline_snippet_generate_code (&snippet_data);
 
-      GE_RET( shader, ctx, glCreateShader (GL_FRAGMENT_SHADER) );
+      /* GE_RET( shader, ctx, glCreateShader (GL_FRAGMENT_SHADER) ); */
 
       lengths[0] = shader_state->header->len;
       source_strings[0] = shader_state->header->str;
       lengths[1] = shader_state->source->len;
       source_strings[1] = shader_state->source->str;
 
-      _cogl_vulkan_shader_set_source_with_boilerplate (ctx,
+      _cogl_glsl_shader_set_source_with_boilerplate (ctx,
                                                      shader, GL_FRAGMENT_SHADER,
                                                      pipeline,
                                                      2, /* count */
                                                      source_strings, lengths);
 
-      GE( ctx, glCompileShader (shader) );
-      GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) );
+      /* GE( ctx, glCompileShader (shader) ); */
+      /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */
 
       if (!compile_status)
         {
@@ -1097,10 +1088,6 @@ _cogl_pipeline_fragend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                  CoglPipelineState change,
                                                  const CoglColor *new_color)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  if ((change & _cogl_pipeline_get_state_for_fragment_codegen (ctx)))
-    dirty_shader_state (pipeline);
 }
 
 /* NB: layers are considered immutable once they have any dependants
@@ -1117,17 +1104,6 @@ _cogl_pipeline_fragend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayer *layer,
                                                 CoglPipelineLayerState change)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  if ((change & _cogl_pipeline_get_layer_state_for_fragment_codegen (ctx)))
-    {
-      dirty_shader_state (owner);
-      return;
-    }
-
-  /* TODO: we could be saving snippets of texture combine code along
-   * with each layer and then when a layer changes we would just free
-   * the snippet. */
 }
 
 const CoglPipelineFragend _cogl_pipeline_vulkan_fragend =

@@ -78,7 +78,7 @@ _cogl_pipeline_progends[MAX (COGL_PIPELINE_N_PROGENDS, 1)];
 #include "cogl-pipeline-fragend-fixed-private.h"
 #endif
 #ifdef COGL_PIPELINE_FRAGEND_VULKAN
-#include "cogl-pipeline-fragend-vulkan.h"
+#include "cogl-pipeline-fragend-vulkan-private.h"
 #endif
 
 #ifdef COGL_PIPELINE_VERTEND_GLSL
@@ -88,7 +88,7 @@ _cogl_pipeline_progends[MAX (COGL_PIPELINE_N_PROGENDS, 1)];
 #include "cogl-pipeline-vertend-fixed-private.h"
 #endif
 #ifdef COGL_PIPELINE_VERTEND_VULKAN
-#include "cogl-pipeline-vertend-vulkan.h"
+#include "cogl-pipeline-vertend-vulkan-private.h"
 #endif
 
 #ifdef COGL_PIPELINE_PROGEND_FIXED_ARBFP
@@ -101,7 +101,7 @@ _cogl_pipeline_progends[MAX (COGL_PIPELINE_N_PROGENDS, 1)];
 #include "cogl-pipeline-progend-glsl-private.h"
 #endif
 #ifdef COGL_PIPELINE_PROGEND_VULKAN
-#include "cogl-pipeline-progend-vulkan.h"
+#include "cogl-pipeline-progend-vulkan-private.h"
 #endif
 
 COGL_OBJECT_DEFINE (Pipeline, pipeline);

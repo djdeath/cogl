@@ -42,11 +42,11 @@
 #include "cogl-pipeline-vulkan-private.h"
 
 #include "cogl-context-private.h"
+#include "cogl-glsl-shader-private.h"
 #include "cogl-object-private.h"
 #include "cogl-program-private.h"
 #include "cogl-pipeline-vertend-vulkan-private.h"
 #include "cogl-pipeline-state-private.h"
-#include "cogl-vulkan-shader-private.h"
 
 const CoglPipelineVertend _cogl_pipeline_vulkan_vertend;
 
@@ -514,30 +514,30 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       g_string_append (shader_state->source,
                        "}\n");
 
-      GE_RET( shader, ctx, glCreateShader (GL_VERTEX_SHADER) );
+      /* GE_RET( shader, ctx, glCreateShader (GL_VERTEX_SHADER) ); */
 
       lengths[0] = shader_state->header->len;
       source_strings[0] = shader_state->header->str;
       lengths[1] = shader_state->source->len;
       source_strings[1] = shader_state->source->str;
 
-      _cogl_vulkan_shader_set_source_with_boilerplate (ctx,
+      _cogl_glsl_shader_set_source_with_boilerplate (ctx,
                                                      shader, GL_VERTEX_SHADER,
                                                      pipeline,
                                                      2, /* count */
                                                      source_strings, lengths);
 
-      GE( ctx, glCompileShader (shader) );
-      GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) );
+      /* GE( ctx, glCompileShader (shader) ); */
+      /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */
 
       if (!compile_status)
         {
           GLint len = 0;
           char *shader_log;
 
-          GE( ctx, glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &len) );
-          shader_log = g_alloca (len);
-          GE( ctx, glGetShaderInfoLog (shader, len, &len, shader_log) );
+          /* GE( ctx, glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &len) ); */
+          /* shader_log = g_alloca (len); */
+          /* GE( ctx, glGetShaderInfoLog (shader, len, &len, shader_log) ); */
           g_warning ("Shader compilation failed:\n%s", shader_log);
         }
 
@@ -554,8 +554,8 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       CoglPipeline *authority =
         _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_POINT_SIZE);
 
-      if (authority->big_state->point_size > 0.0f)
-        GE( ctx, glPointSize (authority->big_state->point_size) );
+      /* if (authority->big_state->point_size > 0.0f) */
+      /*   GE( ctx, glPointSize (authority->big_state->point_size) ); */
     }
 #endif /* HAVE_COGL_GL */
 

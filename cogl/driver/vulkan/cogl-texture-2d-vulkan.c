@@ -41,7 +41,7 @@
 #include "cogl-util-vulkan-private.h"
 
 VkImage
-_cogl_texture_2d_get_vulkan_texture (CoglTexture2D *tex_2d)
+_cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d)
 {
   return tex_2d->vk_image;
 }
@@ -357,32 +357,7 @@ _cogl_texture_2d_vulkan_get_gl_handle (CoglTexture2D *tex_2d)
 void
 _cogl_texture_2d_vulkan_generate_mipmap (CoglTexture2D *tex_2d)
 {
-  CoglContext *ctx = COGL_TEXTURE (tex_2d)->context;
-
-  /* glGenerateMipmap is defined in the FBO extension. If it's not
-     available we'll fallback to temporarily enabling
-     GL_GENERATE_MIPMAP and reuploading the first pixel */
-  if (cogl_has_feature (ctx, COGL_FEATURE_ID_OFFSCREEN))
-    _cogl_texture_gl_generate_mipmaps (COGL_TEXTURE (tex_2d));
-#if defined(HAVE_COGL_GLES) || defined(HAVE_COGL_GL)
-  else
-    {
-      _cogl_bind_gl_texture_transient (GL_TEXTURE_2D,
-                                       tex_2d->gl_texture,
-                                       tex_2d->is_foreign);
-
-      GE( ctx, glTexParameteri (GL_TEXTURE_2D,
-                                GL_GENERATE_MIPMAP,
-                                GL_TRUE) );
-      GE( ctx, glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 1, 1,
-                                tex_2d->first_pixel.gl_format,
-                                tex_2d->first_pixel.gl_type,
-                                tex_2d->first_pixel.data) );
-      GE( ctx, glTexParameteri (GL_TEXTURE_2D,
-                                GL_GENERATE_MIPMAP,
-                                GL_FALSE) );
-    }
-#endif
+  /* TODO */
 }
 
 CoglBool
@@ -397,78 +372,7 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
                                           int level,
                                           CoglError **error)
 {
-  CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
-  CoglBitmap *upload_bmp;
-  CoglPixelFormat upload_format;
-  GLenum gl_format;
-  GLenum gl_type;
-  CoglBool status = TRUE;
-
-  upload_bmp =
-    _cogl_bitmap_convert_for_upload (bmp,
-                                     _cogl_texture_get_format (tex),
-                                     FALSE, /* can't convert in place */
-                                     error);
-  if (upload_bmp == NULL)
-    return FALSE;
-
-  upload_format = cogl_bitmap_get_format (upload_bmp);
-
-  ctx->driver_vtable->pixel_format_to_gl (ctx,
-                                          upload_format,
-                                          NULL, /* internal format */
-                                          &gl_format,
-                                          &gl_type);
-
-  /* If this touches the first pixel then we'll update our copy */
-  if (dst_x == 0 && dst_y == 0 &&
-      !cogl_has_feature (ctx, COGL_FEATURE_ID_OFFSCREEN))
-    {
-      CoglError *ignore = NULL;
-      uint8_t *data =
-        _cogl_bitmap_map (upload_bmp, COGL_BUFFER_ACCESS_READ, 0, &ignore);
-      CoglPixelFormat bpp =
-        _cogl_pixel_format_get_bytes_per_pixel (upload_format);
-
-      tex_2d->first_pixel.gl_format = gl_format;
-      tex_2d->first_pixel.gl_type = gl_type;
-
-      if (data)
-        {
-          memcpy (tex_2d->first_pixel.data,
-                  (data +
-                   cogl_bitmap_get_rowstride (upload_bmp) * src_y +
-                   bpp * src_x),
-                  bpp);
-          _cogl_bitmap_unmap (bmp);
-        }
-      else
-        {
-          g_warning ("Failed to read first bitmap pixel for "
-                     "glGenerateMipmap fallback");
-          cogl_error_free (ignore);
-          memset (tex_2d->first_pixel.data, 0, bpp);
-        }
-    }
-
-  status = ctx->texture_driver->upload_subregion_to_gl (ctx,
-                                                        tex,
-                                                        FALSE,
-                                                        src_x, src_y,
-                                                        dst_x, dst_y,
-                                                        width, height,
-                                                        level,
-                                                        upload_bmp,
-                                                        gl_format,
-                                                        gl_type,
-                                                        error);
-
-  cogl_object_unref (upload_bmp);
-
-  _cogl_texture_gl_maybe_update_max_level (tex, level);
-
-  return status;
+  return FALSE;
 }
 
 void
@@ -477,32 +381,4 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                                   int rowstride,
                                   uint8_t *data)
 {
-  CoglContext *ctx = COGL_TEXTURE (tex_2d)->context;
-  int bpp;
-  int width = COGL_TEXTURE (tex_2d)->width;
-  GLenum gl_format;
-  GLenum gl_type;
-
-  bpp = _cogl_pixel_format_get_bytes_per_pixel (format);
-
-  ctx->driver_vtable->pixel_format_to_gl (ctx,
-                                          format,
-                                          NULL, /* internal format */
-                                          &gl_format,
-                                          &gl_type);
-
-  ctx->texture_driver->prep_gl_for_pixels_download (ctx,
-                                                    rowstride,
-                                                    width,
-                                                    bpp);
-
-  _cogl_bind_gl_texture_transient (GL_TEXTURE_2D,
-                                   tex_2d->gl_texture,
-                                   tex_2d->is_foreign);
-
-  ctx->texture_driver->gl_get_tex_image (ctx,
-                                         GL_TEXTURE_2D,
-                                         gl_format,
-                                         gl_type,
-                                         data);
 }

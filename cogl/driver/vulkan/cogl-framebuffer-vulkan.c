@@ -38,8 +38,8 @@
 #include "cogl-framebuffer-vulkan-private.h"
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-error-private.h"
-#include "cogl-texture-vulkan-private.h"
 #include "cogl-texture-private.h"
+#include "cogl-texture-2d-vulkan-private.h"
 
 #include <glib.h>
 #include <string.h>
@@ -56,11 +56,11 @@ static CoglBool
 _ensure_command_buffer (CoglFramebuffer *framebuffer,
                         CoglError **error)
 {
-  CoglContext *ctx = fb->context;
-  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  CoglContext *ctx = framebuffer->context;
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
   VkResult result;
 
-  if (vk_framebuffer->emitting_commands)
+  if (vk_fb->emitting_commands)
     return TRUE;
 
   result = vkAllocateCommandBuffers (ctx->vk_device,
@@ -70,7 +70,7 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
                                        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                                        .commandBufferCount = 1,
                                      },
-                                     &vk_framebuffer->vk_cmd_buffer);
+                                     &vk_fb->vk_cmd_buffer);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -80,7 +80,7 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
       return FALSE;
     }
 
-  result = vkBeginCommandBuffer (vk_framebuffer->vk_cmd_buffer,
+  result = vkBeginCommandBuffer (vk_fb->vk_cmd_buffer,
                                  &(VkCommandBufferBeginInfo) {
                                    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                    .flags = 0
@@ -94,15 +94,15 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
       return FALSE;
     }
 
-  vkCmdBeginRenderPass (vk_framebuffer->vk_cmd_buffer,
+  vkCmdBeginRenderPass (vk_fb->vk_cmd_buffer,
                         &(VkRenderPassBeginInfo) {
                           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                          .renderPass = vk_framebuffer->vk_render_pass,
-                          .framebuffer = vk_framebuffer->vk_framebuffer,
+                          .renderPass = vk_fb->vk_render_pass,
+                          .framebuffer = vk_fb->vk_framebuffer,
                           .renderArea = {
                             { 0, 0 },
-                            { cogl_texture_get_width (framebuffer->width),
-                              cogl_texture_get_height (framebuffer->height) }
+                            { cogl_framebuffer_get_width (framebuffer),
+                              cogl_framebuffer_get_height (framebuffer) }
                           },
                           .clearValueCount = 1,
                           .pClearValues = (VkClearValue []) {
@@ -117,7 +117,7 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
 static void
 _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
 {
-  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
   VkViewport vk_viewport;
 
   _ensure_command_buffer (framebuffer, NULL);
@@ -148,14 +148,14 @@ _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
              vk_viewport.width,
              vk_viewport.height);
 
-  vkCmdSetViewport (vk_framebuffer->vk_cmd_buffer, 0, 1, &vk_viewport);
+  vkCmdSetViewport (vk_fb->vk_cmd_buffer, 0, 1, &vk_viewport);
 }
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
                                CoglFramebuffer *framebuffer)
 {
-  CoglVulkanFramebuffer *vk_framebuffer = _get_vulkan_framebuffer (framebuffer);
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
   int x0, y0, x1, y1;
   VkRect2D vk_rect;
 
@@ -166,13 +166,13 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
   vk_rect.extent.width = x1 - x0;
   vk_rect.extent.height = y1 - y0;
 
-  vkCmdSetScissor (vk_framebuffer->vk_cmd_buffer, 0, 1, &vk_rect);
+  vkCmdSetScissor (vk_fb->vk_cmd_buffer, 0, 1, &vk_rect);
 }
 
 void
-_cogl_framebuffer_gl_flush_state (CoglFramebuffer *draw_buffer,
-                                  CoglFramebuffer *read_buffer,
-                                  CoglFramebufferState state)
+_cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
+                                      CoglFramebuffer *read_buffer,
+                                      CoglFramebufferState state)
 {
   /* TODO... */
 }
@@ -191,194 +191,16 @@ create_depth_texture (CoglContext *ctx,
   return COGL_TEXTURE (depth_texture);
 }
 
-static CoglTexture *
-attach_depth_texture (CoglContext *ctx,
-                      CoglTexture *depth_texture,
-                      CoglOffscreenAllocateFlags flags)
-{
-  GLuint tex_gl_handle;
-  GLenum tex_gl_target;
-
-  if (flags & COGL_OFFSCREEN_ALLOCATE_FLAG_DEPTH_STENCIL)
-    {
-      /* attach a GL_DEPTH_STENCIL texture to the GL_DEPTH_ATTACHMENT and
-       * GL_STENCIL_ATTACHMENT attachement points */
-      g_assert (_cogl_texture_get_format (depth_texture) ==
-                COGL_PIXEL_FORMAT_DEPTH_24_STENCIL_8);
-
-      cogl_texture_get_gl_texture (depth_texture,
-                                   &tex_gl_handle, &tex_gl_target);
-
-      GE (ctx, glFramebufferTexture2D (GL_FRAMEBUFFER,
-                                       GL_DEPTH_ATTACHMENT,
-                                       tex_gl_target, tex_gl_handle,
-                                       0));
-      GE (ctx, glFramebufferTexture2D (GL_FRAMEBUFFER,
-                                       GL_STENCIL_ATTACHMENT,
-                                       tex_gl_target, tex_gl_handle,
-                                       0));
-    }
-  else if (flags & COGL_OFFSCREEN_ALLOCATE_FLAG_DEPTH)
-    {
-      /* attach a newly created GL_DEPTH_COMPONENT16 texture to the
-       * GL_DEPTH_ATTACHMENT attachement point */
-      g_assert (_cogl_texture_get_format (depth_texture) ==
-                COGL_PIXEL_FORMAT_DEPTH_16);
-
-      cogl_texture_get_gl_texture (COGL_TEXTURE (depth_texture),
-                                   &tex_gl_handle, &tex_gl_target);
-
-      GE (ctx, glFramebufferTexture2D (GL_FRAMEBUFFER,
-                                       GL_DEPTH_ATTACHMENT,
-                                       tex_gl_target, tex_gl_handle,
-                                       0));
-    }
-
-  return COGL_TEXTURE (depth_texture);
-}
-
-static GList *
-try_creating_renderbuffers (CoglContext *ctx,
-                            int width,
-                            int height,
-                            CoglOffscreenAllocateFlags flags,
-                            int n_samples)
-{
-  GList *renderbuffers = NULL;
-  GLuint gl_depth_stencil_handle;
-
-  if (flags & COGL_OFFSCREEN_ALLOCATE_FLAG_DEPTH_STENCIL)
-    {
-      GLenum format;
-
-      /* WebGL adds a GL_DEPTH_STENCIL_ATTACHMENT and requires that we
-       * use the GL_DEPTH_STENCIL format. */
-#ifdef HAVE_COGL_WEBGL
-      format = GL_DEPTH_STENCIL;
-#else
-      /* Although GL_OES_packed_depth_stencil is mostly equivalent to
-       * GL_EXT_packed_depth_stencil, one notable difference is that
-       * GL_OES_packed_depth_stencil doesn't allow GL_DEPTH_STENCIL to
-       * be passed as an internal format to glRenderbufferStorage.
-       */
-      if (_cogl_has_private_feature
-          (ctx, COGL_PRIVATE_FEATURE_EXT_PACKED_DEPTH_STENCIL))
-        format = GL_DEPTH_STENCIL;
-      else
-        {
-          _COGL_RETURN_VAL_IF_FAIL (
-            _cogl_has_private_feature (ctx,
-              COGL_PRIVATE_FEATURE_OES_PACKED_DEPTH_STENCIL),
-            NULL);
-          format = GL_DEPTH24_STENCIL8;
-        }
-#endif
-
-      /* Create a renderbuffer for depth and stenciling */
-      GE (ctx, glGenRenderbuffers (1, &gl_depth_stencil_handle));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, gl_depth_stencil_handle));
-      if (n_samples)
-        GE (ctx, glRenderbufferStorageMultisampleIMG (GL_RENDERBUFFER,
-                                                      n_samples,
-                                                      format,
-                                                      width, height));
-      else
-        GE (ctx, glRenderbufferStorage (GL_RENDERBUFFER, format,
-                                        width, height));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, 0));
-
-
-#ifdef HAVE_COGL_WEBGL
-      GE (ctx, glFramebufferRenderbuffer (GL_FRAMEBUFFER,
-                                          GL_DEPTH_STENCIL_ATTACHMENT,
-                                          GL_RENDERBUFFER,
-                                          gl_depth_stencil_handle));
-#else
-      GE (ctx, glFramebufferRenderbuffer (GL_FRAMEBUFFER,
-                                          GL_STENCIL_ATTACHMENT,
-                                          GL_RENDERBUFFER,
-                                          gl_depth_stencil_handle));
-      GE (ctx, glFramebufferRenderbuffer (GL_FRAMEBUFFER,
-                                          GL_DEPTH_ATTACHMENT,
-                                          GL_RENDERBUFFER,
-                                          gl_depth_stencil_handle));
-#endif
-      renderbuffers =
-        g_list_prepend (renderbuffers,
-                        GUINT_TO_POINTER (gl_depth_stencil_handle));
-    }
-
-  if (flags & COGL_OFFSCREEN_ALLOCATE_FLAG_DEPTH)
-    {
-      GLuint gl_depth_handle;
-
-      GE (ctx, glGenRenderbuffers (1, &gl_depth_handle));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, gl_depth_handle));
-      /* For now we just ask for GL_DEPTH_COMPONENT16 since this is all that's
-       * available under GLES */
-      if (n_samples)
-        GE (ctx, glRenderbufferStorageMultisampleIMG (GL_RENDERBUFFER,
-                                                      n_samples,
-                                                      GL_DEPTH_COMPONENT16,
-                                                      width, height));
-      else
-        GE (ctx, glRenderbufferStorage (GL_RENDERBUFFER, GL_DEPTH_COMPONENT16,
-                                        width, height));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, 0));
-      GE (ctx, glFramebufferRenderbuffer (GL_FRAMEBUFFER,
-                                          GL_DEPTH_ATTACHMENT,
-                                          GL_RENDERBUFFER, gl_depth_handle));
-      renderbuffers =
-        g_list_prepend (renderbuffers, GUINT_TO_POINTER (gl_depth_handle));
-    }
-
-  if (flags & COGL_OFFSCREEN_ALLOCATE_FLAG_STENCIL)
-    {
-      GLuint gl_stencil_handle;
-
-      GE (ctx, glGenRenderbuffers (1, &gl_stencil_handle));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, gl_stencil_handle));
-      if (n_samples)
-        GE (ctx, glRenderbufferStorageMultisampleIMG (GL_RENDERBUFFER,
-                                                      n_samples,
-                                                      GL_STENCIL_INDEX8,
-                                                      width, height));
-      else
-        GE (ctx, glRenderbufferStorage (GL_RENDERBUFFER, GL_STENCIL_INDEX8,
-                                        width, height));
-      GE (ctx, glBindRenderbuffer (GL_RENDERBUFFER, 0));
-      GE (ctx, glFramebufferRenderbuffer (GL_FRAMEBUFFER,
-                                          GL_STENCIL_ATTACHMENT,
-                                          GL_RENDERBUFFER, gl_stencil_handle));
-      renderbuffers =
-        g_list_prepend (renderbuffers, GUINT_TO_POINTER (gl_stencil_handle));
-    }
-
-  return renderbuffers;
-}
-
-static void
-delete_renderbuffers (CoglContext *ctx, GList *renderbuffers)
-{
-  GList *l;
-
-  for (l = renderbuffers; l; l = l->next)
-    {
-      GLuint renderbuffer = GPOINTER_TO_UINT (l->data);
-      GE (ctx, glDeleteRenderbuffers (1, &renderbuffer));
-    }
-
-  g_list_free (renderbuffers);
-}
-
 CoglBool
 _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  CoglError **error)
 {
   CoglFramebuffer *fb = COGL_FRAMEBUFFER (offscreen);
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (fb);
   CoglContext *ctx = fb->context;
   int level_width;
   int level_height;
+  VkResult result;
 
   _COGL_RETURN_VAL_IF_FAIL (offscreen->texture_level <
                             _cogl_texture_get_n_levels (offscreen->texture),
@@ -411,7 +233,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   result = vkCreateImageView (ctx->vk_device,
                               &(VkImageViewCreateInfo) {
                                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                .image = _cogl_texture_2d_get_vulkan_texture (COGL_TEXTURE_2d (offscreen->texture)),
+                                .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
                                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
                                 .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
                                 .components = COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY,
@@ -424,7 +246,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                 },
                               },
                               NULL,
-                              &vk_framebuffer->vk_image_view);
+                              &vk_fb->vk_image_view);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -438,13 +260,13 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                 &(VkFramebufferCreateInfo) {
                                   .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                                   .attachmentCount = 1,
-                                  .pAttachments = &vk_framebuffer->vk_image_view,
+                                  .pAttachments = &vk_fb->vk_image_view,
                                   .width = cogl_texture_get_width (offscreen->texture),
                                   .height = cogl_texture_get_height (offscreen->texture),
                                   .layers = 1
                                 },
                                 NULL,
-                                &vk_framebuffer->vk_framebuffer);
+                                &vk_fb->vk_framebuffer);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -503,7 +325,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  .dependencyCount = 0
                                },
                                NULL,
-                               &vk_framebuffer->vk_render_pass);
+                               &vk_fb->vk_render_pass);
 
   if (result != VK_SUCCESS)
     {
@@ -521,30 +343,30 @@ void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 {
   CoglContext *ctx = COGL_FRAMEBUFFER (offscreen)->context;
-  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (COGL_FRAMEBUFFER (offscreen));
 
   vkFreeCommandBuffers (ctx->vk_device, ctx->vk_cmd_pool,
-                        1, &vk_framebuffer->vk_cmd_buffer);
-  vkDestroyRenderPass (ctx->vk_device, vk_framebuffer->vk_render_pass, NULL);
-  vkDestroyFramebuffer (ctx->vk_device, vk_framebuffer->vk_framebuffer, NULL);
-  vkDestroyImageView (ctx->vk_device, vk_framebuffer->vk_image_view, NULL);
+                        1, &vk_fb->vk_cmd_buffer);
+  vkDestroyRenderPass (ctx->vk_device, vk_fb->vk_render_pass, NULL);
+  vkDestroyFramebuffer (ctx->vk_device, vk_fb->vk_framebuffer, NULL);
+  vkDestroyImageView (ctx->vk_device, vk_fb->vk_image_view, NULL);
 }
 
 void
-_cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
-                            unsigned long buffers,
-                            float red,
-                            float green,
-                            float blue,
-                            float alpha)
+_cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
+                                unsigned long buffers,
+                                float red,
+                                float green,
+                                float blue,
+                                float alpha)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
 
-  _ensure_command_buffer (framebuffer);
+  _ensure_command_buffer (framebuffer, NULL);
 
-  vkCmdClearColorImage (vk_framebuffer->vk_cmd_buffer,
-                        vk_framebuffer->vk_image,
+  vkCmdClearColorImage (vk_fb->vk_cmd_buffer,
+                        vk_fb->vk_image,
                         0,
                         &(VkClearColorValue) {
                           .float32 = { red, green, blue, alpha },
@@ -557,12 +379,18 @@ _cogl_framebuffer_gl_clear (CoglFramebuffer *framebuffer,
                             ((buffers & COGL_BUFFER_BIT_DEPTH) != 0 ?
                              VK_IMAGE_ASPECT_DEPTH_BIT : 0) |
                             ((buffers & COGL_BUFFER_BIT_STENCIL) != 0 ?
-                             VK_IMAGE_ASPECT_STENCIL_BIT : 0)
+                             VK_IMAGE_ASPECT_STENCIL_BIT : 0),
                           .baseMipLevel = 0,
                           .levelCount = 1,
                           .baseArrayLayer = 0,
                           .layerCount = 1,
                         });
+}
+
+void
+_cogl_framebuffer_vulkan_query_bits (CoglFramebuffer *framebuffer,
+                                     CoglFramebufferBits *bits)
+{
 }
 
 void
@@ -588,38 +416,40 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
                                           int n_attributes,
                                           CoglDrawFlags flags)
 {
-  CoglVulkanFramebuffer *vk_framebuffer = &offscreen->vulkan_framebuffer;
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
-  vkCmdBindVertexBuffers(cmd_buffer, 0, 3,
-                         (VkBuffer[]) {
-                           vc->buffer,
-                             vc->buffer,
-                                                          vc->buffer
-                             },
-                         (VkDeviceSize[]) {
-                           vc->vertex_offset,
-                             vc->colors_offset,
-                                                          vc->normals_offset
-                             });
+  _ensure_command_buffer (framebuffer, NULL);
+
+  /* vkCmdBindVertexBuffers(cmd_buffer, 0, 3, */
+  /*                        (VkBuffer[]) { */
+  /*                          vc->buffer, */
+  /*                            vc->buffer, */
+  /*                            vc->buffer */
+  /*                            }, */
+  /*                        (VkDeviceSize[]) { */
+  /*                          vc->vertex_offset, */
+  /*                            vc->colors_offset, */
+  /*                            vc->normals_offset */
+  /*                            }); */
 
 
-  GE (framebuffer->context,
-      glDrawArrays ((GLenum)mode, first_vertex, n_vertices));
+  /* GE (framebuffer->context, */
+  /*     glDrawArrays ((GLenum)mode, first_vertex, n_vertices)); */
 }
 
 void
-_cogl_framebuffer_gl_draw_indexed_attributes (CoglFramebuffer *framebuffer,
-                                              CoglPipeline *pipeline,
-                                              CoglVerticesMode mode,
-                                              int first_vertex,
-                                              int n_vertices,
-                                              CoglIndices *indices,
-                                              CoglAttribute **attributes,
-                                              int n_attributes,
-                                              CoglDrawFlags flags)
+_cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
+                                                  CoglPipeline *pipeline,
+                                                  CoglVerticesMode mode,
+                                                  int first_vertex,
+                                                  int n_vertices,
+                                                  CoglIndices *indices,
+                                                  CoglAttribute **attributes,
+                                                  int n_attributes,
+                                                  CoglDrawFlags flags)
 {
   /* TODO... */
 }

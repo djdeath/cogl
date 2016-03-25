@@ -211,8 +211,15 @@ typedef struct _CoglGLFramebuffer
 #ifdef COGL_HAS_VULKAN
 typedef struct _CoglVulkanFramebuffer
 {
+  VkFramebuffer vk_framebuffer;
+  VkImageView vk_image_view;
+  VkImage vk_image;
+
   VkRenderPass vk_render_pass;
-} CoglVulkanFrameBuffer;
+  VkCommandBuffer vk_cmd_buffer;
+
+  CoglBool emitting_commands;
+} CoglVulkanFramebuffer;
 #endif
 
 struct _CoglOffscreen
@@ -221,7 +228,7 @@ struct _CoglOffscreen
 
   CoglGLFramebuffer gl_framebuffer;
 #ifdef COGL_HAS_VULKAN
-  CoglVulkanFrameBuffer vk_framebuffer;
+  CoglVulkanFramebuffer vk_framebuffer;
 #endif
 
   CoglTexture    *texture;

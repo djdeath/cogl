@@ -1049,7 +1049,7 @@ update_float_uniform (CoglPipeline *pipeline,
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   value = float_getter_func (pipeline);
-  GE( ctx, glUniform1f (uniform_location, value) );
+  /* GE( ctx, glUniform1f (uniform_location, value) ); */
 }
 
 const CoglPipelineProgend _cogl_pipeline_vulkan_progend =
