@@ -199,7 +199,7 @@ static CoglDriverDescription _cogl_drivers[] =
   {
     COGL_DRIVER_VULKAN,
     "vulkan",
-    0,
+    COGL_RENDERER_CONSTRAINT_USES_VULKAN,
     { COGL_PRIVATE_FEATURE_GL_PROGRAMMABLE,
       -1 },
     &_cogl_driver_vulkan,

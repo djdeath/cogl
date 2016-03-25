@@ -32,7 +32,11 @@
 #include "config.h"
 #endif
 
+#include <glib.h>
+#include <string.h>
+
 #include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 #include "cogl-framebuffer-private.h"
 #include "cogl-framebuffer-vulkan-private.h"
@@ -40,9 +44,6 @@
 #include "cogl-error-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
-
-#include <glib.h>
-#include <string.h>
 
 static CoglVulkanFramebuffer *
 _get_vulkan_framebuffer (CoglFramebuffer *framebuffer)
@@ -54,17 +55,17 @@ static CoglBool
 _ensure_command_buffer (CoglFramebuffer *framebuffer,
                         CoglError **error)
 {
-  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
   VkResult result;
 
   if (vk_fb->emitting_commands)
     return TRUE;
 
-  result = vkAllocateCommandBuffers (ctx->vk_device,
+  result = vkAllocateCommandBuffers (vk_ctx->device,
                                      &(VkCommandBufferAllocateInfo) {
                                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                       .commandPool = ctx->vk_cmd_pool,
+                                       .commandPool = vk_ctx->cmd_pool,
                                        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                                        .commandBufferCount = 1,
                                      },
@@ -194,8 +195,9 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  CoglError **error)
 {
   CoglFramebuffer *fb = COGL_FRAMEBUFFER (offscreen);
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (fb);
   CoglContext *ctx = fb->context;
+  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (fb);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   int level_width;
   int level_height;
   VkResult result;
@@ -230,7 +232,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       _cogl_texture_associate_framebuffer (offscreen->depth_texture, fb);
     }
 
-  result = vkCreateImageView (ctx->vk_device,
+  result = vkCreateImageView (vk_ctx->device,
                               &(VkImageViewCreateInfo) {
                                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                                 .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
@@ -256,7 +258,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       return FALSE;
     }
 
-  result = vkCreateFramebuffer (ctx->vk_device,
+  result = vkCreateFramebuffer (vk_ctx->device,
                                 &(VkFramebufferCreateInfo) {
                                   .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                                   .attachmentCount = 1,
@@ -276,7 +278,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       return FALSE;
     }
 
-  result = vkCreateRenderPass (ctx->vk_device,
+  result = vkCreateRenderPass (vk_ctx->device,
                                &(VkRenderPassCreateInfo) {
                                  .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
                                  .attachmentCount = offscreen->depth_texture ? 2 : 1,
@@ -342,14 +344,14 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 {
-  CoglContext *ctx = COGL_FRAMEBUFFER (offscreen)->context;
+  CoglContextVulkan *vk_ctx = COGL_FRAMEBUFFER (offscreen)->context->winsys;
   CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (COGL_FRAMEBUFFER (offscreen));
 
-  vkFreeCommandBuffers (ctx->vk_device, ctx->vk_cmd_pool,
+  vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
                         1, &vk_fb->vk_cmd_buffer);
-  vkDestroyRenderPass (ctx->vk_device, vk_fb->vk_render_pass, NULL);
-  vkDestroyFramebuffer (ctx->vk_device, vk_fb->vk_framebuffer, NULL);
-  vkDestroyImageView (ctx->vk_device, vk_fb->vk_image_view, NULL);
+  vkDestroyRenderPass (vk_ctx->device, vk_fb->vk_render_pass, NULL);
+  vkDestroyFramebuffer (vk_ctx->device, vk_fb->vk_framebuffer, NULL);
+  vkDestroyImageView (vk_ctx->device, vk_fb->vk_image_view, NULL);
 }
 
 void
@@ -360,7 +362,7 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 float blue,
                                 float alpha)
 {
-  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
 
   _ensure_command_buffer (framebuffer, NULL);

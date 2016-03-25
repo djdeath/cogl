@@ -35,6 +35,7 @@
 #include <string.h>
 
 #include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-error-private.h"
 #include "cogl-util-vulkan-private.h"
@@ -58,10 +59,10 @@ _cogl_buffer_usage_to_vulkan_buffer_usage (CoglBufferUsageHint usage)
 void
 _cogl_buffer_vulkan_create (CoglBuffer *buffer)
 {
-  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = buffer->context->winsys;
   VkResult result;
 
-  result = vkAllocateMemory (ctx->vk_device,
+  result = vkAllocateMemory (vk_ctx->device,
                              &(VkMemoryAllocateInfo) {
                                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                                .allocationSize = buffer->size,
@@ -77,7 +78,7 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
     }
   buffer->vk_memory_valid;
 
-  result = vkCreateBuffer (ctx->vk_device,
+  result = vkCreateBuffer (vk_ctx->device,
                            &(VkBufferCreateInfo) {
                              .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                              .size = buffer->size,
@@ -94,7 +95,7 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
     }
   buffer->vk_buffer_valid = TRUE;
 
-  result = vkBindBufferMemory (ctx->vk_device,
+  result = vkBindBufferMemory (vk_ctx->device,
                                buffer->vk_buffer,
                                buffer->vk_memory, 0);
   if (result != VK_SUCCESS)
@@ -108,16 +109,16 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
 void
 _cogl_buffer_vulkan_destroy (CoglBuffer *buffer)
 {
-  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = buffer->context->winsys;
 
   if (buffer->vk_buffer_valid)
     {
-      vkDestroyBuffer (ctx->vk_device, buffer->vk_buffer, NULL);
+      vkDestroyBuffer (vk_ctx->device, buffer->vk_buffer, NULL);
       buffer->vk_buffer_valid = FALSE;
     }
   if (buffer->vk_memory_valid)
     {
-      vkFreeMemory (ctx->vk_device, buffer->vk_memory, NULL);
+      vkFreeMemory (vk_ctx->device, buffer->vk_memory, NULL);
       buffer->vk_memory_valid = FALSE;
     }
 }
@@ -130,7 +131,7 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
                                CoglBufferMapHint hints,
                                CoglError **error)
 {
-  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = buffer->context->winsys;
   void *data;
   VkResult result;
 
@@ -142,7 +143,7 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
       return NULL;
     }
 
-  result = vkMapMemory (ctx->vk_device,
+  result = vkMapMemory (vk_ctx->device,
                         buffer->vk_memory,
                         offset,
                         size,
@@ -167,14 +168,14 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
 void
 _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
 {
-  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = buffer->context->winsys;
   VkResult result;
 
   if (buffer->vk_memory_need_flush)
     {
       buffer->vk_memory_need_flush = FALSE;
 
-      result = vkFlushMappedMemoryRanges (ctx->vk_device,
+      result = vkFlushMappedMemoryRanges (vk_ctx->device,
                                           1,
                                           &(VkMappedMemoryRange) {
                                             .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
@@ -190,7 +191,7 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
         }
     }
 
-  vkUnmapMemory (ctx->vk_device, buffer->vk_memory);
+  vkUnmapMemory (vk_ctx->device, buffer->vk_memory);
 }
 
 CoglBool
@@ -200,7 +201,7 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
                               unsigned int size,
                               CoglError **error)
 {
-  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = buffer->context->winsys;
   void *data_map;
   VkResult result;
 

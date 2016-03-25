@@ -32,7 +32,8 @@
 
 #include <string.h>
 
-#include "cogl-private.h"
+#include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-texture-2d-private.h"
@@ -55,9 +56,11 @@ _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 void
 _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d)
 {
+  CoglContextVulkan *vk_ctx = tex_2d->_parent.context->winsys;
+
   if (tex_2d->vk_image_valid)
     {
-      vkDestroyImage(tex_2d->_parent.context->vk_device,
+      vkDestroyImage(vk_ctx->device,
                      tex_2d->vk_image, NULL);
       tex_2d->vk_image_valid = FALSE;
     }
@@ -69,13 +72,14 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
                                     int height,
                                     CoglPixelFormat internal_format)
 {
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   VkPhysicalDeviceProperties props;
 
   if (_cogl_pixel_format_to_vulkan_format (internal_format,
                                            NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
-  vkGetPhysicalDeviceProperties(ctx->vk_physical_device, &props);
+  vkGetPhysicalDeviceProperties(vk_ctx->physical_device, &props);
 
   if (width >= props.limits.maxFramebufferWidth ||
       height >= props.limits.maxFramebufferHeight)
@@ -104,7 +108,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
                     CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = tex->context->winsys;
   CoglPixelFormat internal_format;
   int width = loader->src.sized.width;
   int height = loader->src.sized.height;
@@ -125,7 +129,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  result = vkCreateImage(ctx->vk_device,
+  result = vkCreateImage(vk_ctx->device,
                          &(VkImageCreateInfo) {
                            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                            .imageType = VK_IMAGE_TYPE_2D,
@@ -149,10 +153,10 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  vkGetImageMemoryRequirements (ctx->vk_device,
+  vkGetImageMemoryRequirements (vk_ctx->device,
                                 tex_2d->vk_image,
                                 &requirements);
-  result = vkAllocateMemory (ctx->vk_device,
+  result = vkAllocateMemory (vk_ctx->device,
                              &(VkMemoryAllocateInfo) {
                                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                                .allocationSize = requirements.size,
@@ -169,7 +173,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  result = vkBindImageMemory(ctx->vk_device, tex_2d->vk_image,
+  result = vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
                              tex_2d->vk_memory, 0);
   if (result != VK_SUCCESS)
     {
@@ -194,7 +198,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglBitmap *bmp = loader->src.bitmap.bitmap;
-  CoglContext *ctx = _cogl_bitmap_get_context (bmp);
+  CoglContextVulkan *vk_ctx = _cogl_bitmap_get_context (bmp)->winsys;
   CoglPixelFormat internal_format;
   int width = cogl_bitmap_get_width (bmp);
   int height = cogl_bitmap_get_height (bmp);

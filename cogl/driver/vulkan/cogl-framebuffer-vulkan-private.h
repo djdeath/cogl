@@ -31,6 +31,11 @@
 #ifndef __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 #define __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 
+typedef struct _CoglOnscreenVulkan
+{
+  int dummy;
+} CoglOnscreenVulkan;
+
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
                                CoglFramebuffer *framebuffer);
