@@ -45,18 +45,133 @@
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 
-static CoglVulkanFramebuffer *
-_get_vulkan_framebuffer (CoglFramebuffer *framebuffer)
+void
+_cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
 {
-  return &framebuffer->vk_framebuffer;
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+
+  vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                        1, &vk_fb->cmd_buffer);
+  vkDestroyRenderPass (vk_ctx->device, vk_fb->render_pass, NULL);
+  vkDestroyFramebuffer (vk_ctx->device, vk_fb->framebuffer, NULL);
+  vkDestroyImageView (vk_ctx->device, vk_fb->image_view, NULL);
+}
+
+CoglBool
+_cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
+                               CoglError **error)
+{
+  /* CoglContextVulkan *vk_ctx = framebuffer->context->winsys; */
+  /* CoglFramebufferVulkan *vk_fb = framebuffer->winsys; */
+  /* VkResult result; */
+
+  /* result = vkCreateImageView (vk_ctx->device, */
+  /*                             &(VkImageViewCreateInfo) { */
+  /*                               .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, */
+  /*                               .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)), */
+  /*                               .viewType = VK_IMAGE_VIEW_TYPE_2D, */
+  /*                               .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)), */
+  /*                               .components = COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY, */
+  /*                               .subresourceRange = { */
+  /*                                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, */
+  /*                                 .baseMipLevel = 0, */
+  /*                                 .levelCount = 0, */
+  /*                                 .baseArrayLayer = 0, */
+  /*                                 .layerCount = 1, */
+  /*                               }, */
+  /*                             }, */
+  /*                             NULL, */
+  /*                             &vk_fb->image_view); */
+  /* if (result != VK_SUCCESS) */
+  /*   { */
+  /*     _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR, */
+  /*                      COGL_FRAMEBUFFER_ERROR_ALLOCATE, */
+  /*                      "Failed to create framebuffer image view : %s", */
+  /*                      _cogl_vulkan_error_to_string (result)); */
+  /*     return FALSE; */
+  /*   } */
+
+  /* result = vkCreateFramebuffer (vk_ctx->device, */
+  /*                               &(VkFramebufferCreateInfo) { */
+  /*                                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, */
+  /*                                 .attachmentCount = 1, */
+  /*                                 .pAttachments = &vk_fb->image_view, */
+  /*                                 .width = framebuffer->width, */
+  /*                                 .height = framebuffer->height, */
+  /*                                 .layers = 1 */
+  /*                               }, */
+  /*                               NULL, */
+  /*                               &vk_fb->framebuffer); */
+  /* if (result != VK_SUCCESS) */
+  /*   { */
+  /*     _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR, */
+  /*                      COGL_FRAMEBUFFER_ERROR_ALLOCATE, */
+  /*                      "Failed to create framebuffer : %s", */
+  /*                      _cogl_vulkan_error_to_string (result)); */
+  /*     return FALSE; */
+  /*   } */
+
+  /* result = vkCreateRenderPass (vk_ctx->device, */
+  /*                              &(VkRenderPassCreateInfo) { */
+  /*                                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, */
+  /*                                .attachmentCount = 1, */
+  /*                                .pAttachments = (VkAttachmentDescription[]) { */
+  /*                                  { */
+  /*                                    .format = _cogl_pixel_format_to_vulkan_format (fb->internal_format, NULL), */
+  /*                                    .samples = 1, */
+  /*                                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, */
+  /*                                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE, */
+  /*                                    .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, */
+  /*                                    .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, */
+  /*                                  } */
+  /*                                }, */
+  /*                                .subpassCount = 1, */
+  /*                                .pSubpasses = (VkSubpassDescription []) { */
+  /*                                  { */
+  /*                                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS, */
+  /*                                    .inputAttachmentCount = 0, */
+  /*                                    .colorAttachmentCount = 1, */
+  /*                                    .pColorAttachments = (VkAttachmentReference []) { */
+  /*                                      { */
+  /*                                        .attachment = 0, */
+  /*                                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL */
+  /*                                      } */
+  /*                                    }, */
+  /*                                    .pResolveAttachments = (VkAttachmentReference []) { */
+  /*                                      { */
+  /*                                        .attachment = VK_ATTACHMENT_UNUSED, */
+  /*                                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL */
+  /*                                      } */
+  /*                                    }, */
+  /*                                    .pDepthStencilAttachment = NULL, */
+  /*                                    .preserveAttachmentCount = 1, */
+  /*                                    .pPreserveAttachments = (uint32_t []) { 0 }, */
+  /*                                  } */
+  /*                                }, */
+  /*                                .dependencyCount = 0 */
+  /*                              }, */
+  /*                              NULL, */
+  /*                              &vk_fb->render_pass); */
+  /* if (result != VK_SUCCESS) */
+  /*   { */
+  /*     _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR, */
+  /*                      COGL_FRAMEBUFFER_ERROR_ALLOCATE, */
+  /*                      "Failed to create render pass : %s", */
+  /*                      _cogl_vulkan_error_to_string (result)); */
+  /*     return FALSE; */
+  /*   } */
+
+  VK_TODO();
+  return FALSE;
 }
 
 static CoglBool
-_ensure_command_buffer (CoglFramebuffer *framebuffer,
-                        CoglError **error)
+_cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
+                                                CoglError **error)
 {
   CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkResult result;
 
   if (vk_fb->emitting_commands)
@@ -69,7 +184,7 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
                                        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                                        .commandBufferCount = 1,
                                      },
-                                     &vk_fb->vk_cmd_buffer);
+                                     &vk_fb->cmd_buffer);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -79,7 +194,7 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
       return FALSE;
     }
 
-  result = vkBeginCommandBuffer (vk_fb->vk_cmd_buffer,
+  result = vkBeginCommandBuffer (vk_fb->cmd_buffer,
                                  &(VkCommandBufferBeginInfo) {
                                    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                    .flags = 0
@@ -93,11 +208,11 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
       return FALSE;
     }
 
-  vkCmdBeginRenderPass (vk_fb->vk_cmd_buffer,
+  vkCmdBeginRenderPass (vk_fb->cmd_buffer,
                         &(VkRenderPassBeginInfo) {
                           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                          .renderPass = vk_fb->vk_render_pass,
-                          .framebuffer = vk_fb->vk_framebuffer,
+                          .renderPass = vk_fb->render_pass,
+                          .framebuffer = vk_fb->framebuffer,
                           .renderArea = {
                             { 0, 0 },
                             { cogl_framebuffer_get_width (framebuffer),
@@ -116,10 +231,10 @@ _ensure_command_buffer (CoglFramebuffer *framebuffer,
 static void
 _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
 {
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkViewport vk_viewport;
 
-  _ensure_command_buffer (framebuffer, NULL);
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
 
   g_assert (framebuffer->viewport_width >=0 &&
             framebuffer->viewport_height >=0);
@@ -147,14 +262,14 @@ _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
              vk_viewport.width,
              vk_viewport.height);
 
-  vkCmdSetViewport (vk_fb->vk_cmd_buffer, 0, 1, &vk_viewport);
+  vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport);
 }
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
                                CoglFramebuffer *framebuffer)
 {
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   int x0, y0, x1, y1;
   VkRect2D vk_rect;
 
@@ -165,7 +280,7 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
   vk_rect.extent.width = x1 - x0;
   vk_rect.extent.height = y1 - y0;
 
-  vkCmdSetScissor (vk_fb->vk_cmd_buffer, 0, 1, &vk_rect);
+  vkCmdSetScissor (vk_fb->cmd_buffer, 0, 1, &vk_rect);
 }
 
 void
@@ -196,13 +311,14 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 {
   CoglFramebuffer *fb = COGL_FRAMEBUFFER (offscreen);
   CoglContext *ctx = fb->context;
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (fb);
+  CoglOffscreenVulkan *vk_off = g_slice_new0 (CoglOffscreenVulkan);
+  CoglFramebufferVulkan *vk_fb = (CoglFramebufferVulkan *) vk_off;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   int level_width;
   int level_height;
   VkResult result;
 
-  g_warning ("allocation framebuffer %p", offscreen);
+  fb->winsys = vk_fb;
 
   _COGL_RETURN_VAL_IF_FAIL (offscreen->texture_level <
                             _cogl_texture_get_n_levels (offscreen->texture),
@@ -248,7 +364,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                 },
                               },
                               NULL,
-                              &vk_fb->vk_image_view);
+                              &vk_fb->image_view);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -262,13 +378,13 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                 &(VkFramebufferCreateInfo) {
                                   .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                                   .attachmentCount = 1,
-                                  .pAttachments = &vk_fb->vk_image_view,
+                                  .pAttachments = &vk_fb->image_view,
                                   .width = cogl_texture_get_width (offscreen->texture),
                                   .height = cogl_texture_get_height (offscreen->texture),
                                   .layers = 1
                                 },
                                 NULL,
-                                &vk_fb->vk_framebuffer);
+                                &vk_fb->framebuffer);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
@@ -327,7 +443,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                  .dependencyCount = 0
                                },
                                NULL,
-                               &vk_fb->vk_render_pass);
+                               &vk_fb->render_pass);
 
   if (result != VK_SUCCESS)
     {
@@ -344,14 +460,13 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 {
-  CoglContextVulkan *vk_ctx = COGL_FRAMEBUFFER (offscreen)->context->winsys;
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (COGL_FRAMEBUFFER (offscreen));
+  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (offscreen);
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglOffscreenVulkan *vk_off = framebuffer->winsys;
 
-  vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                        1, &vk_fb->vk_cmd_buffer);
-  vkDestroyRenderPass (vk_ctx->device, vk_fb->vk_render_pass, NULL);
-  vkDestroyFramebuffer (vk_ctx->device, vk_fb->vk_framebuffer, NULL);
-  vkDestroyImageView (vk_ctx->device, vk_fb->vk_image_view, NULL);
+  _cogl_framebuffer_vulkan_deinit (framebuffer);
+
+  g_slice_free (CoglOffscreenVulkan, framebuffer->winsys);
 }
 
 void
@@ -363,12 +478,12 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 float alpha)
 {
   CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
-  _ensure_command_buffer (framebuffer, NULL);
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
 
-  vkCmdClearColorImage (vk_fb->vk_cmd_buffer,
-                        vk_fb->vk_image,
+  vkCmdClearColorImage (vk_fb->cmd_buffer,
+                        vk_fb->image,
                         0,
                         &(VkClearColorValue) {
                           .float32 = { red, green, blue, alpha },
@@ -419,12 +534,12 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
                                           int n_attributes,
                                           CoglDrawFlags flags)
 {
-  CoglVulkanFramebuffer *vk_fb = _get_vulkan_framebuffer (framebuffer);
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
-  _ensure_command_buffer (framebuffer, NULL);
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
 
   /* vkCmdBindVertexBuffers(cmd_buffer, 0, 3, */
   /*                        (VkBuffer[]) { */

@@ -127,20 +127,6 @@ typedef struct
   int stencil;
 } CoglFramebufferBits;
 
-#ifdef COGL_HAS_VULKAN
-typedef struct _CoglVulkanFramebuffer
-{
-  VkFramebuffer vk_framebuffer;
-  VkImageView vk_image_view;
-  VkImage vk_image;
-
-  VkRenderPass vk_render_pass;
-  VkCommandBuffer vk_cmd_buffer;
-
-  CoglBool emitting_commands;
-} CoglVulkanFramebuffer;
-#endif
-
 struct _CoglFramebuffer
 {
   CoglObject          _parent;
@@ -208,9 +194,7 @@ struct _CoglFramebuffer
 
   int                 samples_per_pixel;
 
-#ifdef COGL_HAS_VULKAN
-  CoglVulkanFramebuffer vk_framebuffer;
-#endif
+  void *winsys;
 };
 
 typedef enum {

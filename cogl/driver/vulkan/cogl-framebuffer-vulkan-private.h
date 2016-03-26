@@ -31,10 +31,38 @@
 #ifndef __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 #define __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__
 
+typedef struct _CoglFramebufferVulkan
+{
+  VkFramebuffer framebuffer;
+  VkImageView image_view;
+  VkImage image;
+
+  VkRenderPass render_pass;
+  VkCommandBuffer cmd_buffer;
+
+  CoglBool emitting_commands;
+} CoglFramebufferVulkan;
+
 typedef struct _CoglOnscreenVulkan
 {
+  CoglFramebufferVulkan parent;
+
   int dummy;
 } CoglOnscreenVulkan;
+
+typedef struct _CoglOffscreenVulkan
+{
+  CoglFramebufferVulkan parent;
+
+  VkDeviceMemory memory;
+} CoglOffscreenVulkan;
+
+CoglBool
+_cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
+                               CoglError **error);
+
+void
+_cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer);
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *clip,

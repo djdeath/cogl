@@ -35,15 +35,25 @@
 #include "cogl-gl-header.h"
 #include "cogl-context.h"
 
-typedef struct _CoglContextVulkan
+typedef struct _CoglRendererVulkan
 {
   VkInstance instance;
+  CoglBool instance_valid;
+} CoglRendererVulkan;
+
+typedef struct _CoglContextVulkan
+{
   VkPhysicalDevice physical_device;
   VkDevice device;
   VkQueue queue;
   VkFence fence;
   VkCommandPool cmd_pool;
 } CoglContextVulkan;
+
+CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
+                                     const char *extension,
+                                     CoglError **error);
+CoglBool _cogl_renderer_vulkan_deinit (CoglRenderer *renderer);
 
 CoglBool _cogl_vulkan_context_init (CoglContext *context, CoglError **error);
 void _cogl_vulkan_context_deinit (CoglContext *context);

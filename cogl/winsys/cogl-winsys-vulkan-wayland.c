@@ -55,18 +55,28 @@
 
 typedef struct _CoglRendererVulkanWayland
 {
+  CoglRendererVulkan parent;
+
+  PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR
+    get_wayland_presentation_support;
+  PFN_vkCreateWaylandSurfaceKHR create_wayland_surface;
+
   struct wl_display *wayland_display;
   struct wl_compositor *wayland_compositor;
   struct wl_shell *wayland_shell;
   struct wl_registry *wayland_registry;
   int fd;
-
-  VkDevice device;
 } CoglRendererVulkanWayland;
 
 typedef struct _CoglOnscreenVulkanWayland
 {
   CoglOnscreenVulkan parent;
+
+  VkSwapchainKHR swap_chain;
+  VkSurfaceKHR wsi_surface;
+
+  uint32_t image_count;
+  VkImage *swap_chain_images;
 
   struct wl_surface *wayland_surface;
   struct wl_shell_surface *wayland_shell_surface;
@@ -100,7 +110,7 @@ _cogl_winsys_renderer_get_proc_address (CoglRenderer *renderer,
 {
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
 
-  return vkGetDeviceProcAddr (vk_renderer->device, name);
+  return vkGetInstanceProcAddr (vk_renderer->parent.instance, name);
 }
 
 static void
@@ -225,6 +235,8 @@ _cogl_winsys_renderer_disconnect (CoglRenderer *renderer)
 {
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
 
+  _cogl_renderer_vulkan_deinit (renderer);
+
   if (vk_renderer->wayland_display)
     wl_display_disconnect (vk_renderer->wayland_display);
 
@@ -279,6 +291,30 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                 prepare_wayland_display_events,
                                 dispatch_wayland_display_events,
                                 renderer);
+
+  if (!_cogl_vulkan_renderer_init (renderer,
+                                   VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
+                                   error))
+      goto error;
+
+  vk_renderer->get_wayland_presentation_support =
+    (PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR)
+    vkGetInstanceProcAddr(vk_renderer->parent.instance,
+                          "vkGetPhysicalDeviceWaylandPresentationSupportKHR");
+  vk_renderer->create_wayland_surface =
+    (PFN_vkCreateWaylandSurfaceKHR)
+    vkGetInstanceProcAddr(vk_renderer->parent.instance,
+                          "vkCreateWaylandSurfaceKHR");
+  if (!vk_renderer->get_wayland_presentation_support ||
+      !vk_renderer->create_wayland_surface)
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_INIT,
+                       "Unable to find Vulkan Wayland extensions");
+      goto error;
+    }
+
   return TRUE;
 
  error:
@@ -343,6 +379,8 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   FrameCallbackData *frame_callback_data, *tmp;
 
+  _cogl_framebuffer_vulkan_deinit (COGL_FRAMEBUFFER (onscreen));
+
   _cogl_list_for_each_safe (frame_callback_data,
                             tmp,
                             &vk_onscreen->frame_callbacks,
@@ -379,7 +417,9 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   CoglContext *context = framebuffer->context;
   CoglRenderer *renderer = context->display->renderer;
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
+  CoglContextVulkan *vk_context = context->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
+  VkResult result;
 
   vk_onscreen = g_slice_new0 (CoglOnscreenVulkanWayland);
   onscreen->winsys = vk_onscreen;
@@ -397,8 +437,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                        COGL_WINSYS_ERROR_CREATE_ONSCREEN,
                        "Error while creating wayland surface for CoglOnscreen");
-      _cogl_winsys_onscreen_deinit (onscreen);
-      return FALSE;
+      goto error;
     }
 
   if (!onscreen->foreign_surface)
@@ -406,9 +445,67 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       wl_shell_get_shell_surface (vk_renderer->wayland_shell,
                                   vk_onscreen->wayland_surface);
 
-  _cogl_offscreen_vulkan_allocate ()
+  if (!vk_renderer->get_wayland_presentation_support (vk_context->physical_device,
+                                                      0,
+                                                      vk_renderer->wayland_display))
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Vulkan not supported on given Wayland surface");
+      goto error;
+    }
+
+  vk_renderer->create_wayland_surface (vk_renderer->parent.instance, &(VkWaylandSurfaceCreateInfoKHR) {
+      .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+      .display = vk_renderer->wayland_display,
+      .surface = vk_onscreen->wayland_surface,
+    },
+    NULL,
+    &vk_onscreen->wsi_surface);
+
+  result = vkCreateSwapchainKHR (vk_context->device, &(VkSwapchainCreateInfoKHR) {
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = vk_onscreen->wsi_surface,
+      .minImageCount = 2,
+      .imageFormat = _cogl_pixel_format_to_vulkan_format (onscreen->_parent.internal_format, NULL),
+      .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+      .imageExtent = { framebuffer->width, framebuffer->height },
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = (uint32_t[]) { 0 },
+      .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+      .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+      .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
+    },
+    NULL,
+    &vk_onscreen->swap_chain);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Cannot create Vulkan Swapchain");
+      goto error;
+    }
+
+  vkGetSwapchainImagesKHR (vk_context->device, vk_onscreen->swap_chain,
+                           &vk_onscreen->image_count, NULL);
+  vk_onscreen->swap_chain_images = g_malloc0 (sizeof (VkImage) *
+                                              vk_onscreen->image_count);
+  vkGetSwapchainImagesKHR (vk_context->device, vk_onscreen->swap_chain,
+                           &vk_onscreen->image_count, vk_onscreen->swap_chain_images);
+
+  if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
+    goto error;
 
   return TRUE;
+
+ error:
+  _cogl_winsys_onscreen_deinit (onscreen);
+  return FALSE;
 }
 
 static void

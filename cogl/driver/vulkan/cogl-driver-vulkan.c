@@ -109,13 +109,12 @@ _cogl_driver_update_features (CoglContext *ctx,
 }
 
 CoglBool
-_cogl_vulkan_context_init (CoglContext *context, CoglError **error)
+_cogl_vulkan_renderer_init (CoglRenderer *renderer,
+                            const char *extension,
+                            CoglError **error)
 {
-  CoglRenderer *renderer = context->display->renderer;
-  const char *extension = get_extension_for_winsys_id (cogl_renderer_get_winsys_id (renderer));
-  CoglContextVulkan *vk_ctx = g_slice_new0 (CoglContextVulkan);
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
   VkResult result;
-  uint32_t count = 1;
 
   result = vkCreateInstance (&(VkInstanceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -128,17 +127,40 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
       .ppEnabledExtensionNames = &extension,
     },
     NULL,
-    &vk_ctx->instance);
+    &vk_renderer->instance);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_DRIVER_ERROR,
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot create vulkan instance : %s",
                        _cogl_vulkan_error_to_string (result));
-      goto fail_instance;
+      return FALSE;
     }
 
-  result = vkEnumeratePhysicalDevices (vk_ctx->instance, &count,
+  vk_renderer->instance_valid = TRUE;
+
+  return TRUE;
+}
+
+CoglBool
+_cogl_renderer_vulkan_deinit (CoglRenderer *renderer)
+{
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+
+  if (vk_renderer->instance_valid)
+    vkDestroyInstance (vk_renderer->instance, NULL);
+}
+
+CoglBool
+_cogl_vulkan_context_init (CoglContext *context, CoglError **error)
+{
+  CoglRenderer *renderer = context->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  CoglContextVulkan *vk_ctx = g_slice_new0 (CoglContextVulkan);
+  VkResult result;
+  uint32_t count = 1;
+
+  result = vkEnumeratePhysicalDevices (vk_renderer->instance, &count,
                                       &vk_ctx->physical_device);
   if (result != VK_SUCCESS)
     {
@@ -211,8 +233,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
  fail_fence:
   vkDestroyDevice (vk_ctx->device, NULL);
  fail_device:
-  vkDestroyInstance (vk_ctx->instance, NULL);
- fail_instance:
   g_slice_free (CoglContextVulkan, vk_ctx);
 
   return FALSE;
@@ -226,7 +246,6 @@ _cogl_vulkan_context_deinit (CoglContext *context)
   vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL);
   vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL);
   vkDestroyDevice (vk_ctx->device, NULL);
-  vkDestroyInstance (vk_ctx->instance, NULL);
 
   g_slice_free (CoglContextVulkan, vk_ctx);
 }
