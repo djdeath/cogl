@@ -250,7 +250,7 @@ static CoglWinsysVtableGetter _cogl_winsys_vtable_getters[] =
 #ifdef COGL_HAS_SDL_SUPPORT
   _cogl_winsys_sdl_get_vtable,
 #endif
-#ifdef COGL_HAS_VULKAN_PLATFORM_XCB_SUPPORT
+#ifdef COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT
   _cogl_winsys_vulkan_wayland_get_vtable,
 #endif
 /* #ifdef COGL_HAS_VULKAN_PLATFORM_XCB_SUPPORT */

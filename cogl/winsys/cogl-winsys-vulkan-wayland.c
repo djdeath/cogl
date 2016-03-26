@@ -225,7 +225,8 @@ _cogl_winsys_renderer_disconnect (CoglRenderer *renderer)
 {
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
 
-  wl_display_disconnect (vk_renderer->wayland_display);
+  if (vk_renderer->wayland_display)
+    wl_display_disconnect (vk_renderer->wayland_display);
 
   g_slice_free (CoglRendererVulkanWayland, renderer->winsys);
   renderer->winsys = NULL;
@@ -238,6 +239,7 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
   CoglRendererVulkanWayland *vk_renderer =
     g_slice_new0 (CoglRendererVulkanWayland);
 
+  renderer->winsys = vk_renderer;
   vk_renderer->wayland_display = wl_display_connect (NULL);
    if (!vk_renderer->wayland_display)
      {
@@ -321,42 +323,6 @@ _cogl_winsys_context_deinit (CoglContext *context)
   _cogl_vulkan_context_deinit (context);
 }
 
-static CoglBool
-_cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
-                            CoglError **error)
-{
-  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
-  CoglContext *context = framebuffer->context;
-  CoglRenderer *renderer = context->display->renderer;
-  CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
-  CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
-
-  vk_onscreen = g_slice_new0 (CoglOnscreenVulkanWayland);
-
-  _cogl_list_init (&vk_onscreen->frame_callbacks);
-
-  if (onscreen->foreign_surface)
-    vk_onscreen->wayland_surface = onscreen->foreign_surface;
-  else
-    vk_onscreen->wayland_surface =
-      wl_compositor_create_surface (vk_renderer->wayland_compositor);
-
-  if (!vk_onscreen->wayland_surface)
-    {
-      _cogl_set_error (error, COGL_WINSYS_ERROR,
-                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                       "Error while creating wayland surface for CoglOnscreen");
-      return FALSE;
-    }
-
-  if (!onscreen->foreign_surface)
-    vk_onscreen->wayland_shell_surface =
-      wl_shell_get_shell_surface (vk_renderer->wayland_shell,
-                                  vk_onscreen->wayland_surface);
-
-  return TRUE;
-}
-
 static void
 _cogl_winsys_onscreen_bind (CoglOnscreen *onscreen)
 {
@@ -403,6 +369,46 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
 
   g_slice_free (CoglOnscreenVulkanWayland, vk_onscreen);
   onscreen->winsys = NULL;
+}
+
+static CoglBool
+_cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
+                            CoglError **error)
+{
+  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
+  CoglContext *context = framebuffer->context;
+  CoglRenderer *renderer = context->display->renderer;
+  CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
+  CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
+
+  vk_onscreen = g_slice_new0 (CoglOnscreenVulkanWayland);
+  onscreen->winsys = vk_onscreen;
+
+  _cogl_list_init (&vk_onscreen->frame_callbacks);
+
+  if (onscreen->foreign_surface)
+    vk_onscreen->wayland_surface = onscreen->foreign_surface;
+  else
+    vk_onscreen->wayland_surface =
+      wl_compositor_create_surface (vk_renderer->wayland_compositor);
+
+  if (!vk_onscreen->wayland_surface)
+    {
+      _cogl_set_error (error, COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Error while creating wayland surface for CoglOnscreen");
+      _cogl_winsys_onscreen_deinit (onscreen);
+      return FALSE;
+    }
+
+  if (!onscreen->foreign_surface)
+    vk_onscreen->wayland_shell_surface =
+      wl_shell_get_shell_surface (vk_renderer->wayland_shell,
+                                  vk_onscreen->wayland_surface);
+
+  _cogl_offscreen_vulkan_allocate ()
+
+  return TRUE;
 }
 
 static void
