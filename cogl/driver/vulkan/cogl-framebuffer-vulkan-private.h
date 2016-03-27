@@ -33,27 +33,20 @@
 
 typedef struct _CoglFramebufferVulkan
 {
+  /* Not owned. Do not free. */
   VkFramebuffer framebuffer;
-  VkImageView image_view;
-  VkImage image;
-
   VkRenderPass render_pass;
+
   VkCommandBuffer cmd_buffer;
-
-  CoglBool emitting_commands;
 } CoglFramebufferVulkan;
-
-typedef struct _CoglOnscreenVulkan
-{
-  CoglFramebufferVulkan parent;
-
-  int dummy;
-} CoglOnscreenVulkan;
 
 typedef struct _CoglOffscreenVulkan
 {
   CoglFramebufferVulkan parent;
 
+  VkImageView image_view;
+  VkImage image;
+  VkFramebuffer framebuffer;
   VkDeviceMemory memory;
 } CoglOffscreenVulkan;
 
@@ -68,12 +61,9 @@ void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
                                CoglFramebuffer *framebuffer);
 
-CoglBool
-_cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
-                                 CoglError **error);
-
 void
-_cogl_offscreen_vulkan_free (CoglOffscreen *offscreen);
+_cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
+                                             VkFramebuffer vk_framebuffer);
 
 void
 _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
@@ -130,5 +120,12 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                   CoglReadPixelsFlags source,
                                                   CoglBitmap *bitmap,
                                                   CoglError **error);
+
+CoglBool
+_cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
+                                 CoglError **error);
+
+void
+_cogl_offscreen_vulkan_free (CoglOffscreen *offscreen);
 
 #endif /* __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__ */

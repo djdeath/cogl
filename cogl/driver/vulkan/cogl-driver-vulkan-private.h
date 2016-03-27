@@ -38,7 +38,6 @@
 typedef struct _CoglRendererVulkan
 {
   VkInstance instance;
-  CoglBool instance_valid;
 } CoglRendererVulkan;
 
 typedef struct _CoglContextVulkan

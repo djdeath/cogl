@@ -137,8 +137,6 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
       return FALSE;
     }
 
-  vk_renderer->instance_valid = TRUE;
-
   return TRUE;
 }
 
@@ -147,7 +145,7 @@ _cogl_renderer_vulkan_deinit (CoglRenderer *renderer)
 {
   CoglRendererVulkan *vk_renderer = renderer->winsys;
 
-  if (vk_renderer->instance_valid)
+  if (vk_renderer->instance != VK_NULL_HANDLE)
     vkDestroyInstance (vk_renderer->instance, NULL);
 }
 
@@ -160,6 +158,8 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
   VkResult result;
   uint32_t count = 1;
 
+  context->winsys = vk_ctx;
+
   result = vkEnumeratePhysicalDevices (vk_renderer->instance, &count,
                                       &vk_ctx->physical_device);
   if (result != VK_SUCCESS)
@@ -168,7 +168,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot enumerate physical vulkan devices : %s",
                        _cogl_vulkan_error_to_string (result));
-      goto fail_device;
+      goto error;
     }
   printf("%d physical devices\n", count);
 
@@ -188,7 +188,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot create vulkan device : %s",
                        _cogl_vulkan_error_to_string (result));
-      goto fail_device;
+      goto error;
     }
 
   vkGetDeviceQueue(vk_ctx->device, 0, 0, &vk_ctx->queue);
@@ -205,7 +205,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot create vulkan fence : %s",
                        _cogl_vulkan_error_to_string (result));
-      goto fail_fence;
+      goto error;
     }
 
   result = vkCreateCommandPool (vk_ctx->device, &(const VkCommandPoolCreateInfo) {
@@ -221,19 +221,13 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot create command pool : %s",
                        _cogl_vulkan_error_to_string (result));
-      goto fail_cmd_pool;
+      goto error;
     }
-
-  context->winsys = vk_ctx;
 
   return TRUE;
 
- fail_cmd_pool:
-  vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL);
- fail_fence:
-  vkDestroyDevice (vk_ctx->device, NULL);
- fail_device:
-  g_slice_free (CoglContextVulkan, vk_ctx);
+ error:
+  _cogl_vulkan_context_deinit (context);
 
   return FALSE;
 }
@@ -243,9 +237,12 @@ _cogl_vulkan_context_deinit (CoglContext *context)
 {
   CoglContextVulkan *vk_ctx = context->winsys;
 
-  vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL);
-  vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL);
-  vkDestroyDevice (vk_ctx->device, NULL);
+  if (vk_ctx->cmd_pool != VK_NULL_HANDLE)
+    vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL);
+  if (vk_ctx->fence != VK_NULL_HANDLE)
+    vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL);
+  if (vk_ctx->device != VK_NULL_HANDLE)
+    vkDestroyDevice (vk_ctx->device, NULL);
 
   g_slice_free (CoglContextVulkan, vk_ctx);
 }

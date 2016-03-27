@@ -53,6 +53,8 @@
 #include "cogl-poll-private.h"
 #include "cogl-util-vulkan-private.h"
 
+#define MAX_SWAP_CHAIN_LENGTH (6)
+
 typedef struct _CoglRendererVulkanWayland
 {
   CoglRendererVulkan parent;
@@ -70,13 +72,16 @@ typedef struct _CoglRendererVulkanWayland
 
 typedef struct _CoglOnscreenVulkanWayland
 {
-  CoglOnscreenVulkan parent;
+  CoglFramebufferVulkan parent;
 
   VkSwapchainKHR swap_chain;
   VkSurfaceKHR wsi_surface;
 
+  uint32_t image_index;
   uint32_t image_count;
-  VkImage *swap_chain_images;
+  VkImage images[MAX_SWAP_CHAIN_LENGTH];
+  VkImageView image_views[MAX_SWAP_CHAIN_LENGTH];
+  VkFramebuffer framebuffers[MAX_SWAP_CHAIN_LENGTH];
 
   struct wl_surface *wayland_surface;
   struct wl_shell_surface *wayland_shell_surface;
@@ -376,10 +381,22 @@ free_frame_callback_data (FrameCallbackData *callback_data)
 static void
 _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
 {
+  CoglContextVulkan *vk_context = onscreen->_parent.context->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   FrameCallbackData *frame_callback_data, *tmp;
+  uint32_t i;
 
   _cogl_framebuffer_vulkan_deinit (COGL_FRAMEBUFFER (onscreen));
+
+  for (i = 0; i < vk_onscreen->image_count; i++)
+    {
+      if (vk_onscreen->framebuffers[i] != VK_NULL_HANDLE)
+        vkDestroyFramebuffer (vk_context->device, vk_onscreen->framebuffers[i], NULL);
+      if (vk_onscreen->image_views[i] != VK_NULL_HANDLE)
+        vkDestroyImageView (vk_context->device, vk_onscreen->image_views[i], NULL);
+      if (vk_onscreen->images[i] != VK_NULL_HANDLE)
+        vkDestroyImage (vk_context->device, vk_onscreen->images[i], NULL);
+    }
 
   _cogl_list_for_each_safe (frame_callback_data,
                             tmp,
@@ -420,9 +437,10 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   CoglContextVulkan *vk_context = context->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   VkResult result;
+  uint32_t i;
 
   vk_onscreen = g_slice_new0 (CoglOnscreenVulkanWayland);
-  onscreen->winsys = vk_onscreen;
+  framebuffer->winsys = onscreen->winsys = vk_onscreen;
 
   _cogl_list_init (&vk_onscreen->frame_callbacks);
 
@@ -456,13 +474,25 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  vk_renderer->create_wayland_surface (vk_renderer->parent.instance, &(VkWaylandSurfaceCreateInfoKHR) {
+  result = vk_renderer->create_wayland_surface (vk_renderer->parent.instance, &(VkWaylandSurfaceCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
       .display = vk_renderer->wayland_display,
       .surface = vk_onscreen->wayland_surface,
     },
     NULL,
     &vk_onscreen->wsi_surface);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Unable to create Vulkan Wayland surface : %s",
+                       _cogl_vulkan_error_to_string (result));
+      goto error;
+    }
+
+  g_message ("Format = %i",
+             _cogl_pixel_format_to_vulkan_format (onscreen->_parent.internal_format, NULL));
 
   result = vkCreateSwapchainKHR (vk_context->device, &(VkSwapchainCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -493,13 +523,85 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   vkGetSwapchainImagesKHR (vk_context->device, vk_onscreen->swap_chain,
                            &vk_onscreen->image_count, NULL);
-  vk_onscreen->swap_chain_images = g_malloc0 (sizeof (VkImage) *
-                                              vk_onscreen->image_count);
-  vkGetSwapchainImagesKHR (vk_context->device, vk_onscreen->swap_chain,
-                           &vk_onscreen->image_count, vk_onscreen->swap_chain_images);
+  g_assert (vk_onscreen->image_count <= MAX_SWAP_CHAIN_LENGTH);
+
+  vkGetSwapchainImagesKHR (vk_context->device,
+                           vk_onscreen->swap_chain,
+                           &vk_onscreen->image_count,
+                           vk_onscreen->images);
+
+  for (i = 0; i < vk_onscreen->image_count; i++)
+    {
+      result = vkCreateImageView (vk_context->device, &(VkImageViewCreateInfo) {
+          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = vk_onscreen->images[i],
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = VK_FORMAT_B8G8R8A8_SRGB,
+            .components = {
+            .r = VK_COMPONENT_SWIZZLE_R,
+            .g = VK_COMPONENT_SWIZZLE_G,
+            .b = VK_COMPONENT_SWIZZLE_B,
+            .a = VK_COMPONENT_SWIZZLE_A,
+          },
+            .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+          },
+               },
+        NULL,
+        &vk_onscreen->image_views[i]);
+      if (result != VK_SUCCESS)
+        {
+          _cogl_set_error (error,
+                           COGL_WINSYS_ERROR,
+                           COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                           "Cannot create image view : %s",
+                           _cogl_vulkan_error_to_string (result));
+          goto error;
+        }
+
+      result = vkCreateFramebuffer (vk_context->device, &(VkFramebufferCreateInfo) {
+          .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+          .attachmentCount = 1,
+          .pAttachments = &vk_onscreen->image_views[i],
+          .width = framebuffer->width,
+          .height = framebuffer->height,
+          .layers = 1
+        },
+        NULL,
+        &vk_onscreen->framebuffers[i]);
+      if (result != VK_SUCCESS)
+        {
+          _cogl_set_error (error,
+                           COGL_WINSYS_ERROR,
+                           COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                           "Cannot create framebuffer : %s",
+                           _cogl_vulkan_error_to_string (result));
+          goto error;
+        }
+    }
 
   if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
     goto error;
+
+  result = vkAcquireNextImageKHR (vk_context->device, vk_onscreen->swap_chain, 0,
+                                  VK_NULL_HANDLE, VK_NULL_HANDLE,
+                                  &vk_onscreen->image_index);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Cannot acquire first image : %s",
+                       _cogl_vulkan_error_to_string (result));
+      goto error;
+    }
+
+  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
+                                               vk_onscreen->framebuffers[vk_onscreen->image_index]);
 
   return TRUE;
 
@@ -555,35 +657,61 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                                 const int *rectangles,
                                                 int n_rectangles)
 {
-  VK_TODO();
-  /* CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys; */
-  /* FrameCallbackData *frame_callback_data = g_slice_new (FrameCallbackData); */
+  CoglContextVulkan *vk_ctx = onscreen->_parent.context->winsys;
+  CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
+  FrameCallbackData *frame_callback_data = g_slice_new (FrameCallbackData);
+  VkResult result;
 
-  /* flush_pending_resize (onscreen); */
+  flush_pending_resize (onscreen);
 
-  /* /\* Before calling the winsys function, */
-  /*  * cogl_onscreen_swap_buffers_with_damage() will have pushed the */
-  /*  * frame info object onto the end of the pending frames. We can grab */
-  /*  * it out of the queue now because we don't care about the order and */
-  /*  * we will just directly queue the event corresponding to the exact */
-  /*  * frame that Wayland reports as completed. This will steal the */
-  /*  * reference *\/ */
-  /* frame_callback_data->frame_info = */
-  /*   g_queue_pop_tail (&onscreen->pending_frame_infos); */
-  /* frame_callback_data->onscreen = onscreen; */
+  /* Before calling the winsys function,
+   * cogl_onscreen_swap_buffers_with_damage() will have pushed the
+   * frame info object onto the end of the pending frames. We can grab
+   * it out of the queue now because we don't care about the order and
+   * we will just directly queue the event corresponding to the exact
+   * frame that Wayland reports as completed. This will steal the
+   * reference */
+  frame_callback_data->frame_info =
+    g_queue_pop_tail (&onscreen->pending_frame_infos);
+  frame_callback_data->onscreen = onscreen;
 
-  /* frame_callback_data->callback = */
-  /*   wl_surface_frame (vk_onscreen->wayland_surface); */
-  /* wl_callback_add_listener (frame_callback_data->callback, */
-  /*                           &frame_listener, */
-  /*                           frame_callback_data); */
+  frame_callback_data->callback =
+    wl_surface_frame (vk_onscreen->wayland_surface);
+  wl_callback_add_listener (frame_callback_data->callback,
+                            &frame_listener,
+                            frame_callback_data);
 
-  /* _cogl_list_insert (&vk_onscreen->frame_callbacks, */
-  /*                    &frame_callback_data->link); */
+  _cogl_list_insert (&vk_onscreen->frame_callbacks,
+                     &frame_callback_data->link);
 
-  /* parent_vtable->onscreen_swap_buffers_with_damage (onscreen, */
-  /*                                                   rectangles, */
-  /*                                                   n_rectangles); */
+  _cogl_framebuffer_flush_state (COGL_FRAMEBUFFER (onscreen),
+                                 COGL_FRAMEBUFFER (onscreen),
+                                 COGL_FRAMEBUFFER_STATE_BIND);
+
+  vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
+      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .swapchainCount = 1,
+      .pSwapchains = (VkSwapchainKHR[]) { vk_onscreen->swap_chain, },
+      .pImageIndices = (uint32_t[]) { vk_onscreen->image_index, },
+      .pResults = &result,
+    });
+  if (result != VK_SUCCESS)
+    {
+      g_warning ("Could not present wayland frame : %s",
+                 _cogl_vulkan_error_to_string (result));
+      return;
+    }
+
+  result = vkAcquireNextImageKHR (vk_ctx->device,
+                                  vk_onscreen->swap_chain, 0,
+                                  VK_NULL_HANDLE, VK_NULL_HANDLE,
+                                  &vk_onscreen->image_index);
+  if (result != VK_SUCCESS)
+    {
+      g_warning ("Cannot acquire first image : %s",
+                 _cogl_vulkan_error_to_string (result));
+      return;
+    }
 }
 
 static void

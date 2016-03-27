@@ -44,50 +44,38 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
 
   switch (format)
     {
-    case COGL_PIXEL_FORMAT_RGB_565:
-      return VK_FORMAT_R5G6B5_UNORM_PACK16;
-    case COGL_PIXEL_FORMAT_RGBA_4444:
-      return VK_FORMAT_R4G4B4A4_UNORM_PACK16;
-    case COGL_PIXEL_FORMAT_RGBA_5551:
-      return VK_FORMAT_R5G5B5A1_UNORM_PACK16;
-    case COGL_PIXEL_FORMAT_G_8:
-        return VK_FORMAT_R8_UINT;
-    case COGL_PIXEL_FORMAT_RG_88:
-      return VK_FORMAT_R8G8_UINT;
-    case COGL_PIXEL_FORMAT_RGB_888:
-      return VK_FORMAT_R8G8B8_UINT;
-    case COGL_PIXEL_FORMAT_BGR_888:
-      return VK_FORMAT_B8G8R8_UINT;
-
     case COGL_PIXEL_FORMAT_RGBA_8888:
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      return VK_FORMAT_R8G8B8A8_UINT;
-    case COGL_PIXEL_FORMAT_BGRA_8888:
-    case COGL_PIXEL_FORMAT_BGRA_8888_PRE:
-      return VK_FORMAT_B8G8R8A8_UINT;
-    case COGL_PIXEL_FORMAT_ABGR_8888:
-    case COGL_PIXEL_FORMAT_ABGR_8888_PRE:
-      return VK_FORMAT_A8B8G8R8_UINT_PACK32;
+      return VK_FORMAT_B8G8R8A8_SRGB;
 
-      /* TODO: */
-      /* COGL_PIXEL_FORMAT_RGBA_1010102 */
-      /* COGL_PIXEL_FORMAT_BGRA_1010102 */
-      /* COGL_PIXEL_FORMAT_ARGB_2101010 */
-      /* COGL_PIXEL_FORMAT_ABGR_2101010 */
+      /* TODO(dixit Mesa): Figure out what all the formats mean and make
+       * this table correct.
+       */
+    /* case COGL_PIXEL_FORMAT_RGB_565: */
+    /*   return VK_FORMAT_R5G6B5_UNORM_PACK16; */
+    /* case COGL_PIXEL_FORMAT_RGBA_4444: */
+    /*   return VK_FORMAT_R4G4B4A4_UNORM_PACK16; */
+    /* case COGL_PIXEL_FORMAT_RGBA_5551: */
+    /*   return VK_FORMAT_R5G5B5A1_UNORM_PACK16; */
+    /* case COGL_PIXEL_FORMAT_G_8: */
+    /*     return VK_FORMAT_R8_SRGB; */
+    /* case COGL_PIXEL_FORMAT_RG_88: */
+    /*   return VK_FORMAT_R8G8_SRGB; */
+    /* case COGL_PIXEL_FORMAT_RGB_888: */
+    /*   return VK_FORMAT_R8G8B8_SRGB; */
+    /* case COGL_PIXEL_FORMAT_BGR_888: */
+    /*   return VK_FORMAT_B8G8R8_SRGB; */
 
-      /* COGL_PIXEL_FORMAT_ARGB_8888_PRE */
-      /* COGL_PIXEL_FORMAT_RGBA_4444_PRE */
-      /* COGL_PIXEL_FORMAT_RGBA_5551_PRE */
+    /* case COGL_PIXEL_FORMAT_RGBA_8888: */
+    /* case COGL_PIXEL_FORMAT_RGBA_8888_PRE: */
+    /*   return VK_FORMAT_R8G8B8A8_SRGB; */
+    /* case COGL_PIXEL_FORMAT_BGRA_8888: */
+    /* case COGL_PIXEL_FORMAT_BGRA_8888_PRE: */
+    /*   return VK_FORMAT_B8G8R8A8_SRGB; */
+    /* case COGL_PIXEL_FORMAT_ABGR_8888: */
+    /* case COGL_PIXEL_FORMAT_ABGR_8888_PRE: */
+    /*   return VK_FORMAT_A8B8G8R8_SRGB_PACK32; */
 
-      /* COGL_PIXEL_FORMAT_RGBA_1010102_PRE */
-      /* COGL_PIXEL_FORMAT_BGRA_1010102_PRE */
-      /* COGL_PIXEL_FORMAT_ARGB_2101010_PRE */
-      /* COGL_PIXEL_FORMAT_ABGR_2101010_PRE */
-
-      /* COGL_PIXEL_FORMAT_DEPTH_16 */
-      /* COGL_PIXEL_FORMAT_DEPTH_32 */
-
-      /* COGL_PIXEL_FORMAT_DEPTH_24_STENCIL_8 */
     default:
       return VK_FORMAT_UNDEFINED;
     }
