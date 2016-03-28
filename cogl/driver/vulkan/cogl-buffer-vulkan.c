@@ -60,44 +60,43 @@ void
 _cogl_buffer_vulkan_create (CoglBuffer *buffer)
 {
   CoglContextVulkan *vk_ctx = buffer->context->winsys;
+  CoglBufferVulkan *vk_buffer = g_slice_new0 (CoglBufferVulkan);
   VkResult result;
 
-  result = vkAllocateMemory (vk_ctx->device,
-                             &(VkMemoryAllocateInfo) {
-                               .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                               .allocationSize = buffer->size,
-                               .memoryTypeIndex = 0,
-                             },
-                             NULL,
-                             &buffer->vk_memory);
+  buffer->winsys = vk_buffer;
+
+  result = vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize = buffer->size,
+      .memoryTypeIndex = 0,
+    },
+    NULL,
+    &vk_buffer->memory);
   if (result != VK_SUCCESS)
     {
       g_warning ("%s: Cannot allocate memory (%d): %s\n", G_STRLOC, result,
                  _cogl_vulkan_error_to_string (result));
       return;
     }
-  buffer->vk_memory_valid;
 
-  result = vkCreateBuffer (vk_ctx->device,
-                           &(VkBufferCreateInfo) {
-                             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                             .size = buffer->size,
-                             .usage = _cogl_buffer_usage_to_vulkan_buffer_usage (buffer->usage_hint),
-                             .flags = 0,
-                           },
-                           NULL,
-                           &buffer->vk_buffer);
+  result = vkCreateBuffer (vk_ctx->device, &(VkBufferCreateInfo) {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = buffer->size,
+      .usage = _cogl_buffer_usage_to_vulkan_buffer_usage (buffer->usage_hint),
+      .flags = 0,
+    },
+    NULL,
+    &vk_buffer->buffer);
   if (result != VK_SUCCESS)
     {
       g_warning ("%s: Cannot create buffer (%d): %s\n", G_STRLOC, result,
                  _cogl_vulkan_error_to_string (result));
       return;
     }
-  buffer->vk_buffer_valid = TRUE;
 
   result = vkBindBufferMemory (vk_ctx->device,
-                               buffer->vk_buffer,
-                               buffer->vk_memory, 0);
+                               vk_buffer->buffer,
+                               vk_buffer->memory, 0);
   if (result != VK_SUCCESS)
     {
       g_warning ("%s: Cannot bind buffer memory (%d): %s\n", G_STRLOC, result,
@@ -110,17 +109,14 @@ void
 _cogl_buffer_vulkan_destroy (CoglBuffer *buffer)
 {
   CoglContextVulkan *vk_ctx = buffer->context->winsys;
+  CoglBufferVulkan *vk_buffer = buffer->winsys;
 
-  if (buffer->vk_buffer_valid)
-    {
-      vkDestroyBuffer (vk_ctx->device, buffer->vk_buffer, NULL);
-      buffer->vk_buffer_valid = FALSE;
-    }
-  if (buffer->vk_memory_valid)
-    {
-      vkFreeMemory (vk_ctx->device, buffer->vk_memory, NULL);
-      buffer->vk_memory_valid = FALSE;
-    }
+  if (vk_buffer->buffer != VK_NULL_HANDLE)
+    vkDestroyBuffer (vk_ctx->device, vk_buffer->buffer, NULL);
+  if (vk_buffer->memory != VK_NULL_HANDLE)
+    vkFreeMemory (vk_ctx->device, vk_buffer->memory, NULL);
+
+  g_slice_free (CoglBufferVulkan, vk_buffer);
 }
 
 void *
@@ -132,10 +128,11 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
                                CoglError **error)
 {
   CoglContextVulkan *vk_ctx = buffer->context->winsys;
+  CoglBufferVulkan *vk_buffer = buffer->winsys;
   void *data;
   VkResult result;
 
-  if (!buffer->vk_buffer_valid)
+  if (vk_buffer->buffer == VK_NULL_HANDLE)
     {
       _cogl_set_error (error, COGL_BUFFER_ERROR,
                        COGL_BUFFER_ERROR_MAP,
@@ -144,7 +141,7 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
     }
 
   result = vkMapMemory (vk_ctx->device,
-                        buffer->vk_memory,
+                        vk_buffer->memory,
                         offset,
                         size,
                         0,
@@ -158,9 +155,9 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
       return NULL;
     }
 
-  buffer->vk_memory_need_flush = (access & COGL_BUFFER_ACCESS_WRITE);
-  buffer->vk_memory_map_offset = offset;
-  buffer->vk_memory_map_size = size;
+  vk_buffer->memory_need_flush = (access & COGL_BUFFER_ACCESS_WRITE);
+  vk_buffer->memory_map_offset = offset;
+  vk_buffer->memory_map_size = size;
 
   return data;
 }
@@ -169,20 +166,19 @@ void
 _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
 {
   CoglContextVulkan *vk_ctx = buffer->context->winsys;
+  CoglBufferVulkan *vk_buffer = buffer->winsys;
   VkResult result;
 
-  if (buffer->vk_memory_need_flush)
+  if (vk_buffer->memory_need_flush)
     {
-      buffer->vk_memory_need_flush = FALSE;
+      vk_buffer->memory_need_flush = FALSE;
 
-      result = vkFlushMappedMemoryRanges (vk_ctx->device,
-                                          1,
-                                          &(VkMappedMemoryRange) {
-                                            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                                            .memory = buffer->vk_memory,
-                                            .offset = buffer->vk_memory_map_offset,
-                                            .size = buffer->vk_memory_map_size,
-                                          });
+      result = vkFlushMappedMemoryRanges (vk_ctx->device, 1, &(VkMappedMemoryRange) {
+          .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+          .memory = vk_buffer->memory,
+          .offset = vk_buffer->memory_map_offset,
+          .size = vk_buffer->memory_map_size,
+        });
       if (result != VK_SUCCESS)
         {
           g_warning ("%s: Cannot flush memory (%d): %s\n", G_STRLOC, result,
@@ -191,7 +187,7 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
         }
     }
 
-  vkUnmapMemory (vk_ctx->device, buffer->vk_memory);
+  vkUnmapMemory (vk_ctx->device, vk_buffer->memory);
 }
 
 CoglBool

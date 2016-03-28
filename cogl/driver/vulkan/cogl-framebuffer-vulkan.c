@@ -183,10 +183,8 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
         { cogl_framebuffer_get_width (framebuffer),
           cogl_framebuffer_get_height (framebuffer) },
       },
-      .clearValueCount = 1,
-      .pClearValues = (VkClearValue []) {
-        { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
-      }
+      .clearValueCount = 0,
+      .pClearValues = NULL,
     },
     VK_SUBPASS_CONTENTS_INLINE);
 
@@ -268,6 +266,8 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
       &vk_fb->cmd_buffer,
     },
     vk_ctx->fence);
+
+  vk_fb->cmd_buffer = VK_NULL_HANDLE;
 }
 
 static CoglTexture *
@@ -361,10 +361,11 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
+
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
 
   /* vkCmdBindVertexBuffers(cmd_buffer, 0, 3, */
   /*                        (VkBuffer[]) { */

@@ -36,6 +36,16 @@
 #include "cogl-buffer.h"
 #include "cogl-buffer-private.h"
 
+typedef struct _CoglBufferVulkan
+{
+  VkBuffer buffer;
+  VkDeviceMemory memory;
+
+  CoglBool memory_need_flush;
+  size_t memory_map_offset;
+  size_t memory_map_size;
+} CoglBufferVulkan;
+
 void
 _cogl_buffer_vulkan_create (CoglBuffer *buffer);
 

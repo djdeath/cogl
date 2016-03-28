@@ -491,9 +491,6 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  g_message ("Format = %i",
-             _cogl_pixel_format_to_vulkan_format (onscreen->_parent.internal_format, NULL));
-
   result = vkCreateSwapchainKHR (vk_context->device, &(VkSwapchainCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = vk_onscreen->wsi_surface,
@@ -718,15 +715,6 @@ static void
 _cogl_winsys_onscreen_update_swap_throttled (CoglOnscreen *onscreen)
 {
   VK_TODO();
-  /* CoglContext *context = COGL_FRAMEBUFFER (onscreen)->context; */
-  /* CoglContextSdl2 *sdl_context = context->winsys; */
-  /* CoglOnscreenSdl2 *sdl_onscreen = onscreen->winsys; */
-
-  /* if (sdl_context->current_window != sdl_onscreen->window) */
-  /*   return; */
-
-  /* sdl_context->current_window = NULL; */
-  /* _cogl_winsys_onscreen_bind (onscreen); */
 }
 
 static void

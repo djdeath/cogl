@@ -112,17 +112,8 @@ struct _CoglBuffer
   unsigned int store_created:1;
 
   GLuint gl_handle; /* OpenGL handle */
-#ifdef COGL_HAS_VULKAN
-  VkBuffer vk_buffer;
-  CoglBool vk_buffer_valid;
 
-  VkDeviceMemory vk_memory;
-  CoglBool vk_memory_valid;
-
-  CoglBool vk_memory_need_flush;
-  size_t vk_memory_map_offset;
-  size_t vk_memory_map_size;
-#endif
+  void *winsys;
 };
 
 /* This is used to register a type to the list of handle types that

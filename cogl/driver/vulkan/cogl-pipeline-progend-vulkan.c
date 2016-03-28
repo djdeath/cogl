@@ -42,6 +42,7 @@
 #include "cogl-offscreen.h"
 
 #include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
 #include "cogl-object-private.h"
 #include "cogl-program-private.h"
 #include "cogl-pipeline-fragend-vulkan-private.h"
@@ -51,6 +52,7 @@
 #include "cogl-attribute-private.h"
 #include "cogl-framebuffer-private.h"
 #include "cogl-pipeline-progend-vulkan-private.h"
+#include "cogl-util-vulkan-private.h"
 
 /* These are used to generalise updating some uniforms that are
    required when building for drivers missing some fixed function
@@ -641,6 +643,8 @@ _cogl_pipeline_progend_vulkan_start (CoglPipeline *pipeline)
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
+  VK_TODO();
+
   user_program = cogl_pipeline_get_user_program (pipeline);
   if (user_program &&
       _cogl_program_get_language (user_program) != COGL_SHADER_LANGUAGE_GLSL)
@@ -653,6 +657,9 @@ static void
 _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                  unsigned long pipelines_difference)
 {
+   /* TODO: No way to get the context linked to a pipeline?? */
+  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
+
   CoglPipelineProgramState *program_state;
   GLuint gl_program;
   CoglBool program_changed = FALSE;
@@ -661,6 +668,8 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
   CoglPipelineCacheEntry *cache_entry = NULL;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  VK_TODO();
 
   program_state = get_program_state (pipeline);
 
@@ -851,6 +860,8 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
+  VK_TODO();
+
   if ((change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
                  _cogl_pipeline_get_state_for_fragment_codegen (ctx))))
     {
@@ -889,6 +900,8 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayerState change)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  VK_TODO();
 
   if ((change & (_cogl_pipeline_get_layer_state_for_fragment_codegen (ctx) |
                  COGL_PIPELINE_LAYER_STATE_AFFECTS_VERTEX_CODEGEN)))
@@ -930,6 +943,8 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglMatrix modelview, projection;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  VK_TODO();
 
   program_state = get_program_state (pipeline);
 

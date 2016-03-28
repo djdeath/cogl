@@ -51,6 +51,7 @@
 #include "cogl-program-private.h"
 #include "cogl-pipeline-cache.h"
 #include "cogl-pipeline-fragend-vulkan-private.h"
+#include "cogl-util-vulkan-private.h"
 
 #include <glib.h>
 
@@ -275,6 +276,8 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
   int i;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  VK_TODO();
 
   /* Now lookup our vulkan backend private state */
   shader_state = get_shader_state (pipeline);
@@ -888,6 +891,8 @@ _cogl_pipeline_fragend_vulkan_add_layer (CoglPipeline *pipeline,
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
   LayerData *layer_data;
 
+  VK_TODO();
+
   if (!shader_state->source)
     return TRUE;
 
@@ -985,6 +990,8 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
 
   _COGL_GET_CONTEXT (ctx, FALSE);
+
+  VK_TODO();
 
   if (shader_state->source)
     {
@@ -1088,6 +1095,7 @@ _cogl_pipeline_fragend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                  CoglPipelineState change,
                                                  const CoglColor *new_color)
 {
+  VK_TODO();
 }
 
 /* NB: layers are considered immutable once they have any dependants
@@ -1104,6 +1112,7 @@ _cogl_pipeline_fragend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayer *layer,
                                                 CoglPipelineLayerState change)
 {
+  VK_TODO();
 }
 
 const CoglPipelineFragend _cogl_pipeline_vulkan_fragend =

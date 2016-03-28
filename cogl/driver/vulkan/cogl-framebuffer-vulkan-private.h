@@ -33,10 +33,12 @@
 
 typedef struct _CoglFramebufferVulkan
 {
-  /* Not owned. Do not free. */
+  /* Not owned. Do not free. (Either this is a copy from CoglOffscreenVulkan
+     or from whatever winsys we're running on.) */
   VkFramebuffer framebuffer;
-  VkRenderPass render_pass;
 
+  /* Owned. */
+  VkRenderPass render_pass;
   VkCommandBuffer cmd_buffer;
 } CoglFramebufferVulkan;
 

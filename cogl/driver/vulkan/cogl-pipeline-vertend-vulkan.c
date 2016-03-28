@@ -47,6 +47,7 @@
 #include "cogl-program-private.h"
 #include "cogl-pipeline-vertend-vulkan-private.h"
 #include "cogl-pipeline-state-private.h"
+#include "cogl-util-vulkan-private.h"
 
 const CoglPipelineVertend _cogl_pipeline_vulkan_vertend;
 
@@ -218,6 +219,8 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
+  VK_TODO();
+
   /* Now lookup our vulkan backend private state (allocating if
    * necessary) */
   shader_state = get_shader_state (pipeline);
@@ -341,6 +344,8 @@ _cogl_pipeline_vertend_vulkan_add_layer (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
+  VK_TODO();
+
   shader_state = get_shader_state (pipeline);
 
   if (shader_state->source == NULL)
@@ -409,6 +414,8 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
   CoglPipelineShaderState *shader_state;
 
   _COGL_GET_CONTEXT (ctx, FALSE);
+
+  VK_TODO();
 
   shader_state = get_shader_state (pipeline);
 
@@ -546,19 +553,6 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       shader_state->gl_shader = shader;
     }
 
-#ifdef HAVE_COGL_GL
-  if (_cogl_has_private_feature
-      (ctx, COGL_PRIVATE_FEATURE_BUILTIN_POINT_SIZE_UNIFORM) &&
-      (pipelines_difference & COGL_PIPELINE_STATE_POINT_SIZE))
-    {
-      CoglPipeline *authority =
-        _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_POINT_SIZE);
-
-      /* if (authority->big_state->point_size > 0.0f) */
-      /*   GE( ctx, glPointSize (authority->big_state->point_size) ); */
-    }
-#endif /* HAVE_COGL_GL */
-
   return TRUE;
 }
 
@@ -568,6 +562,8 @@ _cogl_pipeline_vertend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                const CoglColor *new_color)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  VK_TODO();
 
   if ((change & _cogl_pipeline_get_state_for_vertex_codegen (ctx)))
     dirty_shader_state (pipeline);
@@ -588,6 +584,8 @@ _cogl_pipeline_vertend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayerState change)
 {
   CoglPipelineShaderState *shader_state;
+
+  VK_TODO();
 
   shader_state = get_shader_state (owner);
   if (!shader_state)
