@@ -87,7 +87,8 @@ struct _CoglRenderer
   GModule *libgl_module;
 #endif
 
-#if defined (COGL_HAS_EGL_PLATFORM_WAYLAND_SUPPORT)
+#if defined (COGL_HAS_EGL_PLATFORM_WAYLAND_SUPPORT) || \
+  defined (COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT)
   struct wl_display *foreign_wayland_display;
   CoglBool wayland_enable_event_dispatch;
 #endif

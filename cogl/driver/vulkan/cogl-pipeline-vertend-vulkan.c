@@ -423,8 +423,8 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
     {
       const char *source_strings[2];
       GLint lengths[2];
-      GLint compile_status;
-      GLuint shader;
+      GLint compile_status = 0;
+      GLuint shader = 0;
       CoglPipelineSnippetData snippet_data;
       CoglPipelineSnippetList *vertex_snippets;
       CoglBool has_per_vertex_point_size =
@@ -540,7 +540,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       if (!compile_status)
         {
           GLint len = 0;
-          char *shader_log;
+          char *shader_log = 0;
 
           /* GE( ctx, glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &len) ); */
           /* shader_log = g_alloca (len); */

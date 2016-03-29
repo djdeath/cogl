@@ -1,6 +1,7 @@
 #include <config.h>
 
 #include "cogl-framebuffer-private.h"
+#include "cogl-pipeline-vulkan-private.h"
 
 void
 _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,

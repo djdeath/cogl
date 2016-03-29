@@ -492,6 +492,8 @@ driver_id_to_name (CoglDriver id)
         return "gles2";
       case COGL_DRIVER_WEBGL:
         return "webgl";
+      case COGL_DRIVER_VULKAN:
+        return "vulkan";
       case COGL_DRIVER_NOP:
         return "nop";
       case COGL_DRIVER_ANY:

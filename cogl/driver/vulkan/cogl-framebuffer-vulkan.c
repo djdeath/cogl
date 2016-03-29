@@ -122,7 +122,7 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
 }
 
 void
-_cogl_framebuffer_update_vulkan_framebuffer (CoglFramebuffer *framebuffer,
+_cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
                                              VkFramebuffer vk_framebuffer)
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
@@ -183,50 +183,52 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
         { cogl_framebuffer_get_width (framebuffer),
           cogl_framebuffer_get_height (framebuffer) },
       },
-      .clearValueCount = 0,
-      .pClearValues = NULL,
+      .clearValueCount = 1,
+      .pClearValues = (VkClearValue []) {
+        { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
+      },
     },
     VK_SUBPASS_CONTENTS_INLINE);
 
   return TRUE;
 }
 
-static void
-_cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
-{
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkViewport vk_viewport;
+/* static void */
+/* _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer) */
+/* { */
+/*   CoglFramebufferVulkan *vk_fb = framebuffer->winsys; */
+/*   VkViewport vk_viewport; */
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
+/*   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL); */
 
-  g_assert (framebuffer->viewport_width >=0 &&
-            framebuffer->viewport_height >=0);
+/*   g_assert (framebuffer->viewport_width >=0 && */
+/*             framebuffer->viewport_height >=0); */
 
-  vk_viewport.x = framebuffer->viewport_x;
-  vk_viewport.width = framebuffer->viewport_width;
-  vk_viewport.height = framebuffer->viewport_height;
-  vk_viewport.minDepth = 0;
-  vk_viewport.maxDepth = 1;
+/*   vk_viewport.x = framebuffer->viewport_x; */
+/*   vk_viewport.width = framebuffer->viewport_width; */
+/*   vk_viewport.height = framebuffer->viewport_height; */
+/*   vk_viewport.minDepth = 0; */
+/*   vk_viewport.maxDepth = 1; */
 
-  /* Convert the Cogl viewport y offset to an OpenGL viewport y offset
-   * NB: OpenGL defines its window and viewport origins to be bottom
-   * left, while Cogl defines them to be top left.
-   * NB: We render upside down to offscreen framebuffers so we don't
-   * need to convert the y offset in this case. */
-  if (cogl_is_offscreen (framebuffer))
-    vk_viewport.y = framebuffer->viewport_y;
-  else
-    vk_viewport.y = framebuffer->height -
-      (framebuffer->viewport_y + framebuffer->viewport_height);
+/*   /\* Convert the Cogl viewport y offset to an OpenGL viewport y offset */
+/*    * NB: OpenGL defines its window and viewport origins to be bottom */
+/*    * left, while Cogl defines them to be top left. */
+/*    * NB: We render upside down to offscreen framebuffers so we don't */
+/*    * need to convert the y offset in this case. *\/ */
+/*   if (cogl_is_offscreen (framebuffer)) */
+/*     vk_viewport.y = framebuffer->viewport_y; */
+/*   else */
+/*     vk_viewport.y = framebuffer->height - */
+/*       (framebuffer->viewport_y + framebuffer->viewport_height); */
 
-  COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)",
-             vk_viewport.x,
-             vk_viewport.y,
-             vk_viewport.width,
-             vk_viewport.height);
+/*   COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)", */
+/*              vk_viewport.x, */
+/*              vk_viewport.y, */
+/*              vk_viewport.width, */
+/*              vk_viewport.height); */
 
-  vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport);
-}
+/*   vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport); */
+/* } */
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
@@ -285,16 +287,6 @@ create_depth_texture (CoglContext *ctx,
 }
 
 void
-_cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
-                                             VkFramebuffer vk_framebuffer)
-{
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-
-  vk_fb->framebuffer = vk_framebuffer;
-}
-
-
-void
 _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 unsigned long buffers,
                                 float red,
@@ -302,7 +294,6 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 float blue,
                                 float alpha)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);

@@ -296,6 +296,9 @@ _cogl_use_fragment_program (GLuint gl_program, CoglPipelineProgramType type)
         case COGL_PIPELINE_PROGRAM_TYPE_FIXED:
           /* don't need to to anything */
           break;
+
+        case COGL_PIPELINE_PROGRAM_TYPE_VULKAN:
+          g_assert_not_reached();
         }
 
       /* ... and enable the new type */
@@ -311,6 +314,9 @@ _cogl_use_fragment_program (GLuint gl_program, CoglPipelineProgramType type)
         case COGL_PIPELINE_PROGRAM_TYPE_FIXED:
           /* don't need to to anything */
           break;
+
+        case COGL_PIPELINE_PROGRAM_TYPE_VULKAN:
+          g_assert_not_reached();
         }
     }
 
@@ -360,6 +366,9 @@ _cogl_use_vertex_program (GLuint gl_program, CoglPipelineProgramType type)
         case COGL_PIPELINE_PROGRAM_TYPE_FIXED:
           /* don't need to to anything */
           break;
+
+        case COGL_PIPELINE_PROGRAM_TYPE_VULKAN:
+          g_assert_not_reached();
         }
 
       /* ... and enable the new type */
@@ -374,6 +383,9 @@ _cogl_use_vertex_program (GLuint gl_program, CoglPipelineProgramType type)
         case COGL_PIPELINE_PROGRAM_TYPE_FIXED:
           /* don't need to to anything */
           break;
+
+        case COGL_PIPELINE_PROGRAM_TYPE_VULKAN:
+          g_assert_not_reached();
         }
     }
 

@@ -267,6 +267,8 @@ _cogl_texture_2d_vulkan_allocate (CoglTexture *tex,
       return allocate_with_size (tex_2d, loader, error);
     case COGL_TEXTURE_SOURCE_TYPE_BITMAP:
       return allocate_from_bitmap (tex_2d, loader, error);
+    default:
+      break;
     }
 
   g_return_val_if_reached (FALSE);

@@ -140,7 +140,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
   return TRUE;
 }
 
-CoglBool
+void
 _cogl_renderer_vulkan_deinit (CoglRenderer *renderer)
 {
   CoglRendererVulkan *vk_renderer = renderer->winsys;

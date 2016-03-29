@@ -997,8 +997,8 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
     {
       const char *source_strings[2];
       GLint lengths[2];
-      GLint compile_status;
-      GLuint shader;
+      GLint compile_status = 0;
+      GLuint shader = 0;
       CoglPipelineSnippetData snippet_data;
 
       COGL_STATIC_COUNTER (fragend_vulkan_compile_counter,
