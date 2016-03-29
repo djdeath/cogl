@@ -52,6 +52,10 @@ VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);
 
+VkFormat
+_cogl_attribute_type_to_vulkan_format (CoglAttributeType type,
+                                       int n_components);
+
 const char *
 _cogl_vulkan_error_to_string (VkResult error);
 

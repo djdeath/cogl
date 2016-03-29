@@ -81,6 +81,28 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     }
 }
 
+static VkFormat _attributes_to_formats[5][4] = {
+  /* COGL_ATTRIBUTE_TYPE_BYTE */
+  { VK_FORMAT_R8_SINT, VK_FORMAT_R8G8_SINT, VK_FORMAT_R8G8B8_SINT, VK_FORMAT_R8G8B8A8_SINT },
+  /* COGL_ATTRIBUTE_TYPE_UNSIGNED_BYTE */
+  { VK_FORMAT_R8_UINT, VK_FORMAT_R8G8_UINT, VK_FORMAT_R8G8B8_UINT, VK_FORMAT_R8G8B8A8_UINT },
+  /* COGL_ATTRIBUTE_TYPE_SHORT */
+  { VK_FORMAT_R16_SINT, VK_FORMAT_R16G16_SINT, VK_FORMAT_R16G16B16_SINT, VK_FORMAT_R16G16B16A16_SINT },
+  /* COGL_ATTRIBUTE_TYPE_UNSIGNED_SHORT */
+  { VK_FORMAT_R16_UINT, VK_FORMAT_R16G16_UINT, VK_FORMAT_R16G16B16_UINT, VK_FORMAT_R16G16B16A16_UINT },
+  /* COGL_ATTRIBUTE_TYPE_FLOAT */
+  { VK_FORMAT_R32_SFLOAT, VK_FORMAT_R32G32_SFLOAT, VK_FORMAT_R32G32B32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT },
+};
+
+VkFormat
+_cogl_attribute_type_to_vulkan_format (CoglAttributeType type, int n_components)
+{
+  g_assert (n_components <= 4);
+  g_assert (type <= COGL_ATTRIBUTE_TYPE_FLOAT);
+
+  return _attributes_to_formats[type][n_components - 1];
+}
+
 const char *
 _cogl_vulkan_error_to_string (VkResult error)
 {

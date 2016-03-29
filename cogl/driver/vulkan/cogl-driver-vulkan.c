@@ -94,8 +94,8 @@ _cogl_driver_update_features (CoglContext *ctx,
   unsigned long private_features
     [COGL_FLAGS_N_LONGS_FOR_SIZE (COGL_N_PRIVATE_FEATURES)] = { 0 };
 
-  COGL_FLAGS_SET (private_features,
-                  COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
+  COGL_FLAGS_SET (private_features, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
+  COGL_FLAGS_SET (private_features, COGL_PRIVATE_FEATURE_VBOS, TRUE);
 
   flags |= COGL_FEATURE_SHADERS_GLSL;
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
