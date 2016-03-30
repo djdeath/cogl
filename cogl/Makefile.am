@@ -247,7 +247,6 @@ libglslang_private_la_CXXFLAGS = \
 
 libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.ypp \
-	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/Constant.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/InfoSink.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/Initialize.cpp \
