@@ -227,96 +227,100 @@ cogl_driver_sources += \
 	$(NULL)
 endif
 
-AM_V_YACC = $(am__v_YACC_$(V))
-am__v_YACC_ = $(am__v_YACC_$(AM_DEFAULT_VERBOSITY))
-am__v_YACC_0 = @echo "  YACC    " $@;
-am__v_YACC_1 =
+glslangdir = driver/vulkan/glslang/glslang
 
-MKDIR_GEN = $(AM_V_at)$(MKDIR_P) $(@D)
-YACC_GEN = $(AM_V_YACC)$(YACC) $(YFLAGS)
-LEX_GEN = $(AM_V_LEX)$(LEX) $(LFLAGS)
+AM_YFLAGS = -d
 
-if COGL_DRIVER_VULKAN_SUPPORTED
+# AM_V_YACC = $(am__v_YACC_$(V))
+# am__v_YACC_ = $(am__v_YACC_$(AM_DEFAULT_VERBOSITY))
+# am__v_YACC_0 = @echo "  YACC    " $@;
+# am__v_YACC_1 =
+
+# MKDIR_GEN = $(AM_V_at)$(MKDIR_P) $(@D)
+# YACC_GEN = $(AM_V_YACC)$(YACC) $(YFLAGS)
+# LEX_GEN = $(AM_V_LEX)$(LEX) $(LFLAGS)
+
 noinst_LTLIBRARIES += \
 	libglslang_private.la
 
-glslang_dir = driver/vulkan/glslang/glslang
-
 libglslang_private_la_CPPFLAGS = \
-	-I$(srcdir)/$(glslang_dir) \
-	-I$(srcdir)/$(glslang_dir)/MachineIndependent \
+	-I$(srcdir)/$(glslangdir) \
+	-I$(srcdir)/$(glslangdir)/MachineIndependent \
 	$(NULL)
 libglslang_private_la_CXXFLAGS = \
 	-DGLSLANG_OSINCLUDE_UNIX \
 	-std=c++11 \
 	$(NULL)
 
-BUILT_SOURCES += \
-	$(glslang_dir)/MachineIndependent/glslang_tab.cpp \
-	$(glslang_dir)/MachineIndependent/glslang_tab.h \
-	$(NULL)
-
-$(glslang_dir)/MachineIndependent/glslang_tab.cpp: $(glslang_dir)/MachineIndependent/glslang.y
+$(glslangdir)/MachineIndependent/glslang_tab.cpp: $(glslangdir)/MachineIndependent/glslang.y
 	$(MKDIR_GEN)
-	$(YACC_GEN) -o $@ --defines=$(builddir)/$(glslang_dir)/MachineIndependent/glslang_tab.h $+
+	$(YACC) -o $@ --defines=$(builddir)/$(glslangdir)/MachineIndependent/glslang_tab.h $+
+
+glslang_private_la_SOURCES_ = \
+	MachineIndependent/glslang.y \
+	MachineIndependent/Constant.cpp \
+	MachineIndependent/InfoSink.cpp \
+	MachineIndependent/Initialize.cpp \
+	MachineIndependent/IntermTraverse.cpp \
+	MachineIndependent/Intermediate.cpp \
+	MachineIndependent/ParseHelper.cpp \
+	MachineIndependent/PoolAlloc.cpp \
+	MachineIndependent/RemoveTree.cpp \
+	MachineIndependent/Scan.cpp \
+	MachineIndependent/ShaderLang.cpp \
+	MachineIndependent/SymbolTable.cpp \
+	MachineIndependent/Versions.cpp \
+	MachineIndependent/intermOut.cpp \
+	MachineIndependent/limits.cpp \
+	MachineIndependent/linkValidate.cpp \
+	MachineIndependent/parseConst.cpp \
+	MachineIndependent/reflection.cpp \
+	MachineIndependent/preprocessor/Pp.cpp \
+	MachineIndependent/preprocessor/PpAtom.cpp \
+	MachineIndependent/preprocessor/PpContext.cpp \
+	MachineIndependent/preprocessor/PpMemory.cpp \
+	MachineIndependent/preprocessor/PpScanner.cpp \
+	MachineIndependent/preprocessor/PpSymbols.cpp \
+	MachineIndependent/preprocessor/PpTokens.cpp \
+	MachineIndependent/gl_types.h \
+	MachineIndependent/Initialize.h \
+	MachineIndependent/localintermediate.h \
+	MachineIndependent/ParseHelper.h \
+	MachineIndependent/reflection.h \
+	MachineIndependent/RemoveTree.h \
+	MachineIndependent/Scan.h \
+	MachineIndependent/ScanContext.h \
+	MachineIndependent/SymbolTable.h \
+	MachineIndependent/Versions.h \
+	MachineIndependent/preprocessor/PpContext.h \
+	MachineIndependent/preprocessor/PpTokens.h \
+	GenericCodeGen/CodeGen.cpp \
+	GenericCodeGen/Link.cpp \
+	Public/ShaderLang.h \
+	Include/arrays.h \
+	Include/BaseTypes.h \
+	Include/Common.h \
+	Include/ConstantUnion.h \
+	Include/InfoSink.h \
+	Include/InitializeGlobals.h \
+	Include/intermediate.h \
+	Include/PoolAlloc.h \
+	Include/ResourceLimits.h \
+	Include/revision.h \
+	Include/ShHandle.h \
+	Include/Types.h \
+	$(NULL)
 
 libglslang_private_la_SOURCES = \
-	$(glslang_dir)/MachineIndependent/glslang.y \
-	$(glslang_dir)/MachineIndependent/glslang_tab.cpp \
-	$(glslang_dir)/MachineIndependent/Constant.cpp \
-	$(glslang_dir)/MachineIndependent/InfoSink.cpp \
-	$(glslang_dir)/MachineIndependent/Initialize.cpp \
-	$(glslang_dir)/MachineIndependent/IntermTraverse.cpp \
-	$(glslang_dir)/MachineIndependent/Intermediate.cpp \
-	$(glslang_dir)/MachineIndependent/ParseHelper.cpp \
-	$(glslang_dir)/MachineIndependent/PoolAlloc.cpp \
-	$(glslang_dir)/MachineIndependent/RemoveTree.cpp \
-	$(glslang_dir)/MachineIndependent/Scan.cpp \
-	$(glslang_dir)/MachineIndependent/ShaderLang.cpp \
-	$(glslang_dir)/MachineIndependent/SymbolTable.cpp \
-	$(glslang_dir)/MachineIndependent/Versions.cpp \
-	$(glslang_dir)/MachineIndependent/intermOut.cpp \
-	$(glslang_dir)/MachineIndependent/limits.cpp \
-	$(glslang_dir)/MachineIndependent/linkValidate.cpp \
-	$(glslang_dir)/MachineIndependent/parseConst.cpp \
-	$(glslang_dir)/MachineIndependent/reflection.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/Pp.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpAtom.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpContext.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpMemory.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpScanner.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpSymbols.cpp \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpTokens.cpp \
-	$(glslang_dir)/MachineIndependent/glslang_tab.cpp.h \
-	$(glslang_dir)/MachineIndependent/gl_types.h \
-	$(glslang_dir)/MachineIndependent/Initialize.h \
-	$(glslang_dir)/MachineIndependent/localintermediate.h \
-	$(glslang_dir)/MachineIndependent/ParseHelper.h \
-	$(glslang_dir)/MachineIndependent/reflection.h \
-	$(glslang_dir)/MachineIndependent/RemoveTree.h \
-	$(glslang_dir)/MachineIndependent/Scan.h \
-	$(glslang_dir)/MachineIndependent/ScanContext.h \
-	$(glslang_dir)/MachineIndependent/SymbolTable.h \
-	$(glslang_dir)/MachineIndependent/Versions.h \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpContext.h \
-	$(glslang_dir)/MachineIndependent/preprocessor/PpTokens.h \
-	$(glslang_dir)/GenericCodeGen/CodeGen.cpp \
-	$(glslang_dir)/GenericCodeGen/Link.cpp \
-	$(glslang_dir)/Public/ShaderLang.h \
-	$(glslang_dir)/Include/arrays.h \
-	$(glslang_dir)/Include/BaseTypes.h \
-	$(glslang_dir)/Include/Common.h \
-	$(glslang_dir)/Include/ConstantUnion.h \
-	$(glslang_dir)/Include/InfoSink.h \
-	$(glslang_dir)/Include/InitializeGlobals.h \
-	$(glslang_dir)/Include/intermediate.h \
-	$(glslang_dir)/Include/PoolAlloc.h \
-	$(glslang_dir)/Include/ResourceLimits.h \
-	$(glslang_dir)/Include/revision.h \
-	$(glslang_dir)/Include/ShHandle.h \
-	$(glslang_dir)/Include/Types.h \
+	$(patsubt %,$(glslangdir)/%,$(glslang_private_la_SOURCES_)) \
 	$(NULL)
 
+BUILT_SOURCES += \
+	$(glslangdir)/MachineIndependent/glslang_tab.cpp \
+	$(glslangdir)/MachineIndependent/glslang_tab.h \
+	$(NULL)
+
+if COGL_DRIVER_VULKAN_SUPPORTED
 cogl_driver_sources += \
 	driver/vulkan/cogl-buffer-vulkan.c \
 	driver/vulkan/cogl-buffer-vulkan-private.h \

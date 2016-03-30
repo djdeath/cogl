@@ -832,7 +832,8 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
         COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN"
         HAVE_VULKAN=1
 
-        AX_PROG_BISON([], [AC_MSG_ERROR([bison not found])])
+        AC_PROG_YACC
+        dnl AX_PROG_BISON([], [AC_MSG_ERROR([bison not found])])
 
         AC_CHECK_HEADER([vulkan/vulkan.h],
                         [],
