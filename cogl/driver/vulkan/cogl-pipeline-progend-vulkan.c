@@ -736,6 +736,35 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
   if (program_state->program == 0)
     {
+      /* VkDescriptorSetLayout set_layout; */
+
+      /* vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) { */
+      /*     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, */
+      /*     .bindingCount = 1, */
+      /*     .pBindings = (VkDescriptorSetLayoutBinding[]) { */
+      /*       { */
+      /*         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, */
+      /*         .descriptorCount = 1, */
+      /*         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, */
+      /*         .pImmutableSamplers = NULL */
+      /*       } */
+      /*     } */
+      /*   }, */
+      /*   NULL, */
+      /*   &set_layout); */
+
+      /* vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) { */
+      /*     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, */
+      /*       .setLayoutCount = 1, */
+      /*       .pSetLayouts = &set_layout, */
+      /*       }, */
+      /*   NULL, */
+      /*   &program_state->pipeline_layout); */
+
+
+
+
+
       GLuint backend_shader;
       GSList *l;
 
