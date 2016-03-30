@@ -44,6 +44,39 @@
 namespace glslang {
 
 OS_TLSIndex ThreadInitializeIndex = OS_INVALID_TLS_INDEX;
+OS_TLSIndex TLSIndex = OS_INVALID_TLS_INDEX;
+
+OS_TLSIndex OS_AllocTLSIndex()
+{
+  return TLSIndex;
+}
+
+bool OS_SetTLSValue(OS_TLSIndex nIndex, void *lpvValue)
+{
+  return false;
+}
+
+bool OS_FreeTLSIndex(OS_TLSIndex nIndex)
+{
+  return false;
+}
+
+void* OS_GetTLSValue(OS_TLSIndex nIndex)
+{
+  return nullptr;
+}
+
+void InitGlobalLock()
+{
+}
+
+void ReleaseGlobalLock()
+{
+}
+
+void GetGlobalLock()
+{
+}
 
 bool InitProcess()
 {

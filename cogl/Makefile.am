@@ -246,6 +246,7 @@ libglslang_private_la_CXXFLAGS = \
 	$(NULL)
 
 libglslang_private_la_SOURCES = \
+	driver/vulkan/glslang/InitializeDll.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.ypp \
 	driver/vulkan/glslang/glslang/MachineIndependent/Constant.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/InfoSink.cpp \
@@ -300,11 +301,6 @@ libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/Include/ShHandle.h \
 	driver/vulkan/glslang/glslang/Include/Types.h \
 	$(NULL)
-#	$(patsubst %,driver/vulkan/glslang/glslang/%,$(glslang_sources)) \
-	$(NULL)
-
-plop:
-	@echo $(libglslang_private_la_SOURCES)
 
 #BUILT_SOURCES += \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
