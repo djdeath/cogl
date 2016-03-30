@@ -245,66 +245,6 @@ libglslang_private_la_CXXFLAGS = \
 	-std=c++11 \
 	$(NULL)
 
-# driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.cpp: driver/vulkan/glslang/glslang/MachineIndependent/glslang.y
-# 	$(MKDIR_GEN)
-# 	$(YACC) -o $@ --defines=$(builddir)/driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.h $+
-
-#glslang_sources = \
-	MachineIndependent/glslang_tab.cpp \
-	MachineIndependent/glslang.y \
-	MachineIndependent/Constant.cpp \
-	MachineIndependent/InfoSink.cpp \
-	MachineIndependent/Initialize.cpp \
-	MachineIndependent/IntermTraverse.cpp \
-	MachineIndependent/Intermediate.cpp \
-	MachineIndependent/ParseHelper.cpp \
-	MachineIndependent/PoolAlloc.cpp \
-	MachineIndependent/RemoveTree.cpp \
-	MachineIndependent/Scan.cpp \
-	MachineIndependent/ShaderLang.cpp \
-	MachineIndependent/SymbolTable.cpp \
-	MachineIndependent/Versions.cpp \
-	MachineIndependent/intermOut.cpp \
-	MachineIndependent/limits.cpp \
-	MachineIndependent/linkValidate.cpp \
-	MachineIndependent/parseConst.cpp \
-	MachineIndependent/reflection.cpp \
-	MachineIndependent/preprocessor/Pp.cpp \
-	MachineIndependent/preprocessor/PpAtom.cpp \
-	MachineIndependent/preprocessor/PpContext.cpp \
-	MachineIndependent/preprocessor/PpMemory.cpp \
-	MachineIndependent/preprocessor/PpScanner.cpp \
-	MachineIndependent/preprocessor/PpSymbols.cpp \
-	MachineIndependent/preprocessor/PpTokens.cpp \
-	MachineIndependent/gl_types.h \
-	MachineIndependent/Initialize.h \
-	MachineIndependent/localintermediate.h \
-	MachineIndependent/ParseHelper.h \
-	MachineIndependent/reflection.h \
-	MachineIndependent/RemoveTree.h \
-	MachineIndependent/Scan.h \
-	MachineIndependent/ScanContext.h \
-	MachineIndependent/SymbolTable.h \
-	MachineIndependent/Versions.h \
-	MachineIndependent/preprocessor/PpContext.h \
-	MachineIndependent/preprocessor/PpTokens.h \
-	GenericCodeGen/CodeGen.cpp \
-	GenericCodeGen/Link.cpp \
-	Public/ShaderLang.h \
-	Include/arrays.h \
-	Include/BaseTypes.h \
-	Include/Common.h \
-	Include/ConstantUnion.h \
-	Include/InfoSink.h \
-	Include/InitializeGlobals.h \
-	Include/intermediate.h \
-	Include/PoolAlloc.h \
-	Include/ResourceLimits.h \
-	Include/revision.h \
-	Include/ShHandle.h \
-	Include/Types.h \
-	$(NULL)
-
 libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.ypp \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
@@ -367,9 +307,9 @@ libglslang_private_la_SOURCES = \
 plop:
 	@echo $(libglslang_private_la_SOURCES)
 
-BUILT_SOURCES += \
-	driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.cpp \
-	driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.h \
+#BUILT_SOURCES += \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang.hpp \
 	$(NULL)
 
 if COGL_DRIVER_VULKAN_SUPPORTED
