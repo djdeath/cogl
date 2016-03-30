@@ -230,33 +230,27 @@ endif
 glslangdir = driver/vulkan/glslang/glslang
 
 AM_YFLAGS = -d
-
-# AM_V_YACC = $(am__v_YACC_$(V))
-# am__v_YACC_ = $(am__v_YACC_$(AM_DEFAULT_VERBOSITY))
-# am__v_YACC_0 = @echo "  YACC    " $@;
-# am__v_YACC_1 =
-
-# MKDIR_GEN = $(AM_V_at)$(MKDIR_P) $(@D)
-# YACC_GEN = $(AM_V_YACC)$(YACC) $(YFLAGS)
-# LEX_GEN = $(AM_V_LEX)$(LEX) $(LFLAGS)
+AM_CXXFLAGS = -std=c++11
 
 noinst_LTLIBRARIES += \
 	libglslang_private.la
 
 libglslang_private_la_CPPFLAGS = \
-	-I$(srcdir)/$(glslangdir) \
-	-I$(srcdir)/$(glslangdir)/MachineIndependent \
+	-D_GLIBCXX_USE_CXX11_ABI=0 \
+	-I$(srcdir)/driver/vulkan/glslang/glslang \
+	-I$(srcdir)/driver/vulkan/glslang/glslang/MachineIndependent \
 	$(NULL)
 libglslang_private_la_CXXFLAGS = \
 	-DGLSLANG_OSINCLUDE_UNIX \
 	-std=c++11 \
 	$(NULL)
 
-$(glslangdir)/MachineIndependent/glslang_tab.cpp: $(glslangdir)/MachineIndependent/glslang.y
-	$(MKDIR_GEN)
-	$(YACC) -o $@ --defines=$(builddir)/$(glslangdir)/MachineIndependent/glslang_tab.h $+
+# driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.cpp: driver/vulkan/glslang/glslang/MachineIndependent/glslang.y
+# 	$(MKDIR_GEN)
+# 	$(YACC) -o $@ --defines=$(builddir)/driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.h $+
 
-glslang_private_la_SOURCES_ = \
+#glslang_sources = \
+	MachineIndependent/glslang_tab.cpp \
 	MachineIndependent/glslang.y \
 	MachineIndependent/Constant.cpp \
 	MachineIndependent/InfoSink.cpp \
@@ -312,12 +306,70 @@ glslang_private_la_SOURCES_ = \
 	$(NULL)
 
 libglslang_private_la_SOURCES = \
-	$(patsubt %,$(glslangdir)/%,$(glslang_private_la_SOURCES_)) \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang.ypp \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/Constant.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/InfoSink.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/Initialize.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/IntermTraverse.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/Intermediate.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/ParseHelper.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/PoolAlloc.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/RemoveTree.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/Scan.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/ShaderLang.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/SymbolTable.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/Versions.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/intermOut.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/limits.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/linkValidate.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/parseConst.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/reflection.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/Pp.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpContext.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpMemory.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpSymbols.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpTokens.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang.hpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/gl_types.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/Initialize.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/localintermediate.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/ParseHelper.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/reflection.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/RemoveTree.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/Scan.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/ScanContext.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/SymbolTable.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/Versions.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpContext.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpTokens.h \
+	driver/vulkan/glslang/glslang/GenericCodeGen/CodeGen.cpp \
+	driver/vulkan/glslang/glslang/GenericCodeGen/Link.cpp \
+	driver/vulkan/glslang/glslang/Public/ShaderLang.h \
+	driver/vulkan/glslang/glslang/Include/arrays.h \
+	driver/vulkan/glslang/glslang/Include/BaseTypes.h \
+	driver/vulkan/glslang/glslang/Include/Common.h \
+	driver/vulkan/glslang/glslang/Include/ConstantUnion.h \
+	driver/vulkan/glslang/glslang/Include/InfoSink.h \
+	driver/vulkan/glslang/glslang/Include/InitializeGlobals.h \
+	driver/vulkan/glslang/glslang/Include/intermediate.h \
+	driver/vulkan/glslang/glslang/Include/PoolAlloc.h \
+	driver/vulkan/glslang/glslang/Include/ResourceLimits.h \
+	driver/vulkan/glslang/glslang/Include/revision.h \
+	driver/vulkan/glslang/glslang/Include/ShHandle.h \
+	driver/vulkan/glslang/glslang/Include/Types.h \
+	$(NULL)
+#	$(patsubst %,driver/vulkan/glslang/glslang/%,$(glslang_sources)) \
 	$(NULL)
 
+plop:
+	@echo $(libglslang_private_la_SOURCES)
+
 BUILT_SOURCES += \
-	$(glslangdir)/MachineIndependent/glslang_tab.cpp \
-	$(glslangdir)/MachineIndependent/glslang_tab.h \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/glslang_tab.h \
 	$(NULL)
 
 if COGL_DRIVER_VULKAN_SUPPORTED
