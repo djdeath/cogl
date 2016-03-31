@@ -229,23 +229,34 @@ endif
 
 glslangdir = driver/vulkan/glslang/glslang
 
+# We need to generate .h for the parser
 AM_YFLAGS = -d
-AM_CXXFLAGS = -std=c++11
 
 noinst_LTLIBRARIES += \
 	libglslang_private.la
 
 libglslang_private_la_CPPFLAGS = \
+	-DG_LOG_DOMAIN=\"Cogl\" 	\
+	-DCOGL_COMPILATION		\
+	-DCOGL_GL_LIBNAME=\"$(COGL_GL_LIBNAME)\" \
+	-DCOGL_GLES1_LIBNAME=\"$(COGL_GLES1_LIBNAME)\" \
+	-DCOGL_GLES2_LIBNAME=\"$(COGL_GLES2_LIBNAME)\" \
+	-DCOGL_LOCALEDIR=\""$(localedir)"\" \
+	\
 	-D_GLIBCXX_USE_CXX11_ABI=0 \
 	-I$(srcdir)/driver/vulkan/glslang/glslang \
 	-I$(srcdir)/driver/vulkan/glslang/glslang/MachineIndependent \
 	$(NULL)
 libglslang_private_la_CXXFLAGS = \
+	$(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS) \
 	-DGLSLANG_OSINCLUDE_UNIX \
 	-std=c++11 \
 	$(NULL)
 
 libglslang_private_la_SOURCES = \
+	driver/vulkan/cogl-shader-vulkan.cc \
+	driver/vulkan/cogl-shader-vulkan-private.h \
+	\
 	driver/vulkan/glslang/InitializeDll.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.ypp \
 	driver/vulkan/glslang/glslang/MachineIndependent/Constant.cpp \
@@ -308,6 +319,8 @@ libglslang_private_la_SOURCES = \
 	$(NULL)
 
 if COGL_DRIVER_VULKAN_SUPPORTED
+libcogl_la_CXXFLAGS = -std=c++11
+
 cogl_driver_sources += \
 	driver/vulkan/cogl-buffer-vulkan.c \
 	driver/vulkan/cogl-buffer-vulkan-private.h \
