@@ -61,7 +61,7 @@ typedef struct
 
   CoglPipelineCacheEntry *cache_entry;
 
-  CoglShaderDescVulkan *shader_desc;
+  CoglShaderVulkan *shader_desc;
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -433,6 +433,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       CoglBool has_per_vertex_point_size =
         cogl_pipeline_get_per_vertex_point_size (pipeline);
       GString *shader_source;
+      int i;
 
       COGL_STATIC_COUNTER (vertend_vulkan_compile_counter,
                            "vulkan vertex compile counter",
@@ -536,11 +537,26 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
                                                                      2, /* count */
                                                                      source_strings, lengths);
 
-      shader_state->shader_desc = _cogl_shader_vulkan_create (COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                              shader_source->str);
+      shader_state->shader_desc = _cogl_shader_vulkan_new ();
+
+      _cogl_shader_vulkan_add_stage (shader_state->shader_desc,
+                                     COGL_GLSL_SHADER_TYPE_VERTEX,
+                                     shader_source->str);
+      _cogl_shader_vulkan_add_stage (shader_state->shader_desc,
+                                     COGL_GLSL_SHADER_TYPE_FRAGMENT,
+                                     "void main(void) { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }");
 
       g_string_free (shader_source, TRUE);
 
+      _cogl_shader_vulkan_link (shader_state->shader_desc);
+      g_message ("uniforms: %i",
+                 _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader_desc));
+      g_message ("uniforms blocks: %i",
+                 _cogl_shader_vulkan_get_num_live_uniform_blocks (shader_state->shader_desc));
+      for (i = 0; i < _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader_desc); i++)
+        {
+          g_message ("uniform : %i / %s", i, _cogl_shader_vulkan_get_uniform_name (shader_state->shader_desc, i));
+        }
       /* GE( ctx, glCompileShader (shader) ); */
       /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */
 

@@ -32,31 +32,58 @@
 #define _COGL_SHADER_VULKAN_PRIVATE_H_
 
 #include "cogl-types.h"
+#include "cogl-context.h"
+#include "cogl-glsl-shader-private.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum
-{
-  COGL_SHADER_VULKAN_TYPE_VERTEX,
-  COGL_SHADER_VULKAN_TYPE_FRAGMENT
-} CoglShaderVulkanType;
+typedef struct _CoglShaderVulkan CoglShaderVulkan;
 
-typedef struct _CoglShaderDescVulkan
-{
-  CoglShaderVulkanType type;
-
-  char *string;
-
-} CoglShaderDescVulkan;
-
-CoglShaderDescVulkan *
-_cogl_shader_vulkan_create (CoglShaderVulkanType type,
-                            const char *string);
+CoglShaderVulkan *
+_cogl_shader_vulkan_new (void);
 
 void
-_cogl_shader_vulkan_free (CoglShaderDescVulkan *desc);
+_cogl_shader_vulkan_free (CoglShaderVulkan *shader);
+
+void
+_cogl_shader_vulkan_add_stage (CoglShaderVulkan *shader,
+                               CoglGlslShaderType type,
+                               const char *string);
+
+CoglBool
+_cogl_shader_vulkan_link (CoglShaderVulkan *shader);
+
+int
+_cogl_shader_vulkan_get_num_live_uniform_variables (CoglShaderVulkan *shader);
+
+int
+_cogl_shader_vulkan_get_num_live_uniform_blocks (CoglShaderVulkan *shader);
+
+const char *
+_cogl_shader_vulkan_get_uniform_name (CoglShaderVulkan *shader, int index);
+
+const char *
+_cogl_shader_vulkan_get_uniform_block_name (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader, const char *name);
+
+int
+_cogl_shader_vulkan_get_uniform_block_index (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_uniform_type (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_buffer_offset (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_array_size (CoglShaderVulkan *shader, int index);
 
 #ifdef __cplusplus
 }

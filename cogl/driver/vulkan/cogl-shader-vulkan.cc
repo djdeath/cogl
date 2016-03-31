@@ -1,23 +1,20 @@
 #include "cogl-shader-vulkan-private.h"
 
+#include "glslang/InitializeDll.h"
 #include "glslang/glslang/Public/ShaderLang.h"
 
-class DummyIncluder : public glslang::TShader::Includer {
-public:
-  DummyIncluder() {}
-
-  std::pair<std::string, std::string> include(const char* filename) const final {
-    return std::pair<std::string, std::string>("", "");
-  }
+struct _CoglShaderVulkan
+{
+  glslang::TProgram *program;
 };
 
-static EShLanguage _shader_type_es_language (CoglShaderVulkanType type)
+static EShLanguage _shader_type_es_language (CoglGlslShaderType type)
 {
   switch (type)
     {
-    case COGL_SHADER_VULKAN_TYPE_VERTEX:
+    case COGL_GLSL_SHADER_TYPE_VERTEX:
       return EShLangVertex;
-    case COGL_SHADER_VULKAN_TYPE_FRAGMENT:
+    case COGL_GLSL_SHADER_TYPE_FRAGMENT:
       return EShLangFragment;
     default:
       g_assert_not_reached();
@@ -130,35 +127,78 @@ const TBuiltInResource kDefaultTBuiltInResource = {
     /*.generalSamplerIndexing = */ 1,
     /*.generalVariableIndexing = */ 1,
     /*.generalConstantMatrixVectorIndexing = */ 1,
-  }};
+  }
+};
 
 extern "C" void
-_cogl_shader_vulkan_free (CoglShaderDescVulkan *desc)
+_cogl_shader_vulkan_free (CoglShaderVulkan *desc)
 {
-  g_free (desc->string);
-  g_slice_free (CoglShaderDescVulkan, desc);
+  delete desc->program;
+  g_slice_free (CoglShaderVulkan, desc);
 }
 
-extern "C" CoglShaderDescVulkan *
-_cogl_shader_vulkan_create (CoglShaderVulkanType type, const char *string)
+extern "C" CoglShaderVulkan *
+_cogl_shader_vulkan_new (void)
 {
-  CoglShaderDescVulkan *desc = g_slice_new0 (CoglShaderDescVulkan);
-  glslang::TShader shader (_shader_type_es_language (type));
+  CoglShaderVulkan *desc = g_slice_new0 (CoglShaderVulkan);
 
-  std::string preprocessed_shader;
-  DummyIncluder includer;
-  const bool success = shader.preprocess (&kDefaultTBuiltInResource,
-                                          130, ECoreProfile, true, false,
-                                          static_cast<EShMessages>(EShMsgOnlyPreprocessor |
-                                                                   EShMsgSpvRules |
-                                                                   EShMsgVulkanRules),
-                                          &preprocessed_shader,
-                                          includer);
+  glslang::InitializeProcess ();
 
-  g_message ("preprocessed : %s", preprocessed_shader.c_str());
-
-  desc->type = type;
-  desc->string = g_strdup (string);
+  desc->program = new glslang::TProgram();
 
   return desc;
 }
+
+extern "C" void
+_cogl_shader_vulkan_add_stage (CoglShaderVulkan *shader,
+                               CoglGlslShaderType type,
+                               const char *string)
+{
+  glslang::TShader *gl_shader =
+    new glslang::TShader (_shader_type_es_language (type));
+
+  gl_shader->setStrings(&string, 1);
+  bool success = gl_shader->parse(&kDefaultTBuiltInResource,
+                                  100,
+                                  ENoProfile,
+                                  false,
+                                  false,
+                                  static_cast<EShMessages>(EShMsgDefault),
+                                  glslang::TShader::ForbidInclude());
+
+  g_message ("source: %s", string);
+  g_message ("compile success : %i", success);
+
+  shader->program->addShader (gl_shader);
+}
+
+extern "C" CoglBool
+_cogl_shader_vulkan_link (CoglShaderVulkan *shader)
+{
+  return shader->program->link (static_cast<EShMessages>(EShMsgDefault)) &&
+    shader->program->buildReflection ();
+}
+
+#define ACCESSOR_0(type, default_value, cogl_name, glslang_lang)        \
+  extern "C" type                                                       \
+  _cogl_shader_vulkan_##cogl_name (CoglShaderVulkan *shader)            \
+  {                                                                     \
+    return shader->program->glslang_lang();                             \
+  }
+#define ACCESSOR(type, default_value, cogl_name, glslang_call, args...) \
+  extern "C" type                                                       \
+  _cogl_shader_vulkan_##cogl_name (CoglShaderVulkan *shader, args)      \
+  {                                                                     \
+    return shader->program->glslang_call;                               \
+  }
+
+ACCESSOR_0(int, -1, get_num_live_uniform_variables, getNumLiveUniformVariables)
+ACCESSOR_0(int, -1, get_num_live_uniform_blocks, getNumLiveUniformBlocks)
+ACCESSOR(const char *, NULL, get_uniform_name, getUniformName(index), int index)
+ACCESSOR(const char *, NULL, get_uniform_block_name, getUniformBlockName(index), int index)
+ACCESSOR(int, -1, get_uniform_block_size, getUniformBlockSize(index), int index)
+ACCESSOR(int, -1, get_uniform_index, getUniformIndex(name), const char *name)
+ACCESSOR(int, -1, get_uniform_block_index, getUniformBlockIndex(index), int index)
+ACCESSOR(int, -1, get_uniform_type, getUniformType(index), int index)
+ACCESSOR(int, -1, get_uniform_buffer_offset, getUniformBufferOffset(index), int index)
+ACCESSOR(int, -1, get_uniform_array_size, getUniformArraySize(index), int index)
