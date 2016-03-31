@@ -38,7 +38,7 @@ GString *
 _cogl_glsl_shader_get_source_with_boilerplate (CoglContext *ctx,
                                                CoglGlslShaderType shader_type,
                                                CoglPipeline *pipeline,
-                                               GLsizei count_in,
+                                               int count_in,
                                                const char **strings_in,
                                                const GLint *lengths_in);
 
