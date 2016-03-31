@@ -81,7 +81,7 @@ _cogl_glsl_shader_get_source_with_boilerplate (CoglContext *ctx,
                                                CoglPipeline *pipeline,
                                                int count_in,
                                                const char **strings_in,
-                                               const GLint *lengths_in)
+                                               const int *lengths_in)
 {
   const char *vertex_boilerplate;
   const char *fragment_boilerplate;
