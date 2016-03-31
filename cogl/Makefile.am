@@ -313,7 +313,7 @@ libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/Include/Types.h \
 	$(NULL)
 
-#BUILT_SOURCES += \
+CLEANFILES += \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.hpp \
 	$(NULL)

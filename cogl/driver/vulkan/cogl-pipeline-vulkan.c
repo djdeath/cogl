@@ -127,15 +127,21 @@ _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
     .vertexAttributeDescriptionCount = n_attributes, /* TODO: Inaccurate */
     .pVertexAttributeDescriptions = vk_vertex_descs,
   };
+  int n_layers = cogl_pipeline_get_n_layers (pipeline);
+  unsigned long *layer_differences =
+    g_alloca (sizeof (unsigned long) * n_layers);
   int i;
-  /* const CoglPipelineProgend *progend; */
-  /* const CoglPipelineVertend *vertend; */
-  /* const CoglPipelineFragend *fragend; */
+  const CoglPipelineProgend *progend;
+  const CoglPipelineVertend *vertend;
+  const CoglPipelineFragend *fragend;
   /* int n_layers; */
 
   VK_TODO();
 
   _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
+
+  for (i = 0; i < n_layers; i++)
+    layer_differences[i] = COGL_PIPELINE_LAYER_STATE_ALL;
 
   /*   /\* Get a layer_differences mask for each layer to be flushed *\/ */
   /* n_layers = cogl_pipeline_get_n_layers (pipeline); */
@@ -156,17 +162,18 @@ _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
 
   /* CoglPipelineAddLayerState state; */
 
-  /* progend = _cogl_pipeline_progends[COGL_PIPELINE_PROGEND_VULKAN]; */
-  /* vertend = _cogl_pipeline_vertends[COGL_PIPELINE_PROGEND_VULKAN]; */
-  /* fragend = _cogl_pipeline_fragends[COGL_PIPELINE_PROGEND_VULKAN]; */
+  progend = _cogl_pipeline_progends[COGL_PIPELINE_PROGEND_VULKAN];
+  vertend = _cogl_pipeline_vertends[COGL_PIPELINE_VERTEND_VULKAN];
+  fragend = _cogl_pipeline_fragends[COGL_PIPELINE_FRAGEND_VULKAN];
 
   /* g_assert (progend->start (pipeline)); */
 
+  vertend->start (pipeline,
+                  n_layers,
+                  COGL_PIPELINE_STATE_ALL);
 
-
-  /* vertend->start (pipeline, */
-  /*                 n_layers, */
-  /*                 pipelines_difference); */
+  vertend->end (pipeline,
+                COGL_PIPELINE_STATE_ALL);
 
   /*     state.framebuffer = framebuffer; */
   /*     state.vertend = vertend; */

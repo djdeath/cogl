@@ -132,10 +132,17 @@ const TBuiltInResource kDefaultTBuiltInResource = {
     /*.generalConstantMatrixVectorIndexing = */ 1,
   }};
 
+extern "C" void
+_cogl_shader_vulkan_free (CoglShaderDescVulkan *desc)
+{
+  g_free (desc->string);
+  g_slice_free (CoglShaderDescVulkan, desc);
+}
 
 extern "C" CoglShaderDescVulkan *
 _cogl_shader_vulkan_create (CoglShaderVulkanType type, const char *string)
 {
+  CoglShaderDescVulkan *desc = g_slice_new0 (CoglShaderDescVulkan);
   glslang::TShader shader (_shader_type_es_language (type));
 
   std::string preprocessed_shader;
@@ -148,5 +155,10 @@ _cogl_shader_vulkan_create (CoglShaderVulkanType type, const char *string)
                                           &preprocessed_shader,
                                           includer);
 
+  g_message ("preprocessed : %s", preprocessed_shader.c_str());
 
+  desc->type = type;
+  desc->string = g_strdup (string);
+
+  return desc;
 }

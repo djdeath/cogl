@@ -47,6 +47,7 @@
 #include "cogl-program-private.h"
 #include "cogl-pipeline-vertend-vulkan-private.h"
 #include "cogl-pipeline-state-private.h"
+#include "cogl-shader-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
 const CoglPipelineVertend _cogl_pipeline_vulkan_vertend;
@@ -59,6 +60,8 @@ typedef struct
   GString *header, *source;
 
   CoglPipelineCacheEntry *cache_entry;
+
+  CoglShaderDescVulkan *shader_desc;
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -429,6 +432,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       CoglPipelineSnippetList *vertex_snippets;
       CoglBool has_per_vertex_point_size =
         cogl_pipeline_get_per_vertex_point_size (pipeline);
+      GString *shader_source;
 
       COGL_STATIC_COUNTER (vertend_vulkan_compile_counter,
                            "vulkan vertex compile counter",
@@ -521,18 +525,21 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       g_string_append (shader_state->source,
                        "}\n");
 
-      /* GE_RET( shader, ctx, glCreateShader (GL_VERTEX_SHADER) ); */
-
       lengths[0] = shader_state->header->len;
       source_strings[0] = shader_state->header->str;
       lengths[1] = shader_state->source->len;
       source_strings[1] = shader_state->source->str;
 
-      _cogl_glsl_shader_get_source_with_boilerplate (ctx,
-                                                     COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                     pipeline,
-                                                     2, /* count */
-                                                     source_strings, lengths);
+      shader_source = _cogl_glsl_shader_get_source_with_boilerplate (ctx,
+                                                                     COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                                     pipeline,
+                                                                     2, /* count */
+                                                                     source_strings, lengths);
+
+      shader_state->shader_desc = _cogl_shader_vulkan_create (COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                              shader_source->str);
+
+      g_string_free (shader_source, TRUE);
 
       /* GE( ctx, glCompileShader (shader) ); */
       /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */

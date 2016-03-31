@@ -55,6 +55,9 @@ CoglShaderDescVulkan *
 _cogl_shader_vulkan_create (CoglShaderVulkanType type,
                             const char *string);
 
+void
+_cogl_shader_vulkan_free (CoglShaderDescVulkan *desc);
+
 #ifdef __cplusplus
 }
 #endif
