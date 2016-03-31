@@ -160,6 +160,8 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   context->winsys = vk_ctx;
 
+  context->glsl_version_to_use = 140;
+
   result = vkEnumeratePhysicalDevices (vk_renderer->instance, &count,
                                       &vk_ctx->physical_device);
   if (result != VK_SUCCESS)

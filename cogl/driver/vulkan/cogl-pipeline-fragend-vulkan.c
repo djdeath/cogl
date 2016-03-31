@@ -1062,8 +1062,8 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       lengths[1] = shader_state->source->len;
       source_strings[1] = shader_state->source->str;
 
-      _cogl_glsl_shader_set_source_with_boilerplate (ctx,
-                                                     shader, GL_FRAGMENT_SHADER,
+      _cogl_glsl_shader_get_source_with_boilerplate (ctx,
+                                                     COGL_GLSL_SHADER_TYPE_FRAGMENT,
                                                      pipeline,
                                                      2, /* count */
                                                      source_strings, lengths);

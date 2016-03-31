@@ -75,6 +75,7 @@ _cogl_feature_check (CoglRenderer *renderer,
     case COGL_DRIVER_NOP:
     case COGL_DRIVER_GL:
     case COGL_DRIVER_GL3:
+    case COGL_DRIVER_VULKAN:
       break;
     }
 
