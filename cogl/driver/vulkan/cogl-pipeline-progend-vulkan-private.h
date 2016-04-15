@@ -36,8 +36,4 @@
 
 extern const CoglPipelineProgend _cogl_pipeline_vulkan_progend;
 
-int
-_cogl_pipeline_progend_vulkan_get_attrib_location (CoglPipeline *pipeline,
-                                                   int name_index);
-
 #endif /* __COGL_PIPELINE_PROGEND_VULKAN_PRIVATE_H */

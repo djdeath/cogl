@@ -106,6 +106,14 @@ typedef struct
 {
   unsigned int ref_count;
 
+  CoglBuffer *vertex_uniform_buffer;
+  CoglBuffer *fragment_uniform_buffer;
+
+  VkPipelineLayout vk_pipeline_layout;
+
+  CoglShaderVulkan *vertex_shader;
+  CoglShaderVulkan *fragment_shader;
+
   /* Age that the user program had last time we generated a GL
      program. If it's different then we need to relink the program */
   unsigned int user_program_age;
@@ -131,9 +139,6 @@ typedef struct
      uniform is actually set */
   GArray *uniform_locations;
 
-  /* Array of attribute locations. */
-  GArray *attribute_locations;
-
   /* The 'flip' uniform is used to flip the geometry upside-down when
      the framebuffer requires it only when there are vertex
      snippets. Otherwise this is acheived using the projection
@@ -156,73 +161,6 @@ get_program_state (CoglPipeline *pipeline)
 
 #define UNIFORM_LOCATION_UNKNOWN -2
 
-#define ATTRIBUTE_LOCATION_UNKNOWN -2
-
-/* Under GLES2 the vertex attribute API needs to query the attribute
-   numbers because it can't used the fixed function API to set the
-   builtin attributes. We cache the attributes here because the
-   progend knows when the program is changed so it can clear the
-   cache. This should always be called after the pipeline is flushed
-   so they can assert that the gl program is valid */
-
-/* All attributes names get internally mapped to a global set of
- * sequential indices when they are setup which we need to need to
- * then be able to map to a GL attribute location once we have
- * a linked VULKAN program */
-
-int
-_cogl_pipeline_progend_vulkan_get_attrib_location (CoglPipeline *pipeline,
-                                                 int name_index)
-{
-  CoglPipelineProgramState *program_state = get_program_state (pipeline);
-  int *locations;
-
-  _COGL_GET_CONTEXT (ctx, -1);
-
-  _COGL_RETURN_VAL_IF_FAIL (program_state != NULL, -1);
-  _COGL_RETURN_VAL_IF_FAIL (program_state->program != 0, -1);
-
-  if (G_UNLIKELY (program_state->attribute_locations == NULL))
-    program_state->attribute_locations =
-      g_array_new (FALSE, FALSE, sizeof (int));
-
-  if (G_UNLIKELY (program_state->attribute_locations->len <= name_index))
-    {
-      int i = program_state->attribute_locations->len;
-      g_array_set_size (program_state->attribute_locations, name_index + 1);
-      for (; i < program_state->attribute_locations->len; i++)
-        g_array_index (program_state->attribute_locations, int, i)
-          = ATTRIBUTE_LOCATION_UNKNOWN;
-    }
-
-  locations = &g_array_index (program_state->attribute_locations, int, 0);
-
-  if (locations[name_index] == ATTRIBUTE_LOCATION_UNKNOWN)
-    {
-      CoglAttributeNameState *name_state =
-        g_array_index (ctx->attribute_name_index_map,
-                       CoglAttributeNameState *, name_index);
-
-      _COGL_RETURN_VAL_IF_FAIL (name_state != NULL, 0);
-
-      GE_RET( locations[name_index],
-              ctx, glGetAttribLocation (program_state->program,
-                                        name_state->name) );
-    }
-
-  return locations[name_index];
-}
-
-static void
-clear_attribute_cache (CoglPipelineProgramState *program_state)
-{
-  if (program_state->attribute_locations)
-    {
-      g_array_free (program_state->attribute_locations, TRUE);
-      program_state->attribute_locations = NULL;
-    }
-}
-
 static void
 clear_flushed_matrix_stacks (CoglPipelineProgramState *program_state)
 {
@@ -243,7 +181,6 @@ program_state_new (int n_layers,
   program_state->program = 0;
   program_state->unit_state = g_new (UnitState, n_layers);
   program_state->uniform_locations = NULL;
-  program_state->attribute_locations = NULL;
   program_state->cache_entry = cache_entry;
   _cogl_matrix_entry_cache_init (&program_state->modelview_cache);
   _cogl_matrix_entry_cache_init (&program_state->projection_cache);
@@ -272,8 +209,6 @@ destroy_program_state (void *user_data,
 
   if (--program_state->ref_count == 0)
     {
-      clear_attribute_cache (program_state);
-
       _cogl_matrix_entry_cache_destroy (&program_state->projection_cache);
       _cogl_matrix_entry_cache_destroy (&program_state->modelview_cache);
 
@@ -636,20 +571,26 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
     _cogl_bitmask_clear_all (&uniforms_state->changed_mask);
 }
 
+static CoglBuffer *
+_create_uniform_buffer (CoglContext *ctx, size_t bytes)
+{
+  CoglBuffer *buffer = g_slice_new (CoglBuffer);
+
+  _cogl_buffer_initialize (buffer,
+                           ctx,
+                           bytes,
+                           COGL_BUFFER_BIND_TARGET_UNIFORM_BUFFER,
+                           COGL_BUFFER_USAGE_HINT_UNIFORM_BUFFER,
+                           COGL_BUFFER_UPDATE_HINT_DYNAMIC);
+
+  return buffer;
+}
+
+
 static CoglBool
 _cogl_pipeline_progend_vulkan_start (CoglPipeline *pipeline)
 {
-  CoglHandle user_program;
-
-  _COGL_GET_CONTEXT (ctx, FALSE);
-
-  VK_TODO();
-
-  user_program = cogl_pipeline_get_user_program (pipeline);
-  if (user_program &&
-      _cogl_program_get_language (user_program) != COGL_SHADER_LANGUAGE_GLSL)
-    return FALSE;
-
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
   return TRUE;
 }
 
@@ -725,83 +666,153 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         set_program_state (pipeline, program_state);
     }
 
-  /* If the program has changed since the last link then we do
-   * need to relink */
-  if (program_state->program && user_program &&
-       user_program->age != program_state->user_program_age)
+  /* Allocate uniform buffers for vertex & fragment shaders. */
+  if (program_state->vertex_uniform_buffer == NULL)
     {
-      GE( ctx, glDeleteProgram (program_state->program) );
-      program_state->program = 0;
-    }
+      int vertex_block_size, fragment_block_size = 0;
 
-  if (program_state->program == 0)
-    {
-      /* VkDescriptorSetLayout set_layout; */
+      program_state->vertex_shader =
+        _cogl_pipeline_vertend_vulkan_get_shader (pipeline);
+      program_state->fragment_shader =
+        _cogl_pipeline_fragend_vulkan_get_shader (pipeline);
 
-      /* vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) { */
-      /*     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, */
-      /*     .bindingCount = 1, */
-      /*     .pBindings = (VkDescriptorSetLayoutBinding[]) { */
-      /*       { */
-      /*         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, */
-      /*         .descriptorCount = 1, */
-      /*         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, */
-      /*         .pImmutableSamplers = NULL */
-      /*       } */
-      /*     } */
-      /*   }, */
-      /*   NULL, */
-      /*   &set_layout); */
+      vertex_block_size =
+        _cogl_shader_vulkan_get_uniform_block_size (program_state->vertex_shader);
 
-      /* vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) { */
-      /*     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, */
-      /*       .setLayoutCount = 1, */
-      /*       .pSetLayouts = &set_layout, */
-      /*       }, */
-      /*   NULL, */
-      /*   &program_state->pipeline_layout); */
-
-
-
-
-
-      CoglShaderVulkan *backend_shader;
-      GSList *l;
-
-      GE_RET( program_state->program, ctx, glCreateProgram () );
-
-      /* Attach all of the shader from the user program */
-      if (user_program)
+      if (_cogl_shader_vulkan_get_num_live_uniform_blocks (program_state->fragment_shader) > 0)
         {
-          for (l = user_program->attached_shaders; l; l = l->next)
-            {
-              CoglShader *shader = l->data;
-
-              _cogl_shader_compile_real (shader, pipeline);
-
-              g_assert (shader->language == COGL_SHADER_LANGUAGE_GLSL);
-
-              GE( ctx, glAttachShader (program_state->program,
-                                       shader->gl_handle) );
-            }
-
-          program_state->user_program_age = user_program->age;
+          fragment_block_size =
+            _cogl_shader_vulkan_get_uniform_block_size (program_state->fragment_shader);
         }
 
+      program_state->vertex_uniform_buffer =
+        _create_uniform_buffer (ctx, vertex_block_size);
+      if (fragment_block_size >= 0)
+        {
+          program_state->fragment_uniform_buffer =
+            _create_uniform_buffer (ctx, fragment_block_size);
+        }
+    }
+
+  if (program_state->vk_pipeline_layout == VK_NULL_HANDLE)
+    {
+      VkDescriptorSetLayout set_layout;
+      int nb_buffers = program_state->fragment_uniform_buffer != NULL ? 2 : 1;
+
+      vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
+          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+          .bindingCount = nb_buffers,
+          .pBindings = (VkDescriptorSetLayoutBinding[]) {
+            {
+              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+              .pImmutableSamplers = NULL
+            },
+            {
+              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+              .pImmutableSamplers = NULL
+            }
+          }
+        },
+        NULL,
+        &set_layout);
+
+      vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
+          .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+          .setLayoutCount = 1,
+          .pSetLayouts = &set_layout,
+        },
+        NULL,
+        &program_state->pipeline_layout);
+
+
+      /* TODO: Legacy, not sure whether we can deal with it... */
+      g_assert (!user_program || !user_program->attached_shaders);
+
       /* Attach any shaders from the VULKAN backends */
-      if ((backend_shader = _cogl_pipeline_fragend_vulkan_get_shader (pipeline)))
-        GE( ctx, glAttachShader (program_state->program, backend_shader) );
-      if ((backend_shader = _cogl_pipeline_vertend_vulkan_get_shader (pipeline)))
-        GE( ctx, glAttachShader (program_state->program, backend_shader) );
 
-      /* XXX: OpenGL as a special case requires the vertex position to
-       * be bound to generic attribute 0 so for simplicity we
-       * unconditionally bind the cogl_position_in attribute here...
-       */
-      GE( ctx, glBindAttribLocation (program_state->program,
-                                     0, "cogl_position_in"));
+      vkCreateGraphicsPipelines (vk_ctx->device,
+                                 (VkPipelineCache) { VK_NULL_HANDLE },
+                                 1,
+                                 &(VkGraphicsPipelineCreateInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                                   .stageCount = 2,
+                                   .pStages = (VkPipelineShaderStageCreateInfo[]) {
+                                     {
+                                       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                                       .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                                       .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
+                                       .pName = "main",
+                                     },
+                                     {
+                                       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                                       .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                                       .module = _cogl_shader_vulkan_get_shader_module (program_state->fragment_shader),
+                                       .pName = "main",
+                                     },
+                                   },
+                                   .pVertexInputState = &vi_create_info,
+                                   .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
+                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                                     .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+                                     .primitiveRestartEnable = false,
+                                   },
+                                   .pViewportState = &(VkPipelineViewportStateCreateInfo) {
+                                     .viewportCount = 1,
+                                     .pViewports = &(VkViewport) {
+                                       .x = 0,
+                                       .y = 0,
+                                       .width = vc->width,
+                                       .height = vc->height,
+                                       .minDepth = 0,
+                                       .maxDepth = 1,
+                                     },
+                                   },
 
-      link_program (program_state->program);
+                                  .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
+                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                                     .rasterizerDiscardEnable = false,
+                                     .polygonMode = VK_POLYGON_MODE_FILL,
+                                     .cullMode = VK_CULL_MODE_BACK_BIT,
+                                     .frontFace = VK_FRONT_FACE_CLOCKWISE
+                                   },
+
+                                   .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
+                                     .rasterizationSamples = 1,
+                                   },
+                                  .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {},
+                                  .pColorBlendState = &(VkPipelineColorBlendStateCreateInfo) {
+                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                                     .attachmentCount = 1,
+                                     .pAttachments = (VkPipelineColorBlendAttachmentState []) {
+                                       { .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
+                                         VK_COLOR_COMPONENT_R_BIT |
+                                         VK_COLOR_COMPONENT_G_BIT |
+                                         VK_COLOR_COMPONENT_B_BIT },
+                                     }
+                                   },
+
+                                   .flags = 0,
+                                   .layout = prog_state->pipeline_layout,
+                                   .renderPass = vk_ctx->render_pass,
+                                   .subpass = 0,
+                                   .basePipelineHandle = (VkPipeline) { 0 },
+                                   .basePipelineIndex = 0
+                                 },
+                                 NULL,
+                                 &prog_state->pipeline);
+
+      /* /\* XXX: OpenGL as a special case requires the vertex position to */
+      /*  * be bound to generic attribute 0 so for simplicity we */
+      /*  * unconditionally bind the cogl_position_in attribute here... */
+      /*  *\/ */
+      /* GE( ctx, glBindAttribLocation (program_state->program, */
+      /*                                0, "cogl_position_in")); */
+
+      /* link_program (program_state->program); */
 
       program_changed = TRUE;
     }
@@ -820,7 +831,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       cogl_pipeline_foreach_layer (pipeline,
                                    get_uniform_cb,
                                    &state);
-      clear_attribute_cache (program_state);
 
       GE_RET (program_state->flip_uniform,
               ctx, glGetUniformLocation (gl_program, "_cogl_flip_vector"));
@@ -889,8 +899,6 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
-  VK_TODO();
-
   if ((change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
                  _cogl_pipeline_get_state_for_fragment_codegen (ctx))))
     {
@@ -929,8 +937,6 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayerState change)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  VK_TODO();
 
   if ((change & (_cogl_pipeline_get_layer_state_for_fragment_codegen (ctx) |
                  COGL_PIPELINE_LAYER_STATE_AFFECTS_VERTEX_CODEGEN)))
