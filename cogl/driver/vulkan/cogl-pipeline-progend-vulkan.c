@@ -52,6 +52,7 @@
 #include "cogl-attribute-private.h"
 #include "cogl-framebuffer-private.h"
 #include "cogl-pipeline-progend-vulkan-private.h"
+#include "cogl-shader-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
 /* These are used to generalise updating some uniforms that are
@@ -113,6 +114,8 @@ typedef struct
 
   CoglShaderVulkan *vertex_shader;
   CoglShaderVulkan *fragment_shader;
+
+  VkPipelineShaderStageCreateInfo vk_stage_info[2];
 
   /* Age that the user program had last time we generated a GL
      program. If it's different then we need to relink the program */
@@ -252,6 +255,22 @@ dirty_program_state (CoglPipeline *pipeline)
                              &program_state_key,
                              NULL,
                              NULL);
+}
+
+VkPipelineShaderStageCreateInfo *
+_cogl_pipeline_progend_get_vulkan_stage_info (CoglPipeline *pipeline)
+{
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
+
+  return program_state->vk_stage_info;
+}
+
+VkPipelineLayout
+_cogl_pipeline_progend_get_vulkan_pipeline_layout (CoglPipeline *pipeline)
+{
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
+
+  return program_state->vk_pipeline_layout;
 }
 
 static void
@@ -677,12 +696,12 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         _cogl_pipeline_fragend_vulkan_get_shader (pipeline);
 
       vertex_block_size =
-        _cogl_shader_vulkan_get_uniform_block_size (program_state->vertex_shader);
+        _cogl_shader_vulkan_get_uniform_block_size (program_state->vertex_shader, 0);
 
       if (_cogl_shader_vulkan_get_num_live_uniform_blocks (program_state->fragment_shader) > 0)
         {
           fragment_block_size =
-            _cogl_shader_vulkan_get_uniform_block_size (program_state->fragment_shader);
+            _cogl_shader_vulkan_get_uniform_block_size (program_state->fragment_shader, 0);
         }
 
       program_state->vertex_uniform_buffer =
@@ -726,84 +745,26 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
           .pSetLayouts = &set_layout,
         },
         NULL,
-        &program_state->pipeline_layout);
+        &program_state->vk_pipeline_layout);
 
+      program_state->vk_stage_info[0] = (VkPipelineShaderStageCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
+        .pName = "main",
+      };
+      program_state->vk_stage_info[1] = (VkPipelineShaderStageCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
+        .pName = "main",
+      };
 
       /* TODO: Legacy, not sure whether we can deal with it... */
       g_assert (!user_program || !user_program->attached_shaders);
 
       /* Attach any shaders from the VULKAN backends */
 
-      vkCreateGraphicsPipelines (vk_ctx->device,
-                                 (VkPipelineCache) { VK_NULL_HANDLE },
-                                 1,
-                                 &(VkGraphicsPipelineCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-                                   .stageCount = 2,
-                                   .pStages = (VkPipelineShaderStageCreateInfo[]) {
-                                     {
-                                       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                                       .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                                       .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
-                                       .pName = "main",
-                                     },
-                                     {
-                                       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                                       .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                                       .module = _cogl_shader_vulkan_get_shader_module (program_state->fragment_shader),
-                                       .pName = "main",
-                                     },
-                                   },
-                                   .pVertexInputState = &vi_create_info,
-                                   .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                                     .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-                                     .primitiveRestartEnable = false,
-                                   },
-                                   .pViewportState = &(VkPipelineViewportStateCreateInfo) {
-                                     .viewportCount = 1,
-                                     .pViewports = &(VkViewport) {
-                                       .x = 0,
-                                       .y = 0,
-                                       .width = vc->width,
-                                       .height = vc->height,
-                                       .minDepth = 0,
-                                       .maxDepth = 1,
-                                     },
-                                   },
-
-                                  .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                                     .rasterizerDiscardEnable = false,
-                                     .polygonMode = VK_POLYGON_MODE_FILL,
-                                     .cullMode = VK_CULL_MODE_BACK_BIT,
-                                     .frontFace = VK_FRONT_FACE_CLOCKWISE
-                                   },
-
-                                   .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
-                                     .rasterizationSamples = 1,
-                                   },
-                                  .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {},
-                                  .pColorBlendState = &(VkPipelineColorBlendStateCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-                                     .attachmentCount = 1,
-                                     .pAttachments = (VkPipelineColorBlendAttachmentState []) {
-                                       { .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
-                                         VK_COLOR_COMPONENT_R_BIT |
-                                         VK_COLOR_COMPONENT_G_BIT |
-                                         VK_COLOR_COMPONENT_B_BIT },
-                                     }
-                                   },
-
-                                   .flags = 0,
-                                   .layout = prog_state->pipeline_layout,
-                                   .renderPass = vk_ctx->render_pass,
-                                   .subpass = 0,
-                                   .basePipelineHandle = (VkPipeline) { 0 },
-                                   .basePipelineIndex = 0
-                                 },
-                                 NULL,
-                                 &prog_state->pipeline);
 
       /* /\* XXX: OpenGL as a special case requires the vertex position to */
       /*  * be bound to generic attribute 0 so for simplicity we */
@@ -818,9 +779,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
     }
 
   gl_program = program_state->program;
-
-  _cogl_use_fragment_program (gl_program, COGL_PIPELINE_PROGRAM_TYPE_VULKAN);
-  _cogl_use_vertex_program (gl_program, COGL_PIPELINE_PROGRAM_TYPE_VULKAN);
 
   state.unit = 0;
   state.gl_program = gl_program;
