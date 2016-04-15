@@ -32,6 +32,7 @@
 #define _COGL_SHADER_VULKAN_PRIVATE_H_
 
 #include "cogl-types.h"
+#include "cogl-gl-header.h"
 #include "cogl-context.h"
 #include "cogl-glsl-shader-private.h"
 
@@ -42,15 +43,14 @@ extern "C" {
 typedef struct _CoglShaderVulkan CoglShaderVulkan;
 
 CoglShaderVulkan *
-_cogl_shader_vulkan_new (void);
+_cogl_shader_vulkan_new (CoglContext *context, CoglGlslShaderType type);
 
 void
 _cogl_shader_vulkan_free (CoglShaderVulkan *shader);
 
 void
-_cogl_shader_vulkan_add_stage (CoglShaderVulkan *shader,
-                               CoglGlslShaderType type,
-                               const char *string);
+_cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
+                                const char *string);
 
 CoglBool
 _cogl_shader_vulkan_link (CoglShaderVulkan *shader);
@@ -80,10 +80,24 @@ int
 _cogl_shader_vulkan_get_uniform_type (CoglShaderVulkan *shader, int index);
 
 int
-_cogl_shader_vulkan_get_buffer_offset (CoglShaderVulkan *shader, int index);
+_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader, int index);
 
 int
 _cogl_shader_vulkan_get_array_size (CoglShaderVulkan *shader, int index);
+
+int
+_cogl_shader_vulkan_get_num_live_input_attributes (CoglShaderVulkan *shader);
+
+int
+_cogl_shader_vulkan_get_num_live_output_attributes (CoglShaderVulkan *shader);
+
+void *
+_cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
+                                    CoglGlslShaderType type,
+                                    uint32_t *size);
+
+VkShaderModule
+_cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader);
 
 #ifdef __cplusplus
 }

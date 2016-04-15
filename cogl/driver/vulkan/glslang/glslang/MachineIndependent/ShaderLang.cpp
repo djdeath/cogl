@@ -1542,6 +1542,11 @@ int TProgram::getUniformType(int index)              { return reflection->getUni
 int TProgram::getUniformBufferOffset(int index)      { return reflection->getUniform(index).offset; }
 int TProgram::getUniformArraySize(int index)         { return reflection->getUniform(index).size; }
 
+int TProgram::getNumLiveInputAttributes()            { return reflection->getInputAttributes(); }
+int TProgram::getNumLiveOutputAttributes()           { return reflection->getOutputAttributes(); }
+int TProgram::getInputAttributeLocation(const char* name) { return reflection->getInputAttributeLocation(name); }
+int TProgram::getOutputAttributeLocation(const char* name) { return reflection->getOutputAttributeLocation(name); }
+
 void TProgram::dumpReflection()                      { reflection->dump(); }
 
 } // end namespace glslang

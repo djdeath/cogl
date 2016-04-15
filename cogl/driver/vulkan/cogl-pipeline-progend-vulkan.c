@@ -765,7 +765,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
 
 
-      GLuint backend_shader;
+      CoglShaderVulkan *backend_shader;
       GSList *l;
 
       GE_RET( program_state->program, ctx, glCreateProgram () );

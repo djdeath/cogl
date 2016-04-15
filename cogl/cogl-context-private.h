@@ -158,6 +158,7 @@ struct _CoglContext
   CoglPipeline     *opaque_color_pipeline; /* used for set_source_color */
   CoglPipeline     *blended_color_pipeline; /* used for set_source_color */
   CoglPipeline     *texture_pipeline; /* used for set_source_texture */
+  GString          *codegen_uniform_block_buffer;
   GString          *codegen_header_buffer;
   GString          *codegen_source_buffer;
   GString          *codegen_boilerplate_buffer;

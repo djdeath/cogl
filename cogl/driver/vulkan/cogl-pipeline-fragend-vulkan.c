@@ -51,11 +51,10 @@
 #include "cogl-program-private.h"
 #include "cogl-pipeline-cache.h"
 #include "cogl-pipeline-fragend-vulkan-private.h"
+#include "cogl-shader-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
 #include <glib.h>
-
-const CoglPipelineFragend _cogl_pipeline_vulkan_backend;
 
 typedef struct _UnitState
 {
@@ -80,8 +79,7 @@ typedef struct
 {
   int ref_count;
 
-  GLuint gl_shader;
-  GString *header, *source;
+  GString *block, *header, *source;
   UnitState *unit_state;
 
   /* List of layers that we haven't generated code for yet. These are
@@ -91,6 +89,8 @@ typedef struct
   CoglList layers;
 
   CoglPipelineCacheEntry *cache_entry;
+
+  CoglShaderVulkan *shader;
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -133,8 +133,8 @@ destroy_shader_state (void *user_data,
 
   if (--shader_state->ref_count == 0)
     {
-      if (shader_state->gl_shader)
-        GE( ctx, glDeleteShader (shader_state->gl_shader) );
+      if (shader_state->shader)
+        _cogl_shader_vulkan_free (shader_state->shader);
 
       g_free (shader_state->unit_state);
 
@@ -171,15 +171,15 @@ dirty_shader_state (CoglPipeline *pipeline)
                              NULL);
 }
 
-GLuint
+CoglShaderVulkan *
 _cogl_pipeline_fragend_vulkan_get_shader (CoglPipeline *pipeline)
 {
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
 
   if (shader_state)
-    return shader_state->gl_shader;
+    return shader_state->shader;
   else
-    return 0;
+    return NULL;
 }
 
 static CoglPipelineSnippetList *
@@ -343,20 +343,20 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
          to generate one */
       if (_cogl_program_has_fragment_shader (user_program))
         {
-          if (shader_state->gl_shader)
+          if (shader_state->shader)
             {
-              GE( ctx, glDeleteShader (shader_state->gl_shader) );
-              shader_state->gl_shader = 0;
+              _cogl_shader_vulkan_free (shader_state->shader);
+              shader_state->shader = NULL;
             }
           return;
         }
     }
 
-  if (shader_state->gl_shader)
+  if (shader_state->shader)
     return;
 
   /* If we make it here then we have a vulkan_shader_state struct
-     without a gl_shader either because this is the first time we've
+     without a shader either because this is the first time we've
      encountered it or because the user program has changed */
 
   /* We reuse two grow-only GStrings for code-gen. One string
@@ -364,8 +364,10 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
      other contains the main function. We need two strings
      because we need to dynamically declare attributes as the
      add_layer callback is invoked */
+  g_string_set_size (ctx->codegen_uniform_block_buffer, 0);
   g_string_set_size (ctx->codegen_header_buffer, 0);
   g_string_set_size (ctx->codegen_source_buffer, 0);
+  shader_state->block = ctx->codegen_uniform_block_buffer;
   shader_state->header = ctx->codegen_header_buffer;
   shader_state->source = ctx->codegen_source_buffer;
   _cogl_list_init (&shader_state->layers);
@@ -602,7 +604,7 @@ ensure_arg_generated (CoglPipeline *pipeline,
         /* Create a sampler uniform for this layer if we haven't already */
         if (!shader_state->unit_state[unit_index].combine_constant_used)
           {
-            g_string_append_printf (shader_state->header,
+            g_string_append_printf (shader_state->block,
                                     "uniform vec4 _cogl_layer_constant_%i;\n",
                                     layer->index);
             shader_state->unit_state[unit_index].combine_constant_used = TRUE;
@@ -944,7 +946,7 @@ add_alpha_test_snippet (CoglPipeline *pipeline,
   /* For all of the other alpha functions we need a uniform for the
      reference */
 
-  g_string_append (shader_state->header,
+  g_string_append (shader_state->block,
                    "uniform float _cogl_alpha_test_ref;\n");
 
   g_string_append (shader_state->source,
@@ -991,14 +993,10 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  VK_TODO();
-
   if (shader_state->source)
     {
-      const char *source_strings[2];
-      GLint lengths[2];
-      GLint compile_status = 0;
-      GLuint shader = 0;
+      GString *shader_source;
+      CoglShaderVulkan *shader = NULL;
       CoglPipelineSnippetData snippet_data;
 
       COGL_STATIC_COUNTER (fragend_vulkan_compile_counter,
@@ -1055,36 +1053,30 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       snippet_data.source_buf = shader_state->source;
       _cogl_pipeline_snippet_generate_code (&snippet_data);
 
-      /* GE_RET( shader, ctx, glCreateShader (GL_FRAGMENT_SHADER) ); */
+      shader_source =
+        _cogl_glsl_vulkan_shader_get_source_with_boilerplate (ctx,
+                                                              COGL_GLSL_SHADER_TYPE_FRAGMENT,
+                                                              pipeline,
+                                                              shader_state->block,
+                                                              shader_state->header,
+                                                              shader_state->source);
 
-      lengths[0] = shader_state->header->len;
-      source_strings[0] = shader_state->header->str;
-      lengths[1] = shader_state->source->len;
-      source_strings[1] = shader_state->source->str;
-
-      _cogl_glsl_shader_get_source_with_boilerplate (ctx,
-                                                     COGL_GLSL_SHADER_TYPE_FRAGMENT,
-                                                     pipeline,
-                                                     2, /* count */
-                                                     source_strings, lengths);
-
-      /* GE( ctx, glCompileShader (shader) ); */
-      /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */
-
-      if (!compile_status)
-        {
-          GLint len = 0;
-          char *shader_log;
-
-          GE( ctx, glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &len) );
-          shader_log = g_alloca (len);
-          GE( ctx, glGetShaderInfoLog (shader, len, &len, shader_log) );
-          g_warning ("Shader compilation failed:\n%s", shader_log);
-        }
-
+      shader_state->block = NULL;
       shader_state->header = NULL;
       shader_state->source = NULL;
-      shader_state->gl_shader = shader;
+
+      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX);
+      _cogl_shader_vulkan_set_source (shader, shader_source->str);
+      g_string_free (shader_source, TRUE);
+
+      if (!_cogl_shader_vulkan_link (shader))
+        {
+          g_warning ("Fragment shader compilation failed");
+          _cogl_shader_vulkan_free (shader);
+          shader = NULL;
+        }
+
+      shader_state->shader = shader;
     }
 
   return TRUE;
@@ -1095,7 +1087,10 @@ _cogl_pipeline_fragend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                  CoglPipelineState change,
                                                  const CoglColor *new_color)
 {
-  VK_TODO();
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  if ((change & _cogl_pipeline_get_state_for_fragment_codegen (ctx)))
+    dirty_shader_state (pipeline);
 }
 
 /* NB: layers are considered immutable once they have any dependants
@@ -1112,7 +1107,17 @@ _cogl_pipeline_fragend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayer *layer,
                                                 CoglPipelineLayerState change)
 {
-  VK_TODO();
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+
+  if ((change & _cogl_pipeline_get_layer_state_for_fragment_codegen (ctx)))
+    {
+      dirty_shader_state (owner);
+      return;
+    }
+
+  /* TODO: we could be saving snippets of texture combine code along
+   * with each layer and then when a layer changes we would just free
+   * the snippet. */
 }
 
 const CoglPipelineFragend _cogl_pipeline_vulkan_fragend =

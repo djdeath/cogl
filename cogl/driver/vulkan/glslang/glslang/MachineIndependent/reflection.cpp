@@ -39,6 +39,8 @@
 
 #include "gl_types.h"
 
+#include <iostream>
+
 //
 // Grow the reflection database through a friend traverser class of TReflection and a
 // collection of functions to do a liveness traversal that note what uniforms are used
@@ -96,15 +98,45 @@ public:
 
     // Add a simple reference to a uniform variable to the uniform database, no dereference involved.
     // However, no dereference doesn't mean simple... it could be a complex aggregate.
-    void addUniform(const TIntermSymbol& base)
+    void addUniform(const TIntermSymbol* base)
     {
-        if (processedDerefs.find(&base) == processedDerefs.end()) {
-            processedDerefs.insert(&base);
+        if (processedDerefs.find(base) == processedDerefs.end()) {
+            processedDerefs.insert(base);
 
             // Use a degenerate (empty) set of dereferences to immediately put as at the end of
             // the dereference change expected by blowUpActiveAggregate.
             TList<TIntermBinary*> derefs;
-            blowUpActiveAggregate(base.getType(), base.getName(), derefs, derefs.end(), -1, -1, 0);
+            blowUpActiveAggregate(base->getType(), base->getName(), derefs, derefs.end(), -1, -1, 0);
+        }
+    }
+
+    void ensureAttributeLocation(TIntermSymbol* base, bool attributeOutput)
+    {
+        TReflection::TNameToIndex* attributes = attributeOutput ?
+            &reflection.outputAttributes : &reflection.inputAttributes;
+
+        if (!base->getQualifier().hasLocation()) {
+            base->getQualifier().layoutLocation = attributes->size();
+            (*attributes)[base->getName()] =
+                base->getQualifier().layoutLocation;
+        }
+    }
+
+    void addInputAttribute(TIntermSymbol* base)
+    {
+        if (processedDerefs.find(base) == processedDerefs.end()) {
+            processedDerefs.insert(base);
+
+            ensureAttributeLocation(base, false);
+        }
+    }
+
+    void addOutputAttribute(TIntermSymbol* base)
+    {
+        if (processedDerefs.find(base) == processedDerefs.end()) {
+            processedDerefs.insert(base);
+
+            ensureAttributeLocation(base, true);
         }
     }
 
@@ -239,7 +271,7 @@ public:
         TReflection::TNameToIndex::const_iterator it = reflection.nameToIndex.find(name);
         if (it == reflection.nameToIndex.end()) {
             reflection.nameToIndex[name] = (int)reflection.indexToUniform.size();
-            reflection.indexToUniform.push_back(TObjectReflection(name, offset, mapToGlType(*terminalType), arraySize, blockIndex));
+            reflection.indexToUniform.push_back(TObjectReflection(name, offset, mapToGlType(*terminalType), arraySize, blockIndex, -1));
         } else if (arraySize > 1) {
             int& reflectedArraySize = reflection.indexToUniform[it->second].size;
             reflectedArraySize = std::max(arraySize, reflectedArraySize);
@@ -335,7 +367,7 @@ public:
         if (reflection.nameToIndex.find(name) == reflection.nameToIndex.end()) {
             blockIndex = (int)reflection.indexToUniformBlock.size();
             reflection.nameToIndex[name] = blockIndex;
-            reflection.indexToUniformBlock.push_back(TObjectReflection(name, -1, -1, size, -1));
+            reflection.indexToUniformBlock.push_back(TObjectReflection(name, -1, -1, size, -1, -1));
         } else
             blockIndex = it->second;
 
@@ -665,8 +697,33 @@ bool TLiveTraverser::visitBinary(TVisit /* visit */, TIntermBinary* node)
 // To reflect non-dereferenced objects.
 void TLiveTraverser::visitSymbol(TIntermSymbol* base)
 {
-    if (base->getQualifier().storage == EvqUniform)
-        addUniform(*base);
+    switch (base->getQualifier().storage) {
+    case EvqUniform:
+        addUniform(base);
+        break;
+    case EvqIn:
+    case EvqVaryingIn:
+        addInputAttribute(base);
+        break;
+    case EvqOut:
+    case EvqVaryingOut:
+        addOutputAttribute(base);
+        break;
+    case EvqInOut:
+        std::cout << "visiting in out : "
+                  << " name=" << base->getName()
+                  << " id=" << base->getId()
+                  << " location=" << base->getQualifier().hasLocation()
+                  << std::endl;
+        break;
+    default:
+        std::cout << "visiting unknown symbol : "
+                  << " name=" << base->getName()
+                  << " id=" << base->getId()
+                  << " location=" << base->getQualifier().hasLocation()
+                  << std::endl;
+        break;
+    }
 }
 
 // To prune semantically dead paths.

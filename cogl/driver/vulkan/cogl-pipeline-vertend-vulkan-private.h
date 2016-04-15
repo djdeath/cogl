@@ -32,10 +32,11 @@
 #define __COGL_PIPELINE_VERTEND_VULKAN_PRIVATE_H
 
 #include "cogl-pipeline-private.h"
+#include "cogl-shader-vulkan-private.h"
 
 extern const CoglPipelineVertend _cogl_pipeline_vulkan_vertend;
 
-GLuint
+CoglShaderVulkan *
 _cogl_pipeline_vertend_vulkan_get_shader (CoglPipeline *pipeline);
 
 #endif /* __COGL_PIPELINE_VERTEND_VULKAN_PRIVATE_H */

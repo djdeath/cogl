@@ -56,12 +56,11 @@ typedef struct
 {
   unsigned int ref_count;
 
-  GLuint gl_shader;
-  GString *header, *source;
+  GString *block, *header, *source;
 
   CoglPipelineCacheEntry *cache_entry;
 
-  CoglShaderVulkan *shader_desc;
+  CoglShaderVulkan *shader;
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -98,8 +97,8 @@ destroy_shader_state (void *user_data,
 
   if (--shader_state->ref_count == 0)
     {
-      if (shader_state->gl_shader)
-        GE( ctx, glDeleteShader (shader_state->gl_shader) );
+      if (shader_state->shader)
+        _cogl_shader_vulkan_free (shader_state->shader);
 
       g_slice_free (CoglPipelineShaderState, shader_state);
     }
@@ -135,15 +134,15 @@ dirty_shader_state (CoglPipeline *pipeline)
                              NULL);
 }
 
-GLuint
+CoglShaderVulkan *
 _cogl_pipeline_vertend_vulkan_get_shader (CoglPipeline *pipeline)
 {
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
 
   if (shader_state)
-    return shader_state->gl_shader;
+    return shader_state->shader;
   else
-    return 0;
+    return NULL;
 }
 
 static CoglPipelineSnippetList *
@@ -222,8 +221,6 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
-  VK_TODO();
-
   /* Now lookup our vulkan backend private state (allocating if
    * necessary) */
   shader_state = get_shader_state (pipeline);
@@ -279,16 +276,16 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
          to generate one */
       if (_cogl_program_has_vertex_shader (user_program))
         {
-          if (shader_state->gl_shader)
+          if (shader_state->shader)
             {
-              GE( ctx, glDeleteShader (shader_state->gl_shader) );
-              shader_state->gl_shader = 0;
+              _cogl_shader_vulkan_free (shader_state->shader);
+              shader_state->shader = NULL;
             }
           return;
         }
     }
 
-  if (shader_state->gl_shader)
+  if (shader_state->shader)
     return;
 
   /* If we make it here then we have a shader_state struct without a gl_shader
@@ -300,8 +297,11 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
      other contains the main function. We need two strings
      because we need to dynamically declare attributes as the
      add_layer callback is invoked */
+
+  g_string_set_size (ctx->codegen_uniform_block_buffer, 0);
   g_string_set_size (ctx->codegen_header_buffer, 0);
   g_string_set_size (ctx->codegen_source_buffer, 0);
+  shader_state->block = ctx->codegen_uniform_block_buffer;
   shader_state->header = ctx->codegen_header_buffer;
   shader_state->source = ctx->codegen_source_buffer;
 
@@ -316,18 +316,16 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
   if (cogl_pipeline_get_per_vertex_point_size (pipeline))
     g_string_append (shader_state->header,
                      "attribute float cogl_point_size_in;\n");
-  else if (!_cogl_has_private_feature
-           (ctx, COGL_PRIVATE_FEATURE_BUILTIN_POINT_SIZE_UNIFORM))
+  else
     {
-      /* There is no builtin uniform for the point size on GLES2 so we
-         need to copy it from the custom uniform in the vertex shader
-         if we're not using per-vertex point sizes, however we'll only
-         do this if the point-size is non-zero. Toggle the point size
-         between zero and non-zero causes a state change which
-         generates a new program */
+      /* There is no builtin uniform for the point size on Vulkan so we need
+         to copy it from the custom uniform in the vertex shader if we're
+         not using per-vertex point sizes, however we'll only do this if the
+         point-size is non-zero. Toggle the point size between zero and
+         non-zero causes a state change which generates a new program */
       if (cogl_pipeline_get_point_size (pipeline) > 0.0f)
         {
-          g_string_append (shader_state->header,
+          g_string_append (shader_state->block,
                            "uniform float cogl_point_size_in;\n");
           g_string_append (shader_state->source,
                            "  cogl_point_size_out = cogl_point_size_in;\n");
@@ -346,8 +344,6 @@ _cogl_pipeline_vertend_vulkan_add_layer (CoglPipeline *pipeline,
   int layer_index = layer->index;
 
   _COGL_GET_CONTEXT (ctx, FALSE);
-
-  VK_TODO();
 
   shader_state = get_shader_state (pipeline);
 
@@ -418,21 +414,17 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  VK_TODO();
-
   shader_state = get_shader_state (pipeline);
 
   if (shader_state->source)
     {
-      const char *source_strings[2];
-      GLint lengths[2];
-      GLint compile_status = 0;
-      GLuint shader = 0;
+      GString *shader_source;
+      CoglShaderVulkan *shader;
+      /* uint32_t shader_size; */
       CoglPipelineSnippetData snippet_data;
       CoglPipelineSnippetList *vertex_snippets;
       CoglBool has_per_vertex_point_size =
         cogl_pipeline_get_per_vertex_point_size (pipeline);
-      GString *shader_source;
       int i;
 
       COGL_STATIC_COUNTER (vertend_vulkan_compile_counter,
@@ -517,7 +509,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
          uniform */
       if (_cogl_pipeline_has_vertex_snippets (pipeline))
         {
-          g_string_append (shader_state->header,
+          g_string_append (shader_state->block,
                            "uniform vec4 _cogl_flip_vector;\n");
           g_string_append (shader_state->source,
                            "  cogl_position_out *= _cogl_flip_vector;\n");
@@ -526,54 +518,54 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       g_string_append (shader_state->source,
                        "}\n");
 
-      lengths[0] = shader_state->header->len;
-      source_strings[0] = shader_state->header->str;
-      lengths[1] = shader_state->source->len;
-      source_strings[1] = shader_state->source->str;
+      shader_source =
+        _cogl_glsl_vulkan_shader_get_source_with_boilerplate (ctx,
+                                                              COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                              pipeline,
+                                                              shader_state->block,
+                                                              shader_state->header,
+                                                              shader_state->source);
 
-      shader_source = _cogl_glsl_shader_get_source_with_boilerplate (ctx,
-                                                                     COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                                     pipeline,
-                                                                     2, /* count */
-                                                                     source_strings, lengths);
-
-      shader_state->shader_desc = _cogl_shader_vulkan_new ();
-
-      _cogl_shader_vulkan_add_stage (shader_state->shader_desc,
-                                     COGL_GLSL_SHADER_TYPE_VERTEX,
-                                     shader_source->str);
-      _cogl_shader_vulkan_add_stage (shader_state->shader_desc,
-                                     COGL_GLSL_SHADER_TYPE_FRAGMENT,
-                                     "void main(void) { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }");
-
-      g_string_free (shader_source, TRUE);
-
-      _cogl_shader_vulkan_link (shader_state->shader_desc);
-      g_message ("uniforms: %i",
-                 _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader_desc));
-      g_message ("uniforms blocks: %i",
-                 _cogl_shader_vulkan_get_num_live_uniform_blocks (shader_state->shader_desc));
-      for (i = 0; i < _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader_desc); i++)
-        {
-          g_message ("uniform : %i / %s", i, _cogl_shader_vulkan_get_uniform_name (shader_state->shader_desc, i));
-        }
-      /* GE( ctx, glCompileShader (shader) ); */
-      /* GE( ctx, glGetShaderiv (shader, GL_COMPILE_STATUS, &compile_status) ); */
-
-      if (!compile_status)
-        {
-          GLint len = 0;
-          char *shader_log = 0;
-
-          /* GE( ctx, glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &len) ); */
-          /* shader_log = g_alloca (len); */
-          /* GE( ctx, glGetShaderInfoLog (shader, len, &len, shader_log) ); */
-          g_warning ("Shader compilation failed:\n%s", shader_log);
-        }
-
+      shader_state->block = NULL;
       shader_state->header = NULL;
       shader_state->source = NULL;
-      shader_state->gl_shader = shader;
+
+      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX);
+      _cogl_shader_vulkan_set_source (shader, shader_source->str);
+      g_string_free (shader_source, TRUE);
+
+
+      if (!_cogl_shader_vulkan_link (shader))
+        {
+          g_warning ("Vertex shader compilation failed");
+          _cogl_shader_vulkan_free (shader);
+          shader = NULL;
+        }
+
+      shader_state->shader = shader;
+
+/*       g_message ("uniforms: %i", */
+/*                  _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader)); */
+/*       g_message ("uniforms blocks: %i", */
+/*                  _cogl_shader_vulkan_get_num_live_uniform_blocks (shader_state->shader)); */
+
+/*       g_message ("in/out attributes : %i/%i", */
+/*                  _cogl_shader_vulkan_get_num_live_input_attributes (shader_state->shader), */
+/*                  _cogl_shader_vulkan_get_num_live_output_attributes (shader_state->shader)); */
+/* for (i = 0; i < _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader); i++) */
+/*         { */
+/*           g_message ("uniform : %i name=%s offset=%i index=%i", i, */
+/*                      _cogl_shader_vulkan_get_uniform_name (shader_state->shader, */
+/*                                                            i), */
+/*                      _cogl_shader_vulkan_get_uniform_buffer_offset (shader_state->shader, */
+/*                                                                     i), */
+/*                      _cogl_shader_vulkan_get_uniform_block_index(shader_state->shader, */
+/*                                                                  i)); */
+/*         } */
+
+      /* shader = _cogl_shader_vulkan_stage_to_spirv (shader_state->shader, */
+      /*                                              COGL_GLSL_SHADER_TYPE_VERTEX, */
+      /*                                              &shader_size); */
     }
 
   return TRUE;
@@ -581,12 +573,10 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
 
 static void
 _cogl_pipeline_vertend_vulkan_pre_change_notify (CoglPipeline *pipeline,
-                                               CoglPipelineState change,
-                                               const CoglColor *new_color)
+                                                 CoglPipelineState change,
+                                                 const CoglColor *new_color)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  VK_TODO();
 
   if ((change & _cogl_pipeline_get_state_for_vertex_codegen (ctx)))
     dirty_shader_state (pipeline);
@@ -607,8 +597,6 @@ _cogl_pipeline_vertend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayerState change)
 {
   CoglPipelineShaderState *shader_state;
-
-  VK_TODO();
 
   shader_state = get_shader_state (owner);
   if (!shader_state)

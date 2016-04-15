@@ -227,25 +227,20 @@ cogl_driver_sources += \
 	$(NULL)
 endif
 
-glslangdir = driver/vulkan/glslang/glslang
-
 # We need to generate .h for the parser
 AM_YFLAGS = -d
 
 noinst_LTLIBRARIES += \
-	libglslang_private.la
+	libglslang_private.la \
+	libspirv_private.la
 
 libglslang_private_la_CPPFLAGS = \
-	-DG_LOG_DOMAIN=\"Cogl\" 	\
-	-DCOGL_COMPILATION		\
-	-DCOGL_GL_LIBNAME=\"$(COGL_GL_LIBNAME)\" \
-	-DCOGL_GLES1_LIBNAME=\"$(COGL_GLES1_LIBNAME)\" \
-	-DCOGL_GLES2_LIBNAME=\"$(COGL_GLES2_LIBNAME)\" \
-	-DCOGL_LOCALEDIR=\""$(localedir)"\" \
+	$(AM_CPPFLAGS) \
 	\
 	-D_GLIBCXX_USE_CXX11_ABI=0 \
 	-I$(srcdir)/driver/vulkan/glslang/glslang \
 	-I$(srcdir)/driver/vulkan/glslang/glslang/MachineIndependent \
+	-I$(srcdir)/driver/vulkan/spirv \
 	$(NULL)
 libglslang_private_la_CXXFLAGS = \
 	$(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS) \
@@ -311,6 +306,38 @@ libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/Include/revision.h \
 	driver/vulkan/glslang/glslang/Include/ShHandle.h \
 	driver/vulkan/glslang/glslang/Include/Types.h \
+	$(NULL)
+
+libspirv_private_la_CPPFLAGS = \
+	-DG_LOG_DOMAIN=\"Cogl\" 	\
+	-DCOGL_COMPILATION		\
+	-DCOGL_GL_LIBNAME=\"$(COGL_GL_LIBNAME)\" \
+	-DCOGL_GLES1_LIBNAME=\"$(COGL_GLES1_LIBNAME)\" \
+	-DCOGL_GLES2_LIBNAME=\"$(COGL_GLES2_LIBNAME)\" \
+	-DCOGL_LOCALEDIR=\""$(localedir)"\" \
+	\
+	-D_GLIBCXX_USE_CXX11_ABI=0 \
+	-I$(srcdir)/driver/vulkan/glslang/glslang \
+	-I$(srcdir)/driver/vulkan/spirv \
+	$(NULL)
+libspirv_private_la_CXXFLAGS = \
+	$(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS) \
+	-DGLSLANG_OSINCLUDE_UNIX \
+	-std=c++11 \
+	$(NULL)
+
+libspirv_private_la_SOURCES = \
+	driver/vulkan/spirv/disassemble.cpp \
+	driver/vulkan/spirv/disassemble.h \
+	driver/vulkan/spirv/doc.cpp \
+	driver/vulkan/spirv/doc.h \
+	driver/vulkan/spirv/InReadableOrder.cpp \
+	driver/vulkan/spirv/GlslangToSpv.cpp \
+	driver/vulkan/spirv/GlslangToSpv.h \
+	driver/vulkan/spirv/spirv.hpp \
+	driver/vulkan/spirv/SpvBuilder.cpp \
+	driver/vulkan/spirv/SpvBuilder.h \
+	driver/vulkan/spirv/spvIR.h \
 	$(NULL)
 
 CLEANFILES += \
@@ -671,7 +698,7 @@ libcogl_la_LIBADD += $(top_builddir)/deps/glib/libglib.la
 libcogl_la_LIBADD += $(top_builddir)/deps/gmodule/libgmodule.la
 endif
 if COGL_DRIVER_VULKAN_SUPPORTED
-libcogl_la_LIBADD += $(builddir)/libglslang_private.la
+libcogl_la_LIBADD += $(builddir)/libglslang_private.la $(builddir)/libspirv_private.la
 endif
 if UNIT_TESTS
 libcogl_la_LIBADD += $(top_builddir)/test-fixtures/libtest-fixtures.la

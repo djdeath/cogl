@@ -175,6 +175,13 @@ _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
   vertend->end (pipeline,
                 COGL_PIPELINE_STATE_ALL);
 
+  fragend->start (pipeline,
+                  n_layers,
+                  COGL_PIPELINE_STATE_ALL);
+
+  fragend->end (pipeline,
+                COGL_PIPELINE_STATE_ALL);
+
   /*     state.framebuffer = framebuffer; */
   /*     state.vertend = vertend; */
   /*     state.pipeline = pipeline; */
