@@ -43,6 +43,7 @@ typedef struct _CoglRendererVulkan
 typedef struct _CoglContextVulkan
 {
   VkPhysicalDevice physical_device;
+  VkPhysicalDeviceProperties physical_device_properties;
   VkDevice device;
   VkQueue queue;
   VkFence fence;

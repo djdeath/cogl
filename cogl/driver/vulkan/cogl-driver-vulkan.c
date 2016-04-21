@@ -174,6 +174,9 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
     }
   printf("%d physical devices\n", count);
 
+  vkGetPhysicalDeviceProperties (vk_ctx->physical_device,
+                                 &vk_ctx->physical_device_properties);
+
   result = vkCreateDevice(vk_ctx->physical_device, &(VkDeviceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .queueCreateInfoCount = 1,

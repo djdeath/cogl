@@ -51,6 +51,8 @@ _cogl_buffer_usage_to_vulkan_buffer_usage (CoglBufferUsageHint usage)
       return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     case COGL_BUFFER_USAGE_HINT_INDEX_BUFFER:
       return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    case COGL_BUFFER_USAGE_HINT_UNIFORM_BUFFER:
+      return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     default:
       g_assert_not_reached();
     }
