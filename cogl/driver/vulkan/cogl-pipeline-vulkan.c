@@ -60,6 +60,9 @@ typedef struct _CoglPipelineVulkan
 
   VkSampler *samplers;
   int n_samplers;
+
+  /* Not owned */
+  VkBuffer attribute_buffer;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -202,6 +205,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
 {
   int i;
   VkPipelineVertexInputStateCreateInfo *info;
+  CoglShaderVulkan *vertex_shader =
+    _cogl_pipeline_vertend_vulkan_get_shader (pipeline);
   void *ptr =
     g_malloc0 (sizeof (VkPipelineVertexInputStateCreateInfo) +
                n_attributes * sizeof (VkVertexInputBindingDescription) +
@@ -221,6 +226,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
   if (vk_pipeline->n_vertex_inputs != n_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
+  vk_pipeline->attribute_buffer = VK_NULL_HANDLE;
+
   for (i = 0; i < n_attributes; i++)
     {
       CoglAttribute *attribute = attributes[i];
@@ -235,12 +242,14 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
           VkVertexInputAttributeDescription *vertex_desc =
             (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
 
-          vertex_bind->binding = i;
+          vertex_bind->binding = 0;
           vertex_bind->stride = attribute->d.buffered.stride;
           vertex_bind->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-          vertex_desc->location = i;
-          vertex_desc->binding = i;
+          vertex_desc->location =
+            _cogl_shader_vulkan_get_input_attribute_location (vertex_shader,
+                                                              attribute->name_state->name);
+          vertex_desc->binding = 0;
           vertex_desc->offset = attribute->d.buffered.offset;
           vertex_desc->format =
             _cogl_attribute_type_to_vulkan_format (attribute->d.buffered.type,
@@ -255,6 +264,12 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                        sizeof (VkVertexInputAttributeDescription))))
             _cogl_pipeline_vulkan_invalidate (pipeline);
 
+          if (vk_pipeline->attribute_buffer == VK_NULL_HANDLE)
+            vk_pipeline->attribute_buffer = vk_buf->buffer;
+
+          /* TODO: We assume all attributes in the same buffer. We could
+             support multiple ones later. */
+          g_assert (vk_pipeline->attribute_buffer == vk_buf->buffer);
         }
       else
         {
@@ -350,14 +365,13 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
                                    CoglAttribute **attributes,
                                    int n_attributes)
 {
-  int n_layers;
-  unsigned long *layer_differences;
-  int i;
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+  int i, n_layers = cogl_pipeline_get_n_layers (pipeline);
   const CoglPipelineProgend *progend;
   const CoglPipelineVertend *vertend;
   const CoglPipelineFragend *fragend;
   CoglPipelineAddLayerState state;
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
 
   COGL_STATIC_TIMER (pipeline_flush_timer,
                      "Mainloop", /* parent */
@@ -430,6 +444,18 @@ done:
    * matrices */
   if (progend->pre_paint)
     progend->pre_paint (pipeline, framebuffer);
+
+  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, 1,
+                          (VkBuffer[]) { vk_pipeline->attribute_buffer },
+                          (VkDeviceSize[]) { 0 });
+  vkCmdBindPipeline (vk_fb->cmd_buffer,
+                     VK_PIPELINE_BIND_POINT_GRAPHICS,
+                     vk_pipeline->pipeline);
+  /* vkCmdBindDescriptorSets (vk_fb->cmd_buffer, */
+  /*                          VK_PIPELINE_BIND_POINT_GRAPHICS, */
+  /*                          vc->pipeline_layout, */
+  /*                          0, 1, */
+  /*                          &vc->descriptor_set, 0, NULL); */
 
   COGL_TIMER_STOP (_cogl_uprof_context, pipeline_flush_timer);
 }

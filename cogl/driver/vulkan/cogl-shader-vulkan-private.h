@@ -91,6 +91,14 @@ _cogl_shader_vulkan_get_num_live_input_attributes (CoglShaderVulkan *shader);
 int
 _cogl_shader_vulkan_get_num_live_output_attributes (CoglShaderVulkan *shader);
 
+int
+_cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
+                                                  const char *name);
+
+int
+_cogl_shader_vulkan_get_output_attribute_location (CoglShaderVulkan *shader,
+                                                   const char *name);
+
 void *
 _cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
                                     CoglGlslShaderType type,

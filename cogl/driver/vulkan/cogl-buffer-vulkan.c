@@ -203,7 +203,7 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
   void *data_map;
   VkResult result;
 
-  if (!(buffer->flags & COGL_BUFFER_FLAG_MAPPED))
+  if (buffer->flags & COGL_BUFFER_FLAG_MAPPED)
     {
       _cogl_set_error (error, COGL_BUFFER_ERROR,
                        COGL_BUFFER_ERROR_MAP,

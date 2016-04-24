@@ -357,7 +357,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
-  /* Draw call here */
+  vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0);
 }
 
 void

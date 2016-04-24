@@ -90,20 +90,11 @@ static CoglBool
 _cogl_driver_update_features (CoglContext *ctx,
                               CoglError **error)
 {
-  CoglFeatureFlags flags = 0;
-  unsigned long private_features
-    [COGL_FLAGS_N_LONGS_FOR_SIZE (COGL_N_PRIVATE_FEATURES)] = { 0 };
+  COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
+  COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_VBOS, TRUE);
+  COGL_FLAGS_SET (ctx->private_features, COGL_FEATURE_ID_GLSL, TRUE);
 
-  COGL_FLAGS_SET (private_features, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
-  COGL_FLAGS_SET (private_features, COGL_PRIVATE_FEATURE_VBOS, TRUE);
-
-  flags |= COGL_FEATURE_SHADERS_GLSL;
-  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
-
-  /* Cache features */
-  /* for (i = 0; i < G_N_ELEMENTS (private_features); i++) */
-  /*   ctx->private_features[i] |= private_features[i]; */
-  ctx->feature_flags |= flags;
+  ctx->feature_flags |= COGL_FEATURE_SHADERS_GLSL;
 
   return TRUE;
 }

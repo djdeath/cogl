@@ -345,6 +345,9 @@ _cogl_winsys_context_init (CoglContext *context, CoglError **error)
   if (!_cogl_vulkan_context_init (context, error))
     return FALSE;
 
+  if (!_cogl_context_update_features (context, error))
+    return FALSE;
+
   context->feature_flags |= COGL_FEATURE_ONSCREEN_MULTIPLE;
   COGL_FLAGS_SET (context->features,
                   COGL_FEATURE_ID_ONSCREEN_MULTIPLE, TRUE);
