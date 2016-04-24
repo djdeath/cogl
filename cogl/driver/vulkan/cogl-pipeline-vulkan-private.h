@@ -31,101 +31,8 @@
 #ifndef __COGL_PIPELINE_VULKAN_PRIVATE_H
 #define __COGL_PIPELINE_VULKAN_PRIVATE_H
 
-#include "cogl-pipeline-private.h"
-#include "cogl-matrix-stack.h"
-
-/*
- * cogl-pipeline.c owns the GPU's texture unit state so we have some
- * private structures for describing the current state of a texture
- * unit that we track in a per context array (ctx->texture_units) that
- * grows according to the largest texture unit used so far...
- *
- * Roughly speaking the members in this structure are of two kinds:
- * either they are a low level reflection of the state we send to
- * Vulkan or they are for high level meta data assoicated with the
- * texture unit when flushing CoglPipelineLayers that is typically
- * used to optimize subsequent re-flushing of the same layer.
- *
- * The low level members are at the top, and the high level members
- * start with the .layer member.
- */
-typedef struct _CoglTextureUnit
-{
-  /* The base 0 texture unit index which can be used with
-   * glActiveTexture () */
-  int                index;
-
-  /* The GL target currently glEnabled or 0 if nothing is
-   * enabled. This is only used by the fixed pipeline fragend */
-  GLenum             enabled_gl_target;
-
-  /* The raw GL texture object name for which we called glBindTexture when
-   * we flushed the last layer. (NB: The CoglTexture associated
-   * with a layer may represent more than one GL texture) */
-  GLuint             gl_texture;
-  /* The target of the GL texture object. This is just used so that we
-   * can quickly determine the intended target to flush when
-   * dirty_gl_texture == TRUE */
-  GLenum             gl_target;
-
-  /* Foreign textures are those not created or deleted by Cogl. If we ever
-   * call glBindTexture for a foreign texture then the next time we are
-   * asked to glBindTexture we can't try and optimize a redundant state
-   * change because we don't know if the original texture name was deleted
-   * and now we are being asked to bind a recycled name. */
-  CoglBool           is_foreign;
-
-  /* We have many components in Cogl that need to temporarily bind arbitrary
-   * textures e.g. to query texture object parameters and since we don't
-   * want that to result in too much redundant reflushing of layer state
-   * when all that's needed is to re-bind the layer's gl_texture we use this
-   * to track when the unit->gl_texture state is out of sync with the GL
-   * texture object really bound too (GL_TEXTURE0+unit->index).
-   *
-   * XXX: as a further optimization cogl-pipeline.c uses a convention
-   * of always using texture unit 1 for these transient bindings so we
-   * can assume this is only ever TRUE for unit 1.
-   */
-  CoglBool           dirty_gl_texture;
-
-  /* A matrix stack giving us the means to associate a texture
-   * transform matrix with the texture unit. */
-  CoglMatrixStack   *matrix_stack;
-
-  /*
-   * Higher level layer state associated with the unit...
-   */
-
-  /* The CoglPipelineLayer whos state was flushed to update this
-   * texture unit last.
-   *
-   * This will be set to NULL if the layer is modified or freed which
-   * means when we come to flush a layer; if this pointer is still
-   * valid and == to the layer being flushed we don't need to update
-   * any texture unit state. */
-  CoglPipelineLayer *layer;
-
-  /* To help minimize the state changes required we track the
-   * difference flags associated with the layer whos state was last
-   * flushed to update this texture unit.
-   *
-   * Note: we track this explicitly because .layer may get invalidated
-   * if that layer is modified or deleted. Even if the layer is
-   * invalidated though these flags can be used to optimize the state
-   * flush of the next layer
-   */
-  unsigned long      layer_changes_since_flush;
-
-  /* Whenever a CoglTexture's internal GL texture storage changes
-   * cogl-pipeline.c is notified with a call to
-   * _cogl_pipeline_texture_storage_change_notify which inturn sets
-   * this to TRUE for each texture unit that it is currently bound
-   * too. When we later come to flush some pipeline state then we will
-   * always check this to potentially force an update of the texture
-   * state even if the pipeline hasn't changed. */
-  CoglBool           texture_storage_changed;
-
-} CoglTextureUnit;
+#include "cogl-context.h"
+#include "cogl-pipeline.h"
 
 void
 _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
@@ -135,26 +42,10 @@ _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
                                      CoglAttribute **attributes,
                                      int n_attributes);
 
-CoglTextureUnit *
-_cogl_get_texture_unit (int index_);
-
 void
-_cogl_destroy_texture_units (void);
-
-void
-_cogl_set_active_texture_unit (int unit_index);
-
-void
-_cogl_bind_vulkan_texture_transient (GLenum gl_target,
-                                     GLuint gl_texture,
-                                     CoglBool is_foreign);
-
-void
-_cogl_delete_vulkan_texture (GLuint gl_texture);
-
-void
-_cogl_pipeline_flush_vulkan_state (CoglContext *context,
+_cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
                                    CoglPipeline *pipeline,
-                                   CoglFramebuffer *framebuffer);
+                                   CoglAttribute **attributes,
+                                   int n_attributes);
 
 #endif /* __COGL_PIPELINE_VULKAN_PRIVATE_H */

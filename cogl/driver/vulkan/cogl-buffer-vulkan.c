@@ -183,7 +183,7 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
         });
       if (result != VK_SUCCESS)
         {
-          g_warning ("%s: Cannot flush memory (%d): %s\n", G_STRLOC, result,
+          g_warning ("%s: Cannot flush memory (%d): %s", G_STRLOC, result,
                      _cogl_vulkan_error_to_string (result));
           return;
         }

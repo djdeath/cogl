@@ -65,9 +65,9 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer);
 
 CoglBool
 _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
-                          unsigned int offset,
-                          const void *data,
-                          unsigned int size,
-                          CoglError **error);
+                              unsigned int offset,
+                              const void *data,
+                              unsigned int size,
+                              CoglError **error);
 
 #endif /* _COGL_BUFFER_VULKAN_PRIVATE_H_ */

@@ -154,7 +154,7 @@ typedef struct
 static CoglBuffer *
 _create_uniform_buffer (CoglContext *ctx, size_t bytes)
 {
-  CoglBuffer *buffer = g_slice_new (CoglBuffer);
+  CoglBuffer *buffer = g_slice_new0 (CoglBuffer);
 
   _cogl_buffer_initialize (buffer,
                            ctx,
@@ -201,7 +201,7 @@ program_state_new (int n_layers,
 {
   CoglPipelineProgramState *program_state;
 
-  program_state = g_slice_new (CoglPipelineProgramState);
+  program_state = g_slice_new0 (CoglPipelineProgramState);
   program_state->ref_count = 1;
   program_state->unit_state = g_new (UnitState, n_layers);
   program_state->uniform_locations = NULL;

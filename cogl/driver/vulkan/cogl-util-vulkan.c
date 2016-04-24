@@ -94,13 +94,33 @@ static VkFormat _attributes_to_formats[5][4] = {
   { VK_FORMAT_R32_SFLOAT, VK_FORMAT_R32G32_SFLOAT, VK_FORMAT_R32G32B32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT },
 };
 
+static int
+_attribute_type_to_int (CoglAttributeType type)
+{
+  switch (type)
+    {
+      case COGL_ATTRIBUTE_TYPE_BYTE:
+        return 0;
+      case COGL_ATTRIBUTE_TYPE_UNSIGNED_BYTE:
+        return 1;
+      case COGL_ATTRIBUTE_TYPE_SHORT:
+        return 2;
+      case COGL_ATTRIBUTE_TYPE_UNSIGNED_SHORT:
+        return 3;
+      case COGL_ATTRIBUTE_TYPE_FLOAT:
+        return 4;
+      default:
+        g_assert_not_reached();
+    }
+}
+
 VkFormat
 _cogl_attribute_type_to_vulkan_format (CoglAttributeType type, int n_components)
 {
   g_assert (n_components <= 4);
   g_assert (type <= COGL_ATTRIBUTE_TYPE_FLOAT);
 
-  return _attributes_to_formats[type][n_components - 1];
+  return _attributes_to_formats[_attribute_type_to_int (type)][n_components - 1];
 }
 
 const char *

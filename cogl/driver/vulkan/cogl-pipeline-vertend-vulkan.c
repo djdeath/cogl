@@ -335,9 +335,9 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
 
 static CoglBool
 _cogl_pipeline_vertend_vulkan_add_layer (CoglPipeline *pipeline,
-                                       CoglPipelineLayer *layer,
-                                       unsigned long layers_difference,
-                                       CoglFramebuffer *framebuffer)
+                                         CoglPipelineLayer *layer,
+                                         unsigned long layers_difference,
+                                         CoglFramebuffer *framebuffer)
 {
   CoglPipelineShaderState *shader_state;
   CoglPipelineSnippetData snippet_data;
