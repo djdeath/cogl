@@ -372,6 +372,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   const CoglPipelineVertend *vertend;
   const CoglPipelineFragend *fragend;
   CoglPipelineAddLayerState state;
+  VkPipelineLayout pipeline_layout;
+  VkDescriptorSet descriptor_set;
 
   COGL_STATIC_TIMER (pipeline_flush_timer,
                      "Mainloop", /* parent */
@@ -451,11 +453,14 @@ done:
   vkCmdBindPipeline (vk_fb->cmd_buffer,
                      VK_PIPELINE_BIND_POINT_GRAPHICS,
                      vk_pipeline->pipeline);
-  /* vkCmdBindDescriptorSets (vk_fb->cmd_buffer, */
-  /*                          VK_PIPELINE_BIND_POINT_GRAPHICS, */
-  /*                          vc->pipeline_layout, */
-  /*                          0, 1, */
-  /*                          &vc->descriptor_set, 0, NULL); */
+
+  pipeline_layout = _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline);
+  descriptor_set = _cogl_pipeline_progend_get_vulkan_descriptor_set (pipeline);
+  vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
+                           VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           pipeline_layout,
+                           0, 1,
+                           &descriptor_set, 0, NULL);
 
   COGL_TIMER_STOP (_cogl_uprof_context, pipeline_flush_timer);
 }

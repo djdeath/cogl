@@ -132,16 +132,15 @@ _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
   vk_fb->framebuffer = vk_framebuffer;
 }
 
-static CoglBool
-_cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
-                                                CoglError **error)
+static void
+_cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 {
   CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkResult result;
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
-    return TRUE;
+    return;
 
   g_message ("Creating command buffer");
 
@@ -154,11 +153,9 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
     &vk_fb->cmd_buffer);
   if (result != VK_SUCCESS)
     {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to allocate command buffer : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
+      g_warning ("Failed to allocate command buffer : %s",
+                 _cogl_vulkan_error_to_string (result));
+      return;
     }
 
   result = vkBeginCommandBuffer (vk_fb->cmd_buffer, &(VkCommandBufferBeginInfo) {
@@ -167,11 +164,9 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
     });
   if (result != VK_SUCCESS)
     {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to begin command buffer : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
+      g_warning ("Failed to begin command buffer : %s",
+                 _cogl_vulkan_error_to_string (result));
+      return;
     }
 
   vkCmdBeginRenderPass (vk_fb->cmd_buffer, &(VkRenderPassBeginInfo) {
@@ -189,8 +184,6 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer,
       },
     },
     VK_SUBPASS_CONTENTS_INLINE);
-
-  return TRUE;
 }
 
 /* static void */
@@ -256,20 +249,18 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   CoglContextVulkan *vk_ctx = draw_buffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
-  if (vk_fb->cmd_buffer == VK_NULL_HANDLE)
-    return;
+  if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
+    {
+      vkCmdEndRenderPass (vk_fb->cmd_buffer);
+      vkEndCommandBuffer (vk_fb->cmd_buffer);
 
-  vkCmdEndRenderPass (vk_fb->cmd_buffer);
-  vkEndCommandBuffer (vk_fb->cmd_buffer);
-
-  vkQueueSubmit (vk_ctx->queue, 1, &(VkSubmitInfo) {
-      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .commandBufferCount = 1,
-      &vk_fb->cmd_buffer,
-    },
-    vk_ctx->fence);
-
-  vk_fb->cmd_buffer = VK_NULL_HANDLE;
+      vkQueueSubmit (vk_ctx->queue, 1,
+                     &(VkSubmitInfo) {
+                       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                       .commandBufferCount = 1,
+                       &vk_fb->cmd_buffer,
+                     }, vk_ctx->fence);
+    }
 }
 
 static CoglTexture *
@@ -296,7 +287,7 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   vkCmdClearAttachments (vk_fb->cmd_buffer, 1, &(VkClearAttachment) {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -352,7 +343,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL);
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);

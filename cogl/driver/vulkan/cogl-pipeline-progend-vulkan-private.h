@@ -37,10 +37,13 @@
 
 extern const CoglPipelineProgend _cogl_pipeline_vulkan_progend;
 
-VkPipelineShaderStageCreateInfo *
-_cogl_pipeline_progend_get_vulkan_stage_info (CoglPipeline *pipeline);
+VkDescriptorSet
+_cogl_pipeline_progend_get_vulkan_descriptor_set (CoglPipeline *pipeline);
 
 VkPipelineLayout
 _cogl_pipeline_progend_get_vulkan_pipeline_layout (CoglPipeline *pipeline);
+
+VkPipelineShaderStageCreateInfo *
+_cogl_pipeline_progend_get_vulkan_stage_info (CoglPipeline *pipeline);
 
 #endif /* __COGL_PIPELINE_PROGEND_VULKAN_PRIVATE_H */

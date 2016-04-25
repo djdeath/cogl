@@ -220,6 +220,33 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
       goto error;
     }
 
+  /* { */
+  /*   const VkDescriptorPoolCreateInfo create_info = { */
+  /*     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, */
+  /*     .pNext = NULL, */
+  /*     .flags = 0, */
+  /*     .maxSets = 1, */
+  /*     .poolSizeCount = 1, */
+  /*     .pPoolSizes = (VkDescriptorPoolSize[]) { */
+  /*       { */
+  /*         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, */
+  /*         .descriptorCount = 1 */
+  /*       }, */
+  /*     } */
+  /*   }; */
+
+  /*   result = vkCreateDescriptorPool (vk_ctx->device, &create_info, */
+  /*                                    NULL, &vk_ctx->desc_pool); */
+  /*   if (result != VK_SUCCESS) */
+  /*     { */
+  /*       _cogl_set_error (error, COGL_DRIVER_ERROR, */
+  /*                      COGL_DRIVER_ERROR_INTERNAL, */
+  /*                      "Cannot create descriptor pool : %s", */
+  /*                      _cogl_vulkan_error_to_string (result)); */
+  /*       goto error; */
+  /*     } */
+  /* } */
+
   return TRUE;
 
  error:
@@ -233,6 +260,8 @@ _cogl_vulkan_context_deinit (CoglContext *context)
 {
   CoglContextVulkan *vk_ctx = context->winsys;
 
+  /* if (vk_ctx->desc_pool != VK_NULL_HANDLE) */
+  /*   vkDestroyDescriptorPool (vk_ctx->device, vk_ctx->desc_pool, NULL); */
   if (vk_ctx->cmd_pool != VK_NULL_HANDLE)
     vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL);
   if (vk_ctx->fence != VK_NULL_HANDLE)

@@ -277,8 +277,6 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
-  VK_TODO();
-
   /* Now lookup our vulkan backend private state */
   shader_state = get_shader_state (pipeline);
 

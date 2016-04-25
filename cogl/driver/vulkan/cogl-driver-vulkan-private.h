@@ -48,6 +48,8 @@ typedef struct _CoglContextVulkan
   VkQueue queue;
   VkFence fence;
   VkCommandPool cmd_pool;
+
+  /* VkDescriptorPool desc_pool; */
 } CoglContextVulkan;
 
 CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
