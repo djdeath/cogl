@@ -40,6 +40,8 @@ typedef struct _CoglFramebufferVulkan
   /* Owned. */
   VkRenderPass render_pass;
   VkCommandBuffer cmd_buffer;
+
+  uint32_t cmd_buffer_length;
 } CoglFramebufferVulkan;
 
 typedef struct _CoglOffscreenVulkan

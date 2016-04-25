@@ -697,10 +697,9 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
   CoglProgram *user_program;
   CoglPipelineCacheEntry *cache_entry = NULL;
   VkDescriptorSetLayout set_layout;
+  VkResult result;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  /* VK_TODO(); */
 
   program_state = get_program_state (pipeline);
 
@@ -789,7 +788,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
     {
       int nb_buffers = /* program_state->fragment_uniform_buffer != NULL ? 2 : 1; */1;
 
-      vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
+      result = vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
           .bindingCount = nb_buffers,
           .pBindings = (VkDescriptorSetLayoutBinding[]) {
@@ -809,14 +808,20 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         },
         NULL,
         &set_layout);
+      if (result != VK_SUCCESS)
+        g_warning ("Cannot create descriptor set layout (%d): %s",
+                   result, _cogl_vulkan_error_to_string (result));
 
-      vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
+      result = vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
           .setLayoutCount = 1,
           .pSetLayouts = &set_layout,
         },
         NULL,
         &program_state->pipeline_layout);
+      if (result != VK_SUCCESS)
+        g_warning ("Cannot create pipeline layout (%d): %s",
+                   result, _cogl_vulkan_error_to_string (result));
 
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -864,18 +869,22 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         }
       };
 
-      vkCreateDescriptorPool (vk_ctx->device, &create_info,
-                              NULL, &program_state->descriptor_pool);
+      result = vkCreateDescriptorPool (vk_ctx->device, &create_info,
+                                       NULL, &program_state->descriptor_pool);
+      if (result != VK_SUCCESS)
+        g_warning ("Cannot create descriptor pool (%d): %s",
+                   result, _cogl_vulkan_error_to_string (result));
 
-      vkAllocateDescriptorSets (vk_ctx->device,
-                                &(VkDescriptorSetAllocateInfo) {
-                                  .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                                  .descriptorPool = program_state->descriptor_pool,
-                                  .descriptorSetCount = 1,
-                                  .pSetLayouts = &set_layout,
-                                },
-                                &program_state->descriptor_set);
-
+      result = vkAllocateDescriptorSets (vk_ctx->device, &(VkDescriptorSetAllocateInfo) {
+          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+          .descriptorPool = program_state->descriptor_pool,
+          .descriptorSetCount = 1,
+          .pSetLayouts = &set_layout,
+        },
+        &program_state->descriptor_set);
+      if (result != VK_SUCCESS)
+        g_warning ("Cannot allocate descriptor set (%d): %s",
+                   result, _cogl_vulkan_error_to_string (result));
 
       vkUpdateDescriptorSets (vk_ctx->device, 1,
                               (VkWriteDescriptorSet []) {

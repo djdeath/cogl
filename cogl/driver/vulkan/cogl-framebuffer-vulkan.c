@@ -186,42 +186,40 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
     VK_SUBPASS_CONTENTS_INLINE);
 }
 
-/* static void */
-/* _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer) */
-/* { */
-/*   CoglFramebufferVulkan *vk_fb = framebuffer->winsys; */
-/*   VkViewport vk_viewport; */
+static void
+_cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
+{
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  VkViewport vk_viewport;
 
-/*   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer, NULL); */
+  g_assert (framebuffer->viewport_width >=0 &&
+            framebuffer->viewport_height >=0);
 
-/*   g_assert (framebuffer->viewport_width >=0 && */
-/*             framebuffer->viewport_height >=0); */
+  vk_viewport.x = framebuffer->viewport_x;
+  vk_viewport.width = framebuffer->viewport_width;
+  vk_viewport.height = framebuffer->viewport_height;
+  vk_viewport.minDepth = 0;
+  vk_viewport.maxDepth = 1;
 
-/*   vk_viewport.x = framebuffer->viewport_x; */
-/*   vk_viewport.width = framebuffer->viewport_width; */
-/*   vk_viewport.height = framebuffer->viewport_height; */
-/*   vk_viewport.minDepth = 0; */
-/*   vk_viewport.maxDepth = 1; */
+  /* Convert the Cogl viewport y offset to an OpenGL viewport y offset
+   * NB: OpenGL defines its window and viewport origins to be bottom
+   * left, while Cogl defines them to be top left.
+   * NB: We render upside down to offscreen framebuffers so we don't
+   * need to convert the y offset in this case. */
+  if (cogl_is_offscreen (framebuffer))
+    vk_viewport.y = framebuffer->viewport_y;
+  else
+    vk_viewport.y = framebuffer->height -
+      (framebuffer->viewport_y + framebuffer->viewport_height);
 
-/*   /\* Convert the Cogl viewport y offset to an OpenGL viewport y offset */
-/*    * NB: OpenGL defines its window and viewport origins to be bottom */
-/*    * left, while Cogl defines them to be top left. */
-/*    * NB: We render upside down to offscreen framebuffers so we don't */
-/*    * need to convert the y offset in this case. *\/ */
-/*   if (cogl_is_offscreen (framebuffer)) */
-/*     vk_viewport.y = framebuffer->viewport_y; */
-/*   else */
-/*     vk_viewport.y = framebuffer->height - */
-/*       (framebuffer->viewport_y + framebuffer->viewport_height); */
+  COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)",
+             vk_viewport.x,
+             vk_viewport.y,
+             vk_viewport.width,
+             vk_viewport.height);
 
-/*   COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)", */
-/*              vk_viewport.x, */
-/*              vk_viewport.y, */
-/*              vk_viewport.width, */
-/*              vk_viewport.height); */
-
-/*   vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport); */
-/* } */
+  vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport);
+}
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
@@ -249,7 +247,8 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   CoglContextVulkan *vk_ctx = draw_buffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
-  if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
+  if (vk_fb->cmd_buffer != VK_NULL_HANDLE &&
+      vk_fb->cmd_buffer_length > 0)
     {
       vkCmdEndRenderPass (vk_fb->cmd_buffer);
       vkEndCommandBuffer (vk_fb->cmd_buffer);
@@ -260,6 +259,8 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                        .commandBufferCount = 1,
                        &vk_fb->cmd_buffer,
                      }, vk_ctx->fence);
+
+      vk_fb->cmd_buffer_length = 0;
     }
 }
 
@@ -344,11 +345,13 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+  _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
 
   vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0);
+  vk_fb->cmd_buffer_length++;
 }
 
 void
