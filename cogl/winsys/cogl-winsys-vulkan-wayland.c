@@ -255,6 +255,11 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
 {
   CoglRendererVulkanWayland *vk_renderer =
     g_slice_new0 (CoglRendererVulkanWayland);
+  static const char *extensions[] = {
+    VK_KHR_SURFACE_EXTENSION_NAME,
+    VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
+  };
+
 
   renderer->winsys = vk_renderer;
   vk_renderer->wayland_display = wl_display_connect (NULL);
@@ -298,7 +303,8 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                 renderer);
 
   if (!_cogl_vulkan_renderer_init (renderer,
-                                   VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
+                                   extensions,
+                                   G_N_ELEMENTS(extensions),
                                    error))
       goto error;
 

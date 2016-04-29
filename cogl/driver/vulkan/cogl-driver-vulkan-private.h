@@ -53,11 +53,14 @@ typedef struct _CoglContextVulkan
 } CoglContextVulkan;
 
 CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
-                                     const char *extension,
+                                     const char **extensions,
+                                     int n_extensions,
                                      CoglError **error);
+
 void _cogl_renderer_vulkan_deinit (CoglRenderer *renderer);
 
 CoglBool _cogl_vulkan_context_init (CoglContext *context, CoglError **error);
+
 void _cogl_vulkan_context_deinit (CoglContext *context);
 
 #endif /* _COGL_DRIVER_VULKAN_PRIVATE_H_ */

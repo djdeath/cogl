@@ -831,8 +831,8 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       };
       program_state->stage_info[1] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = _cogl_shader_vulkan_get_shader_module (program_state->fragment_shader),
         .pName = "main",
       };
 

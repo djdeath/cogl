@@ -247,6 +247,7 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   CoglContextVulkan *vk_ctx = draw_buffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
+  /* We only want to flush if commands have been emitted. */
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE &&
       vk_fb->cmd_buffer_length > 0)
     {
@@ -260,6 +261,9 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                        &vk_fb->cmd_buffer,
                      }, vk_ctx->fence);
 
+      vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
+
+      vk_fb->cmd_buffer = VK_NULL_HANDLE;
       vk_fb->cmd_buffer_length = 0;
     }
 }
@@ -290,6 +294,7 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
+  /* TODO: depth buffer? */
   vkCmdClearAttachments (vk_fb->cmd_buffer, 1, &(VkClearAttachment) {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .colorAttachment = 0,

@@ -101,7 +101,8 @@ _cogl_driver_update_features (CoglContext *ctx,
 
 CoglBool
 _cogl_vulkan_renderer_init (CoglRenderer *renderer,
-                            const char *extension,
+                            const char **extensions,
+                            int n_extensions,
                             CoglError **error)
 {
   CoglRendererVulkan *vk_renderer = renderer->winsys;
@@ -114,8 +115,8 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
         .pApplicationName = "Cogl",
         .apiVersion = VK_MAKE_VERSION(1, 0, 2),
       },
-      .enabledExtensionCount = (extension != NULL),
-      .ppEnabledExtensionNames = &extension,
+      .enabledExtensionCount = n_extensions,
+      .ppEnabledExtensionNames = extensions,
     },
     NULL,
     &vk_renderer->instance);

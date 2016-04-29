@@ -698,7 +698,7 @@ libcogl_la_LIBADD += $(top_builddir)/deps/glib/libglib.la
 libcogl_la_LIBADD += $(top_builddir)/deps/gmodule/libgmodule.la
 endif
 if COGL_DRIVER_VULKAN_SUPPORTED
-libcogl_la_LIBADD += $(builddir)/libglslang_private.la $(builddir)/libspirv_private.la
+libcogl_la_LIBADD += $(builddir)/libglslang_private.la $(builddir)/libspirv_private.la -lstdc++
 endif
 if UNIT_TESTS
 libcogl_la_LIBADD += $(top_builddir)/test-fixtures/libtest-fixtures.la

@@ -1063,7 +1063,7 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       shader_state->header = NULL;
       shader_state->source = NULL;
 
-      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX);
+      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_FRAGMENT);
       _cogl_shader_vulkan_set_source (shader, shader_source->str);
       g_string_free (shader_source, TRUE);
 
