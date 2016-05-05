@@ -60,7 +60,8 @@ typedef struct
 
   CoglPipelineCacheEntry *cache_entry;
 
-  CoglShaderVulkan *shader;
+  GString *shader_source;
+  /* CoglShaderVulkan *shader; */
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -97,8 +98,8 @@ destroy_shader_state (void *user_data,
 
   if (--shader_state->ref_count == 0)
     {
-      if (shader_state->shader)
-        _cogl_shader_vulkan_free (shader_state->shader);
+      if (shader_state->shader_source)
+        g_string_free (shader_state->shader_source, TRUE);
 
       g_slice_free (CoglPipelineShaderState, shader_state);
     }
@@ -134,13 +135,13 @@ dirty_shader_state (CoglPipeline *pipeline)
                              NULL);
 }
 
-CoglShaderVulkan *
+GString *
 _cogl_pipeline_vertend_vulkan_get_shader (CoglPipeline *pipeline)
 {
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
 
   if (shader_state)
-    return shader_state->shader;
+    return shader_state->shader_source;
   else
     return NULL;
 }
@@ -276,16 +277,16 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
          to generate one */
       if (_cogl_program_has_vertex_shader (user_program))
         {
-          if (shader_state->shader)
+          if (shader_state->shader_source)
             {
-              _cogl_shader_vulkan_free (shader_state->shader);
-              shader_state->shader = NULL;
+              g_string_free (shader_state->shader_source, TRUE);
+              shader_state->shader_source = NULL;
             }
           return;
         }
     }
 
-  if (shader_state->shader)
+  if (shader_state->shader_source)
     return;
 
   /* If we make it here then we have a shader_state struct without a gl_shader
@@ -315,7 +316,7 @@ _cogl_pipeline_vertend_vulkan_start (CoglPipeline *pipeline,
 
   if (cogl_pipeline_get_per_vertex_point_size (pipeline))
     g_string_append (shader_state->header,
-                     "attribute float cogl_point_size_in;\n");
+                     "in float cogl_point_size_in;\n");
   else
     {
       /* There is no builtin uniform for the point size on Vulkan so we need
@@ -530,19 +531,20 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       shader_state->header = NULL;
       shader_state->source = NULL;
 
-      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX);
-      _cogl_shader_vulkan_set_source (shader, shader_source->str);
-      g_string_free (shader_source, TRUE);
+      shader_state->shader_source = shader_source;
+      /* shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX); */
+      /* _cogl_shader_vulkan_set_source (shader, shader_source->str); */
+      /* g_string_free (shader_source, TRUE); */
 
 
-      if (!_cogl_shader_vulkan_link (shader))
-        {
-          g_warning ("Vertex shader compilation failed");
-          _cogl_shader_vulkan_free (shader);
-          shader = NULL;
-        }
+      /* if (!_cogl_shader_vulkan_link (shader)) */
+      /*   { */
+      /*     g_warning ("Vertex shader compilation failed"); */
+      /*     _cogl_shader_vulkan_free (shader); */
+      /*     shader = NULL; */
+      /*   } */
 
-      shader_state->shader = shader;
+      /* shader_state->shader = shader; */
 
 /*       g_message ("uniforms: %i", */
 /*                  _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader)); */

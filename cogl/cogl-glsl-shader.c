@@ -233,24 +233,20 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
     g_string_new (NULL),
   };
 
-  g_string_append_printf (builder.uniforms, "#version %i\n\n",
+  g_string_append_printf (builder.uniforms, "#version %i core\n\n",
                           ctx->glsl_version_to_use);
+
+  if (shader_type == COGL_GLSL_SHADER_TYPE_VERTEX)
+    g_string_append (builder.uniforms, _COGL_VULKAN_VERTEX_SHADER_HEADER);
+  else
+    g_string_append (builder.uniforms, _COGL_VULKAN_FRAGMENT_SHADER_HEADER);
 
   g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_BOILERPLATE_BEGIN);
 
   /* Build with standard 140 uniform block. */
-  if (shader_type == COGL_GLSL_SHADER_TYPE_VERTEX)
-    {
-      g_string_append (builder.uniforms, _COGL_VERTEX_VULKAN_SHADER_UNIFORM_BEGIN);
-      g_string_append_len (builder.uniforms, block->str, block->len);
-      g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_UNIFORM_END);
-    }
-  else if (block->len > 0)
-    {
-      g_string_append (builder.uniforms, _COGL_FRAGMENT_VULKAN_SHADER_UNIFORM_BEGIN);
-      g_string_append_len (builder.uniforms, block->str, block->len);
-      g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_UNIFORM_END);
-    }
+  g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_UNIFORM_BEGIN);
+  g_string_append_len (builder.uniforms, block->str, block->len);
+  g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_UNIFORM_END);
 
   /* Then add the layers (some uniforms, some attributes). */
   n_layers = cogl_pipeline_get_n_layers (pipeline);

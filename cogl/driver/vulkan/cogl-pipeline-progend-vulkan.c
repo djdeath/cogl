@@ -61,11 +61,11 @@
    state that we use */
 
 typedef void (* UpdateUniformFunc) (CoglPipeline *pipeline,
-                                    int uniform_location,
+                                    CoglShaderVulkanUniform *location,
                                     void *getter_func);
 
 static void update_float_uniform (CoglPipeline *pipeline,
-                                  int uniform_location,
+                                  CoglShaderVulkanUniform *location,
                                   void *getter_func);
 
 typedef struct
@@ -99,37 +99,34 @@ typedef struct _UnitState
   unsigned int dirty_combine_constant:1;
   unsigned int dirty_texture_matrix:1;
 
-  GLint combine_constant_uniform;
+  CoglShaderVulkanUniform *combine_constant_uniform;
 
-  GLint texture_matrix_uniform;
+  CoglShaderVulkanUniform *texture_matrix_uniform;
 } UnitState;
 
 typedef struct
 {
   unsigned int ref_count;
 
-  CoglBuffer *vertex_uniform_buffer;
-  CoglBuffer *fragment_uniform_buffer;
+  CoglBuffer *uniform_buffer;
 
   VkPipelineLayout pipeline_layout;
 
   VkDescriptorPool descriptor_pool;
   VkDescriptorSet descriptor_set;
 
-  /* Not owned, no need to destroy */
-  CoglShaderVulkan *vertex_shader;
-  CoglShaderVulkan *fragment_shader;
+  CoglShaderVulkan *shader;
 
   VkPipelineShaderStageCreateInfo stage_info[2];
 
   void *uniform_data;
 
   unsigned long dirty_builtin_uniforms;
-  GLint builtin_uniform_locations[G_N_ELEMENTS (builtin_uniforms)];
+  CoglShaderVulkanUniform *builtin_uniform_locations[G_N_ELEMENTS (builtin_uniforms)];
 
-  GLint modelview_uniform;
-  GLint projection_uniform;
-  GLint mvp_uniform;
+  CoglShaderVulkanUniform *modelview_uniform;
+  CoglShaderVulkanUniform *projection_uniform;
+  CoglShaderVulkanUniform *mvp_uniform;
 
   CoglMatrixEntryCache projection_cache;
   CoglMatrixEntryCache modelview_cache;
@@ -147,7 +144,7 @@ typedef struct
      the framebuffer requires it only when there are vertex
      snippets. Otherwise this is acheived using the projection
      matrix */
-  GLint flip_uniform;
+  CoglShaderVulkanUniform *flip_uniform;
   int flushed_flip_state;
 
   UnitState *unit_state;
@@ -240,8 +237,7 @@ destroy_program_state (void *user_data,
       _cogl_matrix_entry_cache_destroy (&program_state->projection_cache);
       _cogl_matrix_entry_cache_destroy (&program_state->modelview_cache);
 
-      _destroy_uniform_buffer (program_state->vertex_uniform_buffer);
-      _destroy_uniform_buffer (program_state->fragment_uniform_buffer);
+      _destroy_uniform_buffer (program_state->uniform_buffer);
 
       if (program_state->descriptor_set != VK_NULL_HANDLE)
         vkFreeDescriptorSets (vk_ctx->device,
@@ -261,6 +257,9 @@ destroy_program_state (void *user_data,
 
       if (program_state->uniform_locations)
         g_array_free (program_state->uniform_locations, TRUE);
+
+      if (program_state->shader)
+        _cogl_shader_vulkan_free (program_state->shader);
 
       g_slice_free (CoglPipelineProgramState, program_state);
     }
@@ -296,39 +295,35 @@ dirty_program_state (CoglPipeline *pipeline)
                              NULL);
 }
 
-static int
+static CoglShaderVulkanUniform *
 get_program_state_uniform_location (CoglPipelineProgramState *program_state,
                                     const char *name)
 {
-  int location =
-    _cogl_shader_vulkan_get_uniform_index (program_state->vertex_shader, name);
-  COGL_NOTE (VULKAN, "Uniform index for '%s' = %i" , name, location);
-  return location;
+  return _cogl_shader_vulkan_get_uniform (program_state->shader,
+                                          COGL_GLSL_SHADER_TYPE_VERTEX,
+                                          name);
 }
 
 static void
 set_program_state_uniform (CoglPipelineProgramState *program_state,
-                           int location,
+                           CoglShaderVulkanUniform *location,
                            const void *data,
                            size_t size)
 {
-  int offset;
-
-  g_assert (program_state->vertex_shader && program_state->fragment_shader);
+  g_assert (program_state->shader);
 
   if (G_UNLIKELY (!program_state->uniform_data))
     {
       int buffer_size =
-        _cogl_shader_vulkan_get_uniform_block_size (program_state->vertex_shader, 0);
+        _cogl_shader_vulkan_get_uniform_block_size (program_state->shader,
+                                                    COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                    0);
       program_state->uniform_data = g_malloc (buffer_size);
     }
 
-  offset = _cogl_shader_vulkan_get_uniform_buffer_offset (program_state->vertex_shader,
-                                                          location);
-  g_assert (offset >= 0);
-  COGL_NOTE (VULKAN, "Uniform offset for location %i = %i" , location, offset);
+  COGL_NOTE (VULKAN, "Uniform offset %s = %i" , location->name, location->offset);
 
-  memcpy (program_state->uniform_data + offset, data, size);
+  memcpy (program_state->uniform_data + location->offset, data, size);
 }
 
 #define set_program_state_uniform1i(program_state, location, data)      \
@@ -366,35 +361,12 @@ _cogl_pipeline_progend_get_vulkan_stage_info (CoglPipeline *pipeline)
   return program_state->stage_info;
 }
 
-static void
-link_program (GLint gl_program)
+CoglShaderVulkan *
+_cogl_pipeline_progend_get_vulkan_shader (CoglPipeline *pipeline)
 {
-  GLint link_status;
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
 
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-
-  GE( ctx, glLinkProgram (gl_program) );
-
-  GE( ctx, glGetProgramiv (gl_program, GL_LINK_STATUS, &link_status) );
-
-  if (!link_status)
-    {
-      GLint log_length;
-      GLsizei out_log_length;
-      char *log;
-
-      GE( ctx, glGetProgramiv (gl_program, GL_INFO_LOG_LENGTH, &log_length) );
-
-      log = g_malloc (log_length);
-
-      GE( ctx, glGetProgramInfoLog (gl_program, log_length,
-                                    &out_log_length, log) );
-
-      g_warning ("Failed to link VULKAN program:\n%.*s\n",
-                 log_length, log);
-
-      g_free (log);
-    }
+  return program_state->shader;
 }
 
 typedef struct
@@ -412,7 +384,7 @@ get_uniform_cb (CoglPipeline *pipeline,
   UpdateUniformsState *state = user_data;
   CoglPipelineProgramState *program_state = state->program_state;
   UnitState *unit_state = &program_state->unit_state[state->unit];
-  GLint uniform_location;
+  CoglShaderVulkanUniform *uniform_location;
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
@@ -430,7 +402,7 @@ get_uniform_cb (CoglPipeline *pipeline,
      unit index not the texture object number so it will never
      change. Unfortunately GL won't let us use a constant instead of a
      uniform */
-  if (uniform_location != -1)
+  if (uniform_location != NULL)
     set_program_state_uniform1i (program_state, uniform_location, state->unit);
 
   g_string_set_size (ctx->codegen_source_buffer, 0);
@@ -465,7 +437,7 @@ update_constants_cb (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  if (unit_state->combine_constant_uniform != -1 &&
+  if (unit_state->combine_constant_uniform != NULL &&
       (state->update_all || unit_state->dirty_combine_constant))
     {
       float constant[4];
@@ -478,7 +450,7 @@ update_constants_cb (CoglPipeline *pipeline,
       unit_state->dirty_combine_constant = FALSE;
     }
 
-  if (unit_state->texture_matrix_uniform != -1 &&
+  if (unit_state->texture_matrix_uniform != NULL &&
       (state->update_all || unit_state->dirty_texture_matrix))
     {
       const CoglMatrix *matrix;
@@ -509,7 +481,7 @@ update_builtin_uniforms (CoglContext *context,
     if (!_cogl_has_private_feature (context,
                                     builtin_uniforms[i].feature_replacement) &&
         (program_state->dirty_builtin_uniforms & (1 << i)) &&
-        program_state->builtin_uniform_locations[i] != -1)
+        program_state->builtin_uniform_locations[i] != NULL)
       builtin_uniforms[i].update_func (pipeline,
                                        program_state
                                        ->builtin_uniform_locations[i],
@@ -536,11 +508,11 @@ flush_uniform_cb (int uniform_num, void *user_data)
   if (COGL_FLAGS_GET (data->uniform_differences, uniform_num))
     {
       GArray *uniform_locations;
-      GLint uniform_location;
+      CoglShaderVulkanUniform *uniform_location;
 
       if (data->program_state->uniform_locations == NULL)
         data->program_state->uniform_locations =
-          g_array_new (FALSE, FALSE, sizeof (GLint));
+          g_array_new (FALSE, FALSE, sizeof (CoglShaderVulkanUniform *));
 
       uniform_locations = data->program_state->uniform_locations;
 
@@ -552,26 +524,30 @@ flush_uniform_cb (int uniform_num, void *user_data)
 
           while (old_len <= uniform_num)
             {
-              g_array_index (uniform_locations, GLint, old_len) =
-                UNIFORM_LOCATION_UNKNOWN;
+              g_array_index (uniform_locations,
+                             CoglShaderVulkanUniform*,
+                             old_len) = NULL;
               old_len++;
             }
         }
 
-      uniform_location = g_array_index (uniform_locations, GLint, uniform_num);
+      uniform_location = g_array_index (uniform_locations,
+                                        CoglShaderVulkanUniform *,
+                                        uniform_num);
 
-      if (uniform_location == UNIFORM_LOCATION_UNKNOWN)
+      if (uniform_location == NULL)
         {
           const char *uniform_name =
             g_ptr_array_index (data->ctx->uniform_names, uniform_num);
 
           uniform_location =
             get_program_state_uniform_location (data->program_state, uniform_name);
-          g_array_index (uniform_locations, GLint, uniform_num) =
-            uniform_location;
+          g_array_index (uniform_locations,
+                         CoglShaderVulkanUniform *,
+                         uniform_num) = uniform_location;
         }
 
-      if (uniform_location != -1)
+      if (uniform_location != NULL)
         _cogl_boxed_value_set_uniform (data->ctx,
                                        uniform_location,
                                        data->values + data->value_index);
@@ -756,37 +732,47 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         set_program_state (pipeline, program_state);
     }
 
-  /* Allocate uniform buffers for vertex & fragment shaders. */
-  if (program_state->vertex_uniform_buffer == NULL)
+  if (program_state->shader == NULL)
     {
-      int vertex_block_size, fragment_block_size = 0;
+      GString *source;
 
-      program_state->vertex_shader =
-        _cogl_pipeline_vertend_vulkan_get_shader (pipeline);
-      program_state->fragment_shader =
-        _cogl_pipeline_fragend_vulkan_get_shader (pipeline);
+      program_state->shader = _cogl_shader_vulkan_new (ctx);
 
-      vertex_block_size =
-        _cogl_shader_vulkan_get_uniform_block_size (program_state->vertex_shader, 0);
+      source = _cogl_pipeline_vertend_vulkan_get_shader (pipeline);
+      _cogl_shader_vulkan_set_source (program_state->shader,
+                                      COGL_GLSL_SHADER_TYPE_VERTEX,
+                                      source->str);
 
-      if (_cogl_shader_vulkan_get_num_live_uniform_blocks (program_state->fragment_shader) > 0)
+      source = _cogl_pipeline_fragend_vulkan_get_shader (pipeline);
+      _cogl_shader_vulkan_set_source (program_state->shader,
+                                      COGL_GLSL_SHADER_TYPE_FRAGMENT,
+                                      source->str);
+
+      if (!_cogl_shader_vulkan_link (program_state->shader))
         {
-          fragment_block_size =
-            _cogl_shader_vulkan_get_uniform_block_size (program_state->fragment_shader, 0);
+          g_warning ("Vertex shader compilation failed");
+          _cogl_shader_vulkan_free (program_state->shader);
+          program_state->shader = NULL;
         }
+    }
 
-      program_state->vertex_uniform_buffer =
-        _create_uniform_buffer (ctx, vertex_block_size);
-      if (fragment_block_size >= 0)
-        {
-          program_state->fragment_uniform_buffer =
-            _create_uniform_buffer (ctx, fragment_block_size);
-        }
+  /* Allocate uniform buffers for vertex & fragment shaders. */
+  if (program_state->uniform_buffer == NULL)
+    {
+      int block_size;
+
+      block_size =
+        _cogl_shader_vulkan_get_uniform_block_size (program_state->shader,
+                                                    COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                    0);
+
+      program_state->uniform_buffer =
+        _create_uniform_buffer (ctx, block_size);
     }
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
     {
-      int nb_buffers = /* program_state->fragment_uniform_buffer != NULL ? 2 : 1; */1;
+      int nb_buffers = /* program_state->uniform_buffer != NULL ? 2 : 1; */1;
 
       result = vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -795,7 +781,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
             {
               .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               .descriptorCount = 1,
-              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
               .pImmutableSamplers = NULL
             }/* , */
             /* { */
@@ -823,37 +809,30 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         g_warning ("Cannot create pipeline layout (%d): %s",
                    result, _cogl_vulkan_error_to_string (result));
 
+      memset(program_state->stage_info, 0, sizeof(program_state->stage_info));
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = NULL,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = _cogl_shader_vulkan_get_shader_module (program_state->vertex_shader),
+        .module = _cogl_shader_vulkan_get_shader_module (program_state->shader,
+                                                         COGL_GLSL_SHADER_TYPE_VERTEX),
         .pName = "main",
       };
       program_state->stage_info[1] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = NULL,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = _cogl_shader_vulkan_get_shader_module (program_state->fragment_shader),
+        .module = _cogl_shader_vulkan_get_shader_module (program_state->shader,
+                                                         COGL_GLSL_SHADER_TYPE_FRAGMENT),
         .pName = "main",
       };
-
-      /* Attach any shaders from the VULKAN backends */
-
-
-      /* /\* XXX: OpenGL as a special case requires the vertex position to */
-      /*  * be bound to generic attribute 0 so for simplicity we */
-      /*  * unconditionally bind the cogl_position_in attribute here... */
-      /*  *\/ */
-      /* GE( ctx, glBindAttribLocation (program_state->program, */
-      /*                                0, "cogl_position_in")); */
-
-      /* link_program (program_state->program); */
 
       program_changed = TRUE;
     }
 
   if (program_state->descriptor_set == VK_NULL_HANDLE)
     {
-      CoglBuffer *buf = program_state->vertex_uniform_buffer;
+      CoglBuffer *buf = program_state->uniform_buffer;
       CoglBufferVulkan *vk_buf = buf->winsys;
       const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -1074,7 +1053,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                                            projection_entry,
                                            (needs_flip &&
                                             program_state->flip_uniform ==
-                                            -1));
+                                            NULL));
 
   modelview_changed =
     _cogl_matrix_entry_cache_maybe_update (&program_state->modelview_cache,
@@ -1084,13 +1063,13 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
   if (modelview_changed || projection_changed)
     {
-      if (program_state->mvp_uniform != -1)
+      if (program_state->mvp_uniform != NULL)
         need_modelview = need_projection = TRUE;
       else
         {
-          need_projection = (program_state->projection_uniform != -1 &&
+          need_projection = (program_state->projection_uniform != NULL &&
                              projection_changed);
-          need_modelview = (program_state->modelview_uniform != -1 &&
+          need_modelview = (program_state->modelview_uniform != NULL &&
                             modelview_changed);
         }
 
@@ -1098,7 +1077,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
         cogl_matrix_entry_get (modelview_entry, &modelview);
       if (need_projection)
         {
-          if (needs_flip && program_state->flip_uniform == -1)
+          if (needs_flip && program_state->flip_uniform == NULL)
             {
               CoglMatrix tmp_matrix;
               cogl_matrix_entry_get (projection_entry, &tmp_matrix);
@@ -1110,19 +1089,19 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
             cogl_matrix_entry_get (projection_entry, &projection);
         }
 
-      if (projection_changed && program_state->projection_uniform != -1)
+      if (projection_changed && program_state->projection_uniform != NULL)
         set_program_state_uniform_matrix4fv (program_state,
                                              program_state->projection_uniform,
                                              1, /* count */
                                              cogl_matrix_get_array (&projection));
 
-      if (modelview_changed && program_state->modelview_uniform != -1)
+      if (modelview_changed && program_state->modelview_uniform != NULL)
         set_program_state_uniform_matrix4fv (program_state,
                                              program_state->modelview_uniform,
                                              1, /* count */
                                              cogl_matrix_get_array (&modelview));
 
-      if (program_state->mvp_uniform != -1)
+      if (program_state->mvp_uniform != NULL)
         {
           /* The journal usually uses an identity matrix for the
              modelview so we can optimise this common case by
@@ -1150,7 +1129,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
         }
     }
 
-  if (program_state->flip_uniform != -1
+  if (program_state->flip_uniform != NULL
       && program_state->flushed_flip_state != needs_flip)
     {
       static const float do_flip[4] = { 1.0f, -1.0f, 1.0f, 1.0f };
@@ -1165,7 +1144,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
 static void
 update_float_uniform (CoglPipeline *pipeline,
-                      int uniform_location,
+                      CoglShaderVulkanUniform *location,
                       void *getter_func)
 {
 
@@ -1176,7 +1155,7 @@ update_float_uniform (CoglPipeline *pipeline,
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   value = float_getter_func (pipeline);
-  set_program_state_uniform1f (program_state, uniform_location, value);
+  set_program_state_uniform1f (program_state, location, value);
 }
 
 const CoglPipelineProgend _cogl_pipeline_vulkan_progend =

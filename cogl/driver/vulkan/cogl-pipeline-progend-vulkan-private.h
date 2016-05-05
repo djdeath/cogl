@@ -34,6 +34,7 @@
 #include "cogl-gl-header.h"
 #include "cogl-pipeline-private.h"
 #include "cogl-attribute-private.h"
+#include "cogl-shader-vulkan-private.h"
 
 extern const CoglPipelineProgend _cogl_pipeline_vulkan_progend;
 
@@ -45,5 +46,8 @@ _cogl_pipeline_progend_get_vulkan_pipeline_layout (CoglPipeline *pipeline);
 
 VkPipelineShaderStageCreateInfo *
 _cogl_pipeline_progend_get_vulkan_stage_info (CoglPipeline *pipeline);
+
+CoglShaderVulkan *
+_cogl_pipeline_progend_get_vulkan_shader (CoglPipeline *pipeline);
 
 #endif /* __COGL_PIPELINE_PROGEND_VULKAN_PRIVATE_H */

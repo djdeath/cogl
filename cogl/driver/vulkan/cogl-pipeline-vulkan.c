@@ -61,8 +61,8 @@ typedef struct _CoglPipelineVulkan
   VkSampler *samplers;
   int n_samplers;
 
-  /* Not owned */
-  VkBuffer attribute_buffer;
+  VkBuffer *attribute_buffers; /* Content of array not owned */
+  VkDeviceSize *attribute_offsets;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -73,11 +73,48 @@ get_vk_pipeline (CoglPipeline *pipeline)
   return cogl_object_get_user_data (COGL_OBJECT (pipeline), &vk_pipeline_key);
 }
 
+static void
+_cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
+{
+  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  if (!vk_pipeline)
+    return;
+
+  if (vk_pipeline->pipeline != VK_NULL_HANDLE)
+    {
+      vkDestroyPipeline (vk_ctx->device, vk_pipeline->pipeline, NULL);
+      vk_pipeline->pipeline = VK_NULL_HANDLE;
+    }
+
+  if (vk_pipeline->attribute_buffers)
+    {
+      g_free (vk_pipeline->attribute_buffers);
+      vk_pipeline->attribute_buffers = NULL;
+    }
+
+  if (vk_pipeline->attribute_offsets)
+    {
+      g_free (vk_pipeline->attribute_offsets);
+      vk_pipeline->attribute_offsets = NULL;
+    }
+
+  if (vk_pipeline->vertex_inputs)
+    {
+      g_free (vk_pipeline->vertex_inputs);
+      vk_pipeline->vertex_inputs = NULL;
+      vk_pipeline->n_vertex_inputs = 0;
+    }
+}
+
 void
 vk_pipeline_destroy (void *user_data,
                      void *instance)
 {
   CoglPipelineVulkan *vk_pipeline = user_data;
+
+  _cogl_pipeline_vulkan_invalidate_internal (instance);
 
   g_slice_free (CoglPipelineVulkan, vk_pipeline);
 }
@@ -100,24 +137,7 @@ vk_pipeline_new (CoglPipeline *pipeline)
 void
 _cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline)
 {
-  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-
-  if (!vk_pipeline)
-    return;
-
-  if (vk_pipeline->pipeline != VK_NULL_HANDLE)
-    {
-      vkDestroyPipeline (vk_ctx->device, vk_pipeline->pipeline, NULL);
-      vk_pipeline->pipeline = VK_NULL_HANDLE;
-    }
-
-  if (vk_pipeline->vertex_inputs)
-    {
-      g_free (vk_pipeline->vertex_inputs);
-      vk_pipeline->vertex_inputs = NULL;
-      vk_pipeline->n_vertex_inputs = 0;
-    }
+  _cogl_pipeline_vulkan_invalidate_internal (pipeline);
 }
 
 void
@@ -205,8 +225,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
 {
   int i;
   VkPipelineVertexInputStateCreateInfo *info;
-  CoglShaderVulkan *vertex_shader =
-    _cogl_pipeline_vertend_vulkan_get_shader (pipeline);
+  CoglShaderVulkan *shader =
+    _cogl_pipeline_progend_get_vulkan_shader (pipeline);
   void *ptr =
     g_malloc0 (sizeof (VkPipelineVertexInputStateCreateInfo) +
                n_attributes * sizeof (VkVertexInputBindingDescription) +
@@ -226,7 +246,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
   if (vk_pipeline->n_vertex_inputs != n_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
-  vk_pipeline->attribute_buffer = VK_NULL_HANDLE;
+  vk_pipeline->attribute_buffers = g_malloc (sizeof (VkBuffer) * n_attributes);//VK_NULL_HANDLE;
+  vk_pipeline->attribute_offsets = g_malloc (sizeof (VkDeviceSize) * n_attributes);
 
   for (i = 0; i < n_attributes; i++)
     {
@@ -242,18 +263,29 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
           VkVertexInputAttributeDescription *vertex_desc =
             (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
 
-          vertex_bind->binding = 0;
+          vertex_bind->binding = i;
           vertex_bind->stride = attribute->d.buffered.stride;
           vertex_bind->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
           vertex_desc->location =
-            _cogl_shader_vulkan_get_input_attribute_location (vertex_shader,
+            _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                              COGL_GLSL_SHADER_TYPE_VERTEX,
                                                               attribute->name_state->name);
-          vertex_desc->binding = 0;
-          vertex_desc->offset = attribute->d.buffered.offset;
+          vertex_desc->binding = i;
+          vertex_desc->offset = 0;
           vertex_desc->format =
             _cogl_attribute_type_to_vulkan_format (attribute->d.buffered.type,
                                                    attribute->d.buffered.n_components);
+
+          if (vertex_desc->format == VK_FORMAT_R8G8B8A8_UINT)
+            vertex_desc->format = VK_FORMAT_R32G32B32A32_SFLOAT;
+
+          COGL_NOTE (VULKAN, "Attribute '%s' location=%i offset=%i stride=%i n_components=%i",
+                     attribute->name_state->name,
+                     vertex_desc->location,
+                     attribute->d.buffered.offset,
+                     attribute->d.buffered.stride,
+                     attribute->d.buffered.n_components);
 
           if (vk_pipeline->vertex_inputs &&
               (memcmp (&vk_pipeline->vertex_inputs->pVertexBindingDescriptions[i],
@@ -264,12 +296,14 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                        sizeof (VkVertexInputAttributeDescription))))
             _cogl_pipeline_vulkan_invalidate (pipeline);
 
-          if (vk_pipeline->attribute_buffer == VK_NULL_HANDLE)
-            vk_pipeline->attribute_buffer = vk_buf->buffer;
+          /* if (vk_pipeline->attribute_buffer == VK_NULL_HANDLE) */
+          /*   vk_pipeline->attribute_buffer = vk_buf->buffer; */
 
-          /* TODO: We assume all attributes in the same buffer. We could
-             support multiple ones later. */
-          g_assert (vk_pipeline->attribute_buffer == vk_buf->buffer);
+          /* /\* TODO: We assume all attributes in the same buffer. We could */
+          /*    support multiple ones later. *\/ */
+          /* g_assert (vk_pipeline->attribute_buffer == vk_buf->buffer); */
+          vk_pipeline->attribute_buffers[i] = vk_buf->buffer;
+          vk_pipeline->attribute_offsets[i] = attribute->d.buffered.offset;
         }
       else
         {
@@ -323,13 +357,25 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                      .minDepth = 0,
                                      .maxDepth = 1,
                                    },
+                                   .scissorCount = 1,
+                                   .pScissors = &(VkRect2D) {
+                                     .offset = {
+                                       .x = 0,
+                                       .y = 0,
+                                     },
+                                     .extent = {
+                                       .width = framebuffer->width,
+                                       .height = framebuffer->height,
+                                     },
+                                   },
                                  },
                                  .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
                                    .rasterizerDiscardEnable = VK_FALSE,
                                    .polygonMode = VK_POLYGON_MODE_FILL,
                                    .cullMode = VK_CULL_MODE_BACK_BIT,
-                                   .frontFace = VK_FRONT_FACE_CLOCKWISE
+                                   .frontFace = VK_FRONT_FACE_CLOCKWISE,
+                                   .lineWidth = 1.0f,
                                  },
                                  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
                                    .rasterizationSamples = 1,
@@ -447,9 +493,9 @@ done:
   if (progend->pre_paint)
     progend->pre_paint (pipeline, framebuffer);
 
-  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, 1,
-                          (VkBuffer[]) { vk_pipeline->attribute_buffer },
-                          (VkDeviceSize[]) { 0 });
+  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, vk_pipeline->n_vertex_inputs,
+                          vk_pipeline->attribute_buffers,
+                          vk_pipeline->attribute_offsets);
   vkCmdBindPipeline (vk_fb->cmd_buffer,
                      VK_PIPELINE_BIND_POINT_GRAPHICS,
                      vk_pipeline->pipeline);

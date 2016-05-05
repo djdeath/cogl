@@ -41,6 +41,7 @@
 #include <float.h>
 #else
 #include <math.h>
+#include <cmath>
 #endif
 
 namespace {

@@ -213,7 +213,7 @@ spv::StorageClass TranslateStorageClass(const glslang::TType& type)
         case glslang::EvqGlobal:        return spv::StorageClassPrivate;
         case glslang::EvqConstReadOnly: return spv::StorageClassFunction;
         case glslang::EvqTemporary:     return spv::StorageClassFunction;
-        default: 
+        default:
             assert(0);
             return spv::StorageClassFunction;
         }
@@ -517,7 +517,7 @@ spv::ImageFormat TGlslangToSpvTraverser::TranslateImageFormat(const glslang::TTy
     }
 }
 
-// Return whether or not the given type is something that should be tied to a 
+// Return whether or not the given type is something that should be tied to a
 // descriptor set.
 bool IsDescriptorResource(const glslang::TType& type)
 {
@@ -741,7 +741,7 @@ TGlslangToSpvTraverser::~TGlslangToSpvTraverser()
 //
 
 //
-// Symbols can turn into 
+// Symbols can turn into
 //  - uniform/input reads
 //  - output writes
 //  - complex lvalue base setups:  foo.bar[3]....  , where we see foo and start up an access chain
@@ -824,7 +824,7 @@ bool TGlslangToSpvTraverser::visitBinary(glslang::TVisit /* visit */, glslang::T
                 spv::Id leftRValue = accessChainLoad(node->getLeft()->getType());
 
                 // do the operation
-                rValue = createBinaryOperation(node->getOp(), TranslatePrecisionDecoration(node->getType()), 
+                rValue = createBinaryOperation(node->getOp(), TranslatePrecisionDecoration(node->getType()),
                                                convertGlslangToSpvType(node->getType()), leftRValue, rValue,
                                                node->getType().getBasicType());
 
@@ -1039,8 +1039,8 @@ bool TGlslangToSpvTraverser::visitUnary(glslang::TVisit /* visit */, glslang::TI
             else
                 op = glslang::EOpSub;
 
-            spv::Id result = createBinaryOperation(op, TranslatePrecisionDecoration(node->getType()), 
-                                                     convertGlslangToSpvType(node->getType()), operand, one, 
+            spv::Id result = createBinaryOperation(op, TranslatePrecisionDecoration(node->getType()),
+                                                     convertGlslangToSpvType(node->getType()), operand, one,
                                                      node->getType().getBasicType());
             assert(result != spv::NoResult);
 
@@ -1262,7 +1262,7 @@ bool TGlslangToSpvTraverser::visitAggregate(glslang::TVisit visit, glslang::TInt
         break;
     }
     case glslang::EOpMul:
-        // compontent-wise matrix multiply      
+        // compontent-wise matrix multiply
         binOp = glslang::EOpMul;
         break;
     case glslang::EOpOuterProduct:
@@ -1271,7 +1271,7 @@ bool TGlslangToSpvTraverser::visitAggregate(glslang::TVisit visit, glslang::TInt
         break;
     case glslang::EOpDot:
     {
-        // for scalar dot product, use multiply        
+        // for scalar dot product, use multiply
         glslang::TIntermSequence& glslangOperands = node->getSequence();
         if (! glslangOperands[0]->getAsTyped()->isVector())
             binOp = glslang::EOpMul;
@@ -1326,8 +1326,8 @@ bool TGlslangToSpvTraverser::visitAggregate(glslang::TVisit visit, glslang::TInt
         right->traverse(this);
         spv::Id rightId = accessChainLoad(right->getType());
 
-        result = createBinaryOperation(binOp, precision, 
-                                       convertGlslangToSpvType(node->getType()), leftId, rightId, 
+        result = createBinaryOperation(binOp, precision,
+                                       convertGlslangToSpvType(node->getType()), leftId, rightId,
                                        left->getType().getBasicType(), reduceComparison);
 
         // code above should only make binOp that exists in createBinaryOperation
@@ -1491,7 +1491,7 @@ bool TGlslangToSpvTraverser::visitSwitch(glslang::TVisit /* visit */, glslang::T
             codeSegments.push_back(child);
     }
 
-    // handle the case where the last code segment is missing, due to no code 
+    // handle the case where the last code segment is missing, due to no code
     // statements between the last case and the end of the switch statement
     if ((caseValues.size() && (int)codeSegments.size() == valueIndexToSegment[caseValues.size() - 1]) ||
         (int)codeSegments.size() == defaultSegment)
@@ -1626,7 +1626,7 @@ bool TGlslangToSpvTraverser::visitBranch(glslang::TVisit /* visit */, glslang::T
 
 spv::Id TGlslangToSpvTraverser::createSpvVariable(const glslang::TIntermSymbol* node)
 {
-    // First, steer off constants, which are not SPIR-V variables, but 
+    // First, steer off constants, which are not SPIR-V variables, but
     // can still have a mapping to a SPIR-V Id.
     // This includes specialization constants.
     if (node->getQualifier().isConstant()) {
@@ -1922,7 +1922,7 @@ spv::Id TGlslangToSpvTraverser::makeArraySizeId(const glslang::TArraySizes& arra
         specNode->traverse(this);
         return accessChainLoad(specNode->getAsTyped()->getType());
     }
-    
+
     // Otherwise, need a compile-time (front end) size, get it:
     int size = arraySizes.getDimSize(dim);
     assert(size > 0);
@@ -2069,7 +2069,7 @@ void TGlslangToSpvTraverser::updateMemberOffset(const glslang::TType& /*structTy
     // Getting this far means we need explicit offsets
     if (currentOffset < 0)
         currentOffset = 0;
-    
+
     // Now, currentOffset is valid (either 0, or from a previous nextOffset),
     // but possibly not yet correctly aligned.
 
@@ -2097,7 +2097,7 @@ void TGlslangToSpvTraverser::makeFunctions(const glslang::TIntermSequence& glslF
         // so that it's available to call.
         // Translating the body will happen later.
         //
-        // Typically (except for a "const in" parameter), an address will be passed to the 
+        // Typically (except for a "const in" parameter), an address will be passed to the
         // function.  What it is an address of varies:
         //
         // - "in" parameters not marked as "const" can be written to without modifying the argument,
@@ -2167,7 +2167,7 @@ void TGlslangToSpvTraverser::visitFunctions(const glslang::TIntermSequence& glsl
 
 void TGlslangToSpvTraverser::handleFunctionEntry(const glslang::TIntermAggregate* node)
 {
-    // SPIR-V functions should already be in the functionMap from the prepass 
+    // SPIR-V functions should already be in the functionMap from the prepass
     // that called makeFunctions().
     spv::Function* function = functionMap[node->getName().c_str()];
     spv::Block* functionBlock = function->getEntryBlock();
@@ -2581,7 +2581,7 @@ spv::Id TGlslangToSpvTraverser::handleUserFunctionCall(const glslang::TIntermAgg
 }
 
 // Translate AST operation to SPV operation, already having SPV-based operands/types.
-spv::Id TGlslangToSpvTraverser::createBinaryOperation(glslang::TOperator op, spv::Decoration precision, 
+spv::Id TGlslangToSpvTraverser::createBinaryOperation(glslang::TOperator op, spv::Decoration precision,
                                                       spv::Id typeId, spv::Id left, spv::Id right,
                                                       glslang::TBasicType typeProxy, bool reduceComparison)
 {
@@ -3632,6 +3632,12 @@ spv::Id TGlslangToSpvTraverser::getSymbolId(const glslang::TIntermSymbol* symbol
     id = createSpvVariable(symbol);
     symbolValues[symbol->getId()] = id;
 
+    std::cout << "TGlslangToSpvTraverser::getSymbolId"
+              << " name=" << symbol->getName()
+              << " location=" << symbol->getQualifier().layoutLocation
+              << " symbol=" << symbol
+              << std::endl;
+
     if (! symbol->getType().isStruct()) {
         addDecoration(id, TranslatePrecisionDecoration(symbol->getType()));
         addDecoration(id, TranslateInterpolationDecoration(symbol->getType().getQualifier()));
@@ -3880,7 +3886,7 @@ bool TGlslangToSpvTraverser::isTrivialLeaf(const glslang::TIntermTyped* node)
     default:
         return false;
     }
-} 
+}
 
 // A node is trivial if it is a single operation with no side effects.
 // Error on the side of saying non-trivial.

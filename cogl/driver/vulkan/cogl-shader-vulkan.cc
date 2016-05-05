@@ -44,6 +44,7 @@ extern "C" {
 #include "glslang/InitializeDll.h"
 #include "glslang/glslang/Public/ShaderLang.h"
 #include "glslang/glslang/MachineIndependent/gl_types.h"
+#include "glslang/glslang/MachineIndependent/localintermediate.h"
 
 #include "GlslangToSpv.h"
 #include "disassemble.h"
@@ -55,12 +56,56 @@ struct _CoglShaderVulkan
 {
   CoglContext *context;
 
-  CoglGlslShaderType type;
-
   glslang::TProgram *program;
 
-  VkShaderModule vk_module;
+  GHashTable *inputs[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+  GHashTable *outputs[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+
+  GHashTable *uniforms[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+
+  GHashTable *bindings[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+
+  int block_size;
 };
+
+static CoglShaderVulkanAttribute *
+_cogl_shader_vulkan_attribute_new (const char *name)
+{
+  CoglShaderVulkanAttribute *attribute =
+    g_slice_new0 (CoglShaderVulkanAttribute);
+
+  attribute->name = g_strdup (name);
+
+  return attribute;
+}
+
+static void
+_cogl_shader_vulkan_attribute_free (CoglShaderVulkanAttribute *attribute)
+{
+  if (attribute->name)
+    g_free (attribute->name);
+  g_slice_free (CoglShaderVulkanAttribute, attribute);
+}
+
+static CoglShaderVulkanUniform *
+_cogl_shader_vulkan_uniform_new (const char *name, int offset)
+{
+  CoglShaderVulkanUniform *uniform =
+    g_slice_new0 (CoglShaderVulkanUniform);
+
+  uniform->name = g_strdup (name);
+  uniform->offset = offset;
+
+  return uniform;
+}
+
+static void
+_cogl_shader_vulkan_uniform_free (CoglShaderVulkanUniform *uniform)
+{
+  if (uniform->name)
+    g_free (uniform->name);
+  g_slice_free (CoglShaderVulkanUniform, uniform);
+}
 
 static EShLanguage
 _cogl_glsl_shader_type_to_es_language (CoglGlslShaderType type)
@@ -186,40 +231,68 @@ const TBuiltInResource kDefaultTBuiltInResource = {
 };
 
 extern "C" void
-_cogl_shader_vulkan_free (CoglShaderVulkan *desc)
+_cogl_shader_vulkan_free (CoglShaderVulkan *shader)
 {
-  CoglContextVulkan *vk_ctx = (CoglContextVulkan *) desc->context->winsys;
+  CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
 
-  if (desc->vk_module)
-    vkDestroyShaderModule (vk_ctx->device, desc->vk_module, NULL);
-  delete desc->program;
-  g_slice_free (CoglShaderVulkan, desc);
+  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
+       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
+       stage++) {
+    g_hash_table_unref (shader->inputs[stage]);
+    g_hash_table_unref (shader->outputs[stage]);
+    g_hash_table_unref (shader->uniforms[stage]);
+    // g_hash_table_unref (shader->bindings[stage]);
+  }
+
+  delete shader->program;
+  g_slice_free (CoglShaderVulkan, shader);
 }
 
 extern "C" CoglShaderVulkan *
-_cogl_shader_vulkan_new (CoglContext *context, CoglGlslShaderType type)
+_cogl_shader_vulkan_new (CoglContext *context)
 {
-  CoglShaderVulkan *desc = g_slice_new0 (CoglShaderVulkan);
+  CoglShaderVulkan *shader = g_slice_new0 (CoglShaderVulkan);
 
   glslang::InitializeProcess ();
 
-  desc->context = context;
-  desc->type = type;
-  desc->program = new glslang::TProgram();
+  shader->context = context;
+  shader->program = new glslang::TProgram();
 
-  return desc;
+  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
+       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
+       stage++) {
+    shader->inputs[stage] = g_hash_table_new_full (g_str_hash,
+                                                   g_str_equal,
+                                                   NULL,
+                                                   (GDestroyNotify) _cogl_shader_vulkan_attribute_free);
+    shader->outputs[stage] = g_hash_table_new_full (g_str_hash,
+                                                    g_str_equal,
+                                                    NULL,
+                                                    (GDestroyNotify) _cogl_shader_vulkan_attribute_free);
+    shader->uniforms[stage] = g_hash_table_new_full (g_str_hash,
+                                                     g_str_equal,
+                                                     NULL,
+                                                     (GDestroyNotify) _cogl_shader_vulkan_uniform_free);
+    // shader->bindings[stage] = g_hash_table_new_full (g_str_hash,
+    //                                                  g_str_equal,
+    //                                                  NULL,
+    //                                                  (GDestroyNotify) _cogl_shader_vulkan_binding_free);
+  }
+
+  return shader;
 }
 
 extern "C" void
 _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
+                                CoglGlslShaderType type,
                                 const char *string)
 {
   glslang::TShader *gl_shader =
-    new glslang::TShader (_cogl_glsl_shader_type_to_es_language (shader->type));
+    new glslang::TShader (_cogl_glsl_shader_type_to_es_language (type));
 
   gl_shader->setStrings(&string, 1);
   bool success = gl_shader->parse(&kDefaultTBuiltInResource,
-                                  450,
+                                  420,
                                   ENoProfile,
                                   false,
                                   false,
@@ -235,51 +308,285 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
   shader->program->addShader (gl_shader);
 }
 
+static void
+_cogl_shader_vulkan_add_vertex_input (CoglShaderVulkan *shader,
+                                      CoglGlslShaderType stage,
+                                      glslang::TIntermSymbol* symbol)
+{
+  CoglShaderVulkanAttribute *attribute =
+    _cogl_shader_vulkan_attribute_new (symbol->getName().c_str());
+
+  if (stage > COGL_GLSL_SHADER_TYPE_VERTEX) {
+    CoglShaderVulkanAttribute *previous = (CoglShaderVulkanAttribute *)
+      g_hash_table_lookup (shader->outputs[stage - 1], attribute->name);
+    if (previous)
+      symbol->getQualifier().layoutLocation = previous->location;
+  } else {
+    symbol->getQualifier().layoutLocation =
+      g_hash_table_size (shader->inputs[stage]);
+  }
+
+  attribute->location = symbol->getQualifier().layoutLocation;
+
+  g_hash_table_insert (shader->inputs[stage], attribute->name, attribute);
+}
+
+static void
+_cogl_shader_vulkan_add_vertex_output (CoglShaderVulkan *shader,
+                                       CoglGlslShaderType stage,
+                                       glslang::TIntermSymbol* symbol)
+{
+  CoglShaderVulkanAttribute *attribute =
+    _cogl_shader_vulkan_attribute_new (symbol->getName().c_str());
+
+  attribute->location =
+    symbol->getQualifier().layoutLocation =
+    g_hash_table_size (shader->outputs[stage]);
+
+  g_hash_table_insert (shader->outputs[stage], attribute->name, attribute);
+}
+
+static void
+_cogl_shader_vulkan_add_sampler (CoglShaderVulkan *shader,
+                                 CoglGlslShaderType stage,
+                                 glslang::TIntermSymbol* symbol)
+{
+  // VK_TODO();
+}
+
+static void
+_cogl_shader_vulkan_add_uniform (CoglShaderVulkan *shader,
+                                 CoglGlslShaderType stage,
+                                 const char *name,
+                                 int offset)
+{
+  CoglShaderVulkanUniform *uniform =
+    _cogl_shader_vulkan_uniform_new (name, offset);
+
+  g_hash_table_insert (shader->uniforms[stage], uniform->name, uniform);
+}
+
+// Lookup or calculate the offset of a block member, using the recursively
+// defined block offset rules.
+static int getOffset(glslang::TIntermediate* intermediate,
+                     const glslang::TType& type,
+                     int index)
+{
+  const glslang::TTypeList& memberList = *type.getStruct();
+
+  // Don't calculate offset if one is present, it could be user supplied and
+  // different than what would be calculated. That is, this is faster, but
+  // not just an optimization.
+  if (memberList[index].type->getQualifier().hasOffset())
+    return memberList[index].type->getQualifier().layoutOffset;
+
+  int memberSize;
+  int dummyStride;
+  int offset = 0;
+  for (int m = 0; m <= index; ++m) {
+    // modify just the children's view of matrix layout, if there is one for
+    // this member
+    glslang::TLayoutMatrix subMatrixLayout =
+      memberList[m].type->getQualifier().layoutMatrix;
+    int memberAlignment =
+      intermediate->getBaseAlignment(*memberList[m].type, memberSize,
+                                     dummyStride,
+                                     type.getQualifier().layoutPacking == glslang::ElpStd140,
+                                     subMatrixLayout != glslang::ElmNone ? subMatrixLayout == glslang::ElmRowMajor : type.getQualifier().layoutMatrix == glslang::ElmRowMajor);
+    glslang::RoundToPow2(offset, memberAlignment);
+    if (m < index)
+      offset += memberSize;
+  }
+
+  return offset;
+}
+
+static void
+_cogl_shader_vulkan_add_block (CoglShaderVulkan *shader,
+                               CoglGlslShaderType stage,
+                               glslang::TIntermSymbol* symbol)
+{
+  const glslang::TType& block_type = symbol->getType();
+  const glslang::TTypeList member_list = *block_type.getStruct();
+  glslang::TIntermediate* intermediate =
+    shader->program->getIntermediate (_cogl_glsl_shader_type_to_es_language (stage));
+
+  int member_offset = 0;
+  int member_size = 0;
+  for (int i = 0; i < member_list.size(); i++) {
+    const glslang::TType& member_type = *member_list[i].type;
+    int dummy_stride;
+
+    member_offset = getOffset (intermediate, block_type, i);
+    intermediate->getBaseAlignment (member_type,
+                                    member_size,
+                                    dummy_stride,
+                                    block_type.getQualifier().layoutPacking == glslang::ElpStd140,
+                                    block_type.getQualifier().layoutMatrix == glslang::ElmRowMajor);
+
+    _cogl_shader_vulkan_add_uniform (shader,
+                                     stage,
+                                     member_type.getFieldName().c_str(),
+                                     member_offset);
+  }
+
+  shader->block_size = member_offset + member_size;
+}
+
+typedef std::map<int, glslang::TIntermSymbol*> SymbolMap;
+
+class CoglTraverser : public glslang::TIntermTraverser {
+public:
+  CoglTraverser(const SymbolMap& map) : map_(map) {}
+
+private:
+  void visitSymbol(glslang::TIntermSymbol* base) override {
+    SymbolMap::const_iterator it = map_.find(base->getId());
+
+    if (it != map_.end() && it->second != base) {
+      g_message ("replacing instance of %s/%i/%p layout=%i/%i binding=%i",
+                 base->getName().c_str(), base->getId(), base,
+                 base->getQualifier().layoutLocation,
+                 it->second->getQualifier().layoutLocation,
+                 base->getQualifier().layoutBinding);
+      base->getQualifier().layoutLocation =
+        it->second->getQualifier().layoutLocation;
+    } else {
+      g_message ("Ignoring %s/%i/%p layout=%i binding=%i",
+                 base->getName().c_str(), base->getId(), base,
+                 base->getQualifier().layoutLocation,
+                 base->getQualifier().layoutBinding);
+    }
+  }
+
+  SymbolMap map_;
+};
+
 extern "C" CoglBool
 _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
 {
-  return shader->program->link (static_cast<EShMessages>(EShMsgDefault)) &&
-    shader->program->buildReflection ();
+  if (!shader->program->link (static_cast<EShMessages>(EShMsgDefault))) {
+    g_warning ("Cannot link program");
+    return false;
+  }
+
+  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
+       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
+       stage++) {
+    g_message ("=========== stage %i ============", stage);
+
+    glslang::TIntermediate* intermediate =
+      shader->program->getIntermediate(_cogl_glsl_shader_type_to_es_language ((CoglGlslShaderType) stage));
+    const glslang::TIntermSequence& globals =
+      intermediate->getTreeRoot()->getAsAggregate()->getSequence();
+    glslang::TIntermAggregate* linker_objects = nullptr;
+    for (unsigned int f = 0; f < globals.size(); ++f) {
+      glslang::TIntermAggregate* candidate = globals[f]->getAsAggregate();
+      if (candidate && candidate->getOp() == glslang::EOpLinkerObjects) {
+        linker_objects = candidate;
+        break;
+      }
+    }
+
+    if (!linker_objects) {
+      g_warning ("Cannot find linker objects");
+      return FALSE;
+    }
+
+    const glslang::TIntermSequence& global_vars = linker_objects->getSequence();
+    SymbolMap updated_symbols;
+    for (unsigned int f = 0; f < global_vars.size(); f++) {
+      glslang::TIntermSymbol* symbol;
+      if ((symbol = global_vars[f]->getAsSymbolNode())) {
+        updated_symbols.insert(std::pair<int, glslang::TIntermSymbol*>(symbol->getId(), symbol));
+
+        /* Only replace the first block (which we know is ours) */
+        if (symbol->isStruct() && symbol->getQualifier().layoutBinding == 0) {
+          _cogl_shader_vulkan_add_block (shader,
+                                         (CoglGlslShaderType) stage,
+                                         symbol);
+        } else if (symbol->getQualifier().storage == glslang::EvqIn ||
+                   symbol->getQualifier().storage == glslang::EvqInOut ||
+                   symbol->getQualifier().storage == glslang::EvqVaryingIn) {
+          _cogl_shader_vulkan_add_vertex_input (shader,
+                                                (CoglGlslShaderType) stage,
+                                                symbol);
+        } else if (symbol->getQualifier().storage == glslang::EvqOut ||
+                   symbol->getQualifier().storage == glslang::EvqVaryingOut) {
+          _cogl_shader_vulkan_add_vertex_output (shader,
+                                                 (CoglGlslShaderType) stage,
+                                                 symbol);
+        } else {
+          g_warning ("Unknown global symbol type : %s",
+                     symbol->getName().c_str());
+        }
+      }
+    }
+
+    /* Visit the AST to replace all occurences of nodes we might have
+       changed. */
+    CoglTraverser traverser(updated_symbols);
+    intermediate->getTreeRoot()->traverse(&traverser);
+  }
+
+  return true;
 }
 
-#define ACCESSOR_0(type, default_value, cogl_name, glslang_lang)        \
-  extern "C" type                                                       \
-  _cogl_shader_vulkan_##cogl_name (CoglShaderVulkan *shader)            \
-  {                                                                     \
-    return shader->program->glslang_lang();                             \
-  }
-#define ACCESSOR(type, default_value, cogl_name, glslang_call, args...) \
-  extern "C" type                                                       \
-  _cogl_shader_vulkan_##cogl_name (CoglShaderVulkan *shader, args)      \
-  {                                                                     \
-    return shader->program->glslang_call;                               \
-  }
+extern "C" CoglShaderVulkanUniform *
+_cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
+                                 CoglGlslShaderType stage,
+                                 const char *name)
+{
+  return (CoglShaderVulkanUniform *)
+    g_hash_table_lookup (shader->uniforms[stage], name);
+}
 
-ACCESSOR_0(int, -1, get_num_live_uniform_variables, getNumLiveUniformVariables)
-ACCESSOR_0(int, -1, get_num_live_uniform_blocks, getNumLiveUniformBlocks)
-ACCESSOR(const char *, NULL, get_uniform_name, getUniformName(index), int index)
-ACCESSOR(const char *, NULL, get_uniform_block_name, getUniformBlockName(index), int index)
-ACCESSOR(int, -1, get_uniform_block_size, getUniformBlockSize(index), int index)
-ACCESSOR(int, -1, get_uniform_index, getUniformIndex(name), const char *name)
-ACCESSOR(int, -1, get_uniform_block_index, getUniformBlockIndex(index), int index)
-ACCESSOR(int, -1, get_uniform_type, getUniformType(index), int index)
-ACCESSOR(int, -1, get_uniform_buffer_offset, getUniformBufferOffset(index), int index)
-ACCESSOR(int, -1, get_uniform_array_size, getUniformArraySize(index), int index)
+extern "C" int
+_cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader,
+                                            CoglGlslShaderType stage,
+                                            int index)
+{
+  return shader->block_size;
+}
 
-ACCESSOR_0(int, -1, get_num_live_input_attributes, getNumLiveInputAttributes);
-ACCESSOR_0(int, -1, get_num_live_output_attributes, getNumLiveOutputAttributes);
-ACCESSOR(int, -1, get_input_attribute_location,
-         getInputAttributeLocation(name), const char *name)
-ACCESSOR(int, -1, get_output_attribute_location,
-         getOutputAttributeLocation(name), const char *name)
+extern "C" int
+_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader,
+                                       CoglGlslShaderType stage,
+                                       const char *name)
+{
+  return -1;
+}
+
+extern "C" int
+_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader,
+                                               CoglGlslShaderType stage,
+                                               int index)
+{
+  return 0;
+}
+
+extern "C" int
+_cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
+                                                  CoglGlslShaderType stage,
+                                                  const char *name)
+{
+  CoglShaderVulkanAttribute *attribute =
+    (CoglShaderVulkanAttribute *) g_hash_table_lookup (shader->inputs[stage],
+                                                       name);
+
+  if (attribute)
+    return attribute->location;
+
+  return -1;
+}
 
 extern "C" void *
 _cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
-                                    CoglGlslShaderType type,
+                                    CoglGlslShaderType stage,
                                     uint32_t *size)
 {
   const glslang::TIntermediate *intermediate =
-    shader->program->getIntermediate(_cogl_glsl_shader_type_to_es_language (type));
+    shader->program->getIntermediate(_cogl_glsl_shader_type_to_es_language (stage));
 
   std::vector<unsigned int> spirv_data;
   glslang::GlslangToSpv(*intermediate, spirv_data);
@@ -307,17 +614,16 @@ _cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
 }
 
 extern "C" VkShaderModule
-_cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader)
+_cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
+                                       CoglGlslShaderType stage)
 {
   CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
   void *spirv;
   uint32_t size;
-
-  if (shader->vk_module)
-    return shader->vk_module;
+  VkShaderModule module;
 
   spirv = _cogl_shader_vulkan_stage_to_spirv (shader,
-                                              shader->type,
+                                              stage,
                                               &size);
   if (!spirv)
     return VK_NULL_HANDLE;
@@ -329,7 +635,7 @@ _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader)
   vkCreateShaderModule (vk_ctx->device,
                         &info,
                         NULL,
-                        &shader->vk_module);
+                        &module);
 
-  return shader->vk_module;
+  return module;
 }

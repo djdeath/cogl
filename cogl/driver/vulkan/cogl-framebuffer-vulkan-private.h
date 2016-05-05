@@ -42,6 +42,10 @@ typedef struct _CoglFramebufferVulkan
   VkCommandBuffer cmd_buffer;
 
   uint32_t cmd_buffer_length;
+
+  float clear_color[4]; /* rgba */
+
+  VkRect2D render_area;
 } CoglFramebufferVulkan;
 
 typedef struct _CoglOffscreenVulkan

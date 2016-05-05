@@ -89,9 +89,11 @@ public:
     // and only visit each function once.
     void addFunctionCall(TIntermAggregate* call)
     {
+      std::cout << "\t function call : " << call->getName() << std::endl;
         // just use the map to ensure we process each function at most once
-        if (reflection.nameToIndex.find(call->getName()) == reflection.nameToIndex.end()) {
-            reflection.nameToIndex[call->getName()] = -1;
+        if (reflection.functionToIndex.find(call->getName()) == reflection.functionToIndex.end()) {
+          std::cout << "\t adding function : " << call->getName() << std::endl;
+            reflection.functionToIndex[call->getName()] = -1;
             pushFunction(call->getName());
         }
     }
@@ -116,6 +118,10 @@ public:
             &reflection.outputAttributes : &reflection.inputAttributes;
 
         if (!base->getQualifier().hasLocation()) {
+          std::cout << "ensureAttributeLocation"
+                    << " name=" << base->getName()
+                    << " location=" << attributes->size()
+                    << std::endl;
             base->getQualifier().layoutLocation = attributes->size();
             (*attributes)[base->getName()] =
                 base->getQualifier().layoutLocation;
@@ -124,6 +130,8 @@ public:
 
     void addInputAttribute(TIntermSymbol* base)
     {
+
+      std::cout << "attribute input " << base->getName() << std::endl;
         if (processedDerefs.find(base) == processedDerefs.end()) {
             processedDerefs.insert(base);
 
@@ -133,6 +141,7 @@ public:
 
     void addOutputAttribute(TIntermSymbol* base)
     {
+      std::cout << "attribute output " << base->getName() << std::endl;
         if (processedDerefs.find(base) == processedDerefs.end()) {
             processedDerefs.insert(base);
 
@@ -749,15 +758,19 @@ bool TLiveTraverser::visitSelection(TVisit /* visit */,  TIntermSelection* node)
 // Merge live symbols from 'intermediate' into the existing reflection database.
 //
 // Returns false if the input is too malformed to do this.
-bool TReflection::addStage(EShLanguage, const TIntermediate& intermediate)
+bool TReflection::addStage(EShLanguage lang, const TIntermediate& intermediate)
 {
     if (intermediate.getNumMains() != 1 || intermediate.isRecursive())
         return false;
+
+    functionToIndex.clear();
 
     TLiveTraverser it(intermediate, *this);
 
     // put main() on functions to process
     it.pushFunction("main(");
+
+    std::cout << "reflection add stage " << StageName(lang) << std::endl;
 
     // process all the functions
     while (! it.functions.empty()) {

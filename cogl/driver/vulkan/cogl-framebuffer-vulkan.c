@@ -127,7 +127,7 @@ _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
-  /* TODO: Need to ensure to end the previous command buffer if any. */
+  _cogl_framebuffer_vulkan_flush_state (framebuffer, framebuffer, 0);
 
   vk_fb->framebuffer = vk_framebuffer;
 }
@@ -180,8 +180,12 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
       },
       .clearValueCount = 1,
       .pClearValues = (VkClearValue []) {
-        { .color = { .float32 = { 0.2f, 0.2f, 0.2f, 1.0f } } }
-      },
+        { .color = { .float32 = { vk_fb->clear_color[0],
+                                  vk_fb->clear_color[1],
+                                  vk_fb->clear_color[2],
+                                  vk_fb->clear_color[3], } }
+        },
+      }
     },
     VK_SUBPASS_CONTENTS_INLINE);
 }
@@ -195,7 +199,10 @@ _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
   g_assert (framebuffer->viewport_width >=0 &&
             framebuffer->viewport_height >=0);
 
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
   vk_viewport.x = framebuffer->viewport_x;
+  vk_viewport.y = framebuffer->viewport_y;
   vk_viewport.width = framebuffer->viewport_width;
   vk_viewport.height = framebuffer->viewport_height;
   vk_viewport.minDepth = 0;
@@ -206,11 +213,11 @@ _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
    * left, while Cogl defines them to be top left.
    * NB: We render upside down to offscreen framebuffers so we don't
    * need to convert the y offset in this case. */
-  if (cogl_is_offscreen (framebuffer))
-    vk_viewport.y = framebuffer->viewport_y;
-  else
-    vk_viewport.y = framebuffer->height -
-      (framebuffer->viewport_y + framebuffer->viewport_height);
+  /* if (cogl_is_offscreen (framebuffer)) */
+  /*   vk_viewport.y = framebuffer->viewport_y; */
+  /* else */
+  /*   vk_viewport.y = framebuffer->height - */
+  /*     (framebuffer->viewport_y + framebuffer->viewport_height); */
 
   COGL_NOTE (VULKAN, "Setting viewport to (%f, %f, %f, %f)",
              vk_viewport.x,
@@ -228,6 +235,8 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   int x0, y0, x1, y1;
   VkRect2D vk_rect;
+
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   _cogl_clip_stack_get_bounds (stack, &x0, &y0, &x1, &y1);
 
@@ -261,7 +270,7 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                        &vk_fb->cmd_buffer,
                      }, vk_ctx->fence);
 
-      vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
+      //vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
 
       vk_fb->cmd_buffer = VK_NULL_HANDLE;
       vk_fb->cmd_buffer_length = 0;
@@ -292,26 +301,12 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+  vk_fb->clear_color[0] = red;
+  vk_fb->clear_color[1] = green;
+  vk_fb->clear_color[2] = blue;
+  vk_fb->clear_color[3] = alpha;
 
-  /* TODO: depth buffer? */
-  vkCmdClearAttachments (vk_fb->cmd_buffer, 1, &(VkClearAttachment) {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .colorAttachment = 0,
-        .clearValue = {
-        .color = {
-          .float32 = { red, green, blue, alpha },
-        },
-      }
-    }, 1, &(VkClearRect) {
-      .rect = {
-        .offset = { .x = 0, .y = 0, },
-        .extent = { .width = framebuffer->width,
-                    .height = framebuffer->height, },
-      },
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-    });
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 }
 
 void
@@ -350,10 +345,11 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
-  _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
                                 attributes, n_attributes);
+
+  _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
 
   vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0);
   vk_fb->cmd_buffer_length++;

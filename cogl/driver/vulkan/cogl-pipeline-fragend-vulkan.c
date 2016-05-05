@@ -90,7 +90,8 @@ typedef struct
 
   CoglPipelineCacheEntry *cache_entry;
 
-  CoglShaderVulkan *shader;
+  /* CoglShaderVulkan *shader; */
+  GString *shader_source;
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
@@ -133,8 +134,8 @@ destroy_shader_state (void *user_data,
 
   if (--shader_state->ref_count == 0)
     {
-      if (shader_state->shader)
-        _cogl_shader_vulkan_free (shader_state->shader);
+      if (shader_state->shader_source)
+        g_string_free (shader_state->shader_source, TRUE);
 
       g_free (shader_state->unit_state);
 
@@ -171,13 +172,13 @@ dirty_shader_state (CoglPipeline *pipeline)
                              NULL);
 }
 
-CoglShaderVulkan *
+GString *
 _cogl_pipeline_fragend_vulkan_get_shader (CoglPipeline *pipeline)
 {
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
 
   if (shader_state)
-    return shader_state->shader;
+    return shader_state->shader_source;
   else
     return NULL;
 }
@@ -341,16 +342,16 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
          to generate one */
       if (_cogl_program_has_fragment_shader (user_program))
         {
-          if (shader_state->shader)
+          if (shader_state->shader_source)
             {
-              _cogl_shader_vulkan_free (shader_state->shader);
-              shader_state->shader = NULL;
+              g_string_free (shader_state->shader_source, TRUE);
+              shader_state->shader_source = NULL;
             }
           return;
         }
     }
 
-  if (shader_state->shader)
+  if (shader_state->shader_source)
     return;
 
   /* If we make it here then we have a vulkan_shader_state struct
@@ -1063,18 +1064,19 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       shader_state->header = NULL;
       shader_state->source = NULL;
 
-      shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_FRAGMENT);
-      _cogl_shader_vulkan_set_source (shader, shader_source->str);
-      g_string_free (shader_source, TRUE);
+      shader_state->shader_source = shader_source;
+      /* shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_FRAGMENT); */
+      /* _cogl_shader_vulkan_set_source (shader, shader_source->str); */
+      /* g_string_free (shader_source, TRUE); */
 
-      if (!_cogl_shader_vulkan_link (shader))
-        {
-          g_warning ("Fragment shader compilation failed");
-          _cogl_shader_vulkan_free (shader);
-          shader = NULL;
-        }
+      /* if (!_cogl_shader_vulkan_link (shader)) */
+      /*   { */
+      /*     g_warning ("Fragment shader compilation failed"); */
+      /*     _cogl_shader_vulkan_free (shader); */
+      /*     shader = NULL; */
+      /*   } */
 
-      shader_state->shader = shader;
+      /* shader_state->shader = shader; */
     }
 
   return TRUE;

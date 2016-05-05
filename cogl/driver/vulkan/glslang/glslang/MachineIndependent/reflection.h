@@ -134,6 +134,7 @@ protected:
 
     TObjectReflection badReflection; // return for queries of -1 or generally out of range; has expected descriptions with in it for this
     TNameToIndex nameToIndex;        // maps names to indexes; can hold all types of data: uniform/buffer and which function names have been processed
+    TNameToIndex functionToIndex;
     TMapIndexToReflection indexToUniform;
     TMapIndexToReflection indexToUniformBlock;
 

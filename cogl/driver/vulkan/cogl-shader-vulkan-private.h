@@ -40,64 +40,64 @@
 extern "C" {
 #endif
 
+typedef struct _CoglShaderVulkanAttribute
+{
+  char *name;
+  int location;
+} CoglShaderVulkanAttribute;
+
+typedef struct _CoglShaderVulkanUniform
+{
+  char *name;
+  int offset;
+} CoglShaderVulkanUniform;
+
+typedef struct _CoglShaderVulkanBinding
+{
+  char *name;
+  int binding;
+} CoglShaderVulkanBinding;
+
 typedef struct _CoglShaderVulkan CoglShaderVulkan;
 
 CoglShaderVulkan *
-_cogl_shader_vulkan_new (CoglContext *context, CoglGlslShaderType type);
+_cogl_shader_vulkan_new (CoglContext *context);
 
 void
 _cogl_shader_vulkan_free (CoglShaderVulkan *shader);
 
 void
 _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
+                                CoglGlslShaderType type,
                                 const char *string);
 
 CoglBool
 _cogl_shader_vulkan_link (CoglShaderVulkan *shader);
 
 int
-_cogl_shader_vulkan_get_num_live_uniform_variables (CoglShaderVulkan *shader);
-
-int
-_cogl_shader_vulkan_get_num_live_uniform_blocks (CoglShaderVulkan *shader);
-
-const char *
-_cogl_shader_vulkan_get_uniform_name (CoglShaderVulkan *shader, int index);
-
-const char *
-_cogl_shader_vulkan_get_uniform_block_name (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader, const char *name);
-
-int
-_cogl_shader_vulkan_get_uniform_block_index (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_uniform_type (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_array_size (CoglShaderVulkan *shader, int index);
-
-int
-_cogl_shader_vulkan_get_num_live_input_attributes (CoglShaderVulkan *shader);
-
-int
-_cogl_shader_vulkan_get_num_live_output_attributes (CoglShaderVulkan *shader);
+_cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader,
+                                            CoglGlslShaderType stage,
+                                            int index);
 
 int
 _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
+                                                  CoglGlslShaderType stage,
                                                   const char *name);
 
+CoglShaderVulkanUniform *
+_cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
+                                 CoglGlslShaderType stage,
+                                 const char *name);
+
 int
-_cogl_shader_vulkan_get_output_attribute_location (CoglShaderVulkan *shader,
-                                                   const char *name);
+_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader,
+                                       CoglGlslShaderType stage,
+                                       const char *name);
+
+int
+_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader,
+                                               CoglGlslShaderType stage,
+                                               int index);
 
 void *
 _cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
@@ -105,7 +105,8 @@ _cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
                                     uint32_t *size);
 
 VkShaderModule
-_cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader);
+_cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
+                                       CoglGlslShaderType type);
 
 #ifdef __cplusplus
 }
