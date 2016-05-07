@@ -110,7 +110,7 @@ typedef struct
 {
   unsigned int ref_count;
 
-  CoglUniformBuffer *uniform_buffer;
+  CoglBuffer *uniform_buffer;
   void *uniform_data; /* Just a pointer to uniform_buffer memory */
 
   VkPipelineLayout pipeline_layout;
@@ -153,6 +153,7 @@ typedef struct
   CoglPipelineCacheEntry *cache_entry;
 } CoglPipelineProgramState;
 
+typedef struct _CoglUniformBuffer CoglUniformBuffer;
 struct _CoglUniformBuffer
 {
   CoglBuffer _parent;
@@ -166,17 +167,17 @@ COGL_GTYPE_DEFINE_CLASS (UniformBuffer, uniform_buffer);
 static CoglUniformBuffer *
 _cogl_uniform_buffer_new (CoglContext *context, size_t bytes)
 {
-  CoglUniformBuffer *indices = g_slice_new (CoglUniformBuffer);
+  CoglUniformBuffer *uniforms = g_slice_new (CoglUniformBuffer);
 
   /* parent's constructor */
-  _cogl_buffer_initialize (COGL_BUFFER (indices),
+  _cogl_buffer_initialize (COGL_BUFFER (uniforms),
                            context,
                            bytes,
                            COGL_BUFFER_BIND_TARGET_UNIFORM_BUFFER,
                            COGL_BUFFER_USAGE_HINT_UNIFORM_BUFFER,
                            COGL_BUFFER_UPDATE_HINT_STATIC);
 
-  return _cogl_uniform_buffer_object_new (indices);
+  return _cogl_uniform_buffer_object_new (uniforms);
 }
 
 static void
@@ -775,9 +776,9 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                                     0);
 
       program_state->uniform_buffer =
-        _cogl_uniform_buffer_new (ctx, block_size);
+        COGL_BUFFER (_cogl_uniform_buffer_new (ctx, block_size));
       program_state->uniform_data =
-        _cogl_buffer_map (COGL_BUFFER (program_state->uniform_buffer),
+        _cogl_buffer_map (program_state->uniform_buffer,
                           COGL_BUFFER_ACCESS_WRITE,
                           COGL_BUFFER_MAP_HINT_DISCARD,
                           NULL);
@@ -837,7 +838,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
   if (program_state->descriptor_set == VK_NULL_HANDLE)
     {
-      CoglBuffer *buf = COGL_BUFFER (program_state->uniform_buffer);
+      CoglBuffer *buf = program_state->uniform_buffer;
       CoglBufferVulkan *vk_buf = buf->winsys;
       const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -871,7 +872,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                    result, _cogl_vulkan_error_to_string (result));
 
     }
-
 
   state.unit = 0;
   state.program_state = program_state;
@@ -1020,16 +1020,14 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglMatrix modelview, projection;
   CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglBuffer *uniform_buffer;
-  CoglBufferVulkan *vk_buf;
+  CoglBufferVulkan *vk_uniform_buffer;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
-  VK_TODO();
-
   program_state = get_program_state (pipeline);
 
-  uniform_buffer = COGL_BUFFER (program_state->uniform_buffer);
-  vk_buf = uniform_buffer->winsys;
+  g_assert (program_state->uniform_buffer);
+  vk_uniform_buffer = program_state->uniform_buffer->winsys;
 
   projection_entry = _cogl_framebuffer_get_projection_entry (framebuffer);
   modelview_entry = _cogl_framebuffer_get_modelview_entry (framebuffer);
@@ -1149,9 +1147,9 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                               .descriptorCount = 1,
                               .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                               .pBufferInfo = &(VkDescriptorBufferInfo) {
-                                .buffer = vk_buf->buffer,
+                                .buffer = vk_uniform_buffer->buffer,
                                 .offset = 0,
-                                .range = uniform_buffer->size,
+                                .range = program_state->uniform_buffer->size,
                               }
                             }
                           },

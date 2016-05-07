@@ -277,9 +277,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
             _cogl_attribute_type_to_vulkan_format (attribute->d.buffered.type,
                                                    attribute->d.buffered.n_components);
 
-          if (vertex_desc->format == VK_FORMAT_R8G8B8A8_UINT)
-            vertex_desc->format = VK_FORMAT_R32G32B32A32_SFLOAT;
-
           COGL_NOTE (VULKAN, "Attribute '%s' location=%i offset=%i stride=%i n_components=%i",
                      attribute->name_state->name,
                      vertex_desc->location,
@@ -296,12 +293,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                        sizeof (VkVertexInputAttributeDescription))))
             _cogl_pipeline_vulkan_invalidate (pipeline);
 
-          /* if (vk_pipeline->attribute_buffer == VK_NULL_HANDLE) */
-          /*   vk_pipeline->attribute_buffer = vk_buf->buffer; */
-
-          /* /\* TODO: We assume all attributes in the same buffer. We could */
-          /*    support multiple ones later. *\/ */
-          /* g_assert (vk_pipeline->attribute_buffer == vk_buf->buffer); */
           vk_pipeline->attribute_buffers[i] = vk_buf->buffer;
           vk_pipeline->attribute_offsets[i] = attribute->d.buffered.offset;
         }
@@ -375,7 +366,6 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                    .polygonMode = VK_POLYGON_MODE_FILL,
                                    .cullMode = VK_CULL_MODE_BACK_BIT,
                                    .frontFace = VK_FRONT_FACE_CLOCKWISE,
-                                   .lineWidth = 1.0f,
                                  },
                                  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
                                    .rasterizationSamples = 1,

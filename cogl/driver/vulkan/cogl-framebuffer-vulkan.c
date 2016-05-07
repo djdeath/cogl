@@ -270,7 +270,10 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                        &vk_fb->cmd_buffer,
                      }, vk_ctx->fence);
 
-      //vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
+      vkWaitForFences (vk_ctx->device, 1, (VkFence[]) { vk_ctx->fence },
+                       VK_TRUE, INT64_MAX);
+
+      vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
 
       vk_fb->cmd_buffer = VK_NULL_HANDLE;
       vk_fb->cmd_buffer_length = 0;

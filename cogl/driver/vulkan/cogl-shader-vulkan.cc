@@ -444,18 +444,14 @@ private:
     SymbolMap::const_iterator it = map_.find(base->getId());
 
     if (it != map_.end() && it->second != base) {
-      g_message ("replacing instance of %s/%i/%p layout=%i/%i binding=%i",
-                 base->getName().c_str(), base->getId(), base,
+      COGL_NOTE (VULKAN,
+                 "updating instance name=%s layout=%i->%i binding=%i",
+                 base->getName().c_str(),
                  base->getQualifier().layoutLocation,
                  it->second->getQualifier().layoutLocation,
                  base->getQualifier().layoutBinding);
       base->getQualifier().layoutLocation =
         it->second->getQualifier().layoutLocation;
-    } else {
-      g_message ("Ignoring %s/%i/%p layout=%i binding=%i",
-                 base->getName().c_str(), base->getId(), base,
-                 base->getQualifier().layoutLocation,
-                 base->getQualifier().layoutBinding);
     }
   }
 
@@ -498,10 +494,15 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
     for (unsigned int f = 0; f < global_vars.size(); f++) {
       glslang::TIntermSymbol* symbol;
       if ((symbol = global_vars[f]->getAsSymbolNode())) {
-        updated_symbols.insert(std::pair<int, glslang::TIntermSymbol*>(symbol->getId(), symbol));
 
-        /* Only replace the first block (which we know is ours) */
-        if (symbol->isStruct() && symbol->getQualifier().layoutBinding == 0) {
+        /* Ignore the builtin blocks like gl_PerVertex. */
+        if (symbol->isStruct() && symbol->getQualifier().layoutBinding != 0)
+          continue;
+
+        updated_symbols
+          .insert(std::pair<int, glslang::TIntermSymbol*>(symbol->getId(), symbol));
+
+        if (symbol->isStruct()) {
           _cogl_shader_vulkan_add_block (shader,
                                          (CoglGlslShaderType) stage,
                                          symbol);
@@ -517,7 +518,7 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
                                                  (CoglGlslShaderType) stage,
                                                  symbol);
         } else {
-          g_warning ("Unknown global symbol type : %s",
+          g_warning ("Unknown global symbol type of `%s'",
                      symbol->getName().c_str());
         }
       }

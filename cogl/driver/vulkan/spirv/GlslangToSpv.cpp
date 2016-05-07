@@ -3632,12 +3632,6 @@ spv::Id TGlslangToSpvTraverser::getSymbolId(const glslang::TIntermSymbol* symbol
     id = createSpvVariable(symbol);
     symbolValues[symbol->getId()] = id;
 
-    std::cout << "TGlslangToSpvTraverser::getSymbolId"
-              << " name=" << symbol->getName()
-              << " location=" << symbol->getQualifier().layoutLocation
-              << " symbol=" << symbol
-              << std::endl;
-
     if (! symbol->getType().isStruct()) {
         addDecoration(id, TranslatePrecisionDecoration(symbol->getType()));
         addDecoration(id, TranslateInterpolationDecoration(symbol->getType().getQualifier()));
