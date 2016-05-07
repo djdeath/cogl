@@ -236,11 +236,6 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
   g_string_append_printf (builder.uniforms, "#version %i core\n\n",
                           ctx->glsl_version_to_use);
 
-  if (shader_type == COGL_GLSL_SHADER_TYPE_VERTEX)
-    g_string_append (builder.uniforms, _COGL_VULKAN_VERTEX_SHADER_HEADER);
-  else
-    g_string_append (builder.uniforms, _COGL_VULKAN_FRAGMENT_SHADER_HEADER);
-
   g_string_append (builder.uniforms, _COGL_VULKAN_SHADER_BOILERPLATE_BEGIN);
 
   /* Build with standard 140 uniform block. */

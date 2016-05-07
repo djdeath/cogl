@@ -68,6 +68,8 @@ static void update_float_uniform (CoglPipeline *pipeline,
                                   CoglShaderVulkanUniform *location,
                                   void *getter_func);
 
+typedef struct _CoglUniformBuffer CoglUniformBuffer;
+
 typedef struct
 {
   const char *uniform_name;
@@ -108,7 +110,8 @@ typedef struct
 {
   unsigned int ref_count;
 
-  CoglBuffer *uniform_buffer;
+  CoglUniformBuffer *uniform_buffer;
+  void *uniform_data; /* Just a pointer to uniform_buffer memory */
 
   VkPipelineLayout pipeline_layout;
 
@@ -118,8 +121,6 @@ typedef struct
   CoglShaderVulkan *shader;
 
   VkPipelineShaderStageCreateInfo stage_info[2];
-
-  void *uniform_data;
 
   unsigned long dirty_builtin_uniforms;
   CoglShaderVulkanUniform *builtin_uniform_locations[G_N_ELEMENTS (builtin_uniforms)];
@@ -152,29 +153,39 @@ typedef struct
   CoglPipelineCacheEntry *cache_entry;
 } CoglPipelineProgramState;
 
-static CoglBuffer *
-_create_uniform_buffer (CoglContext *ctx, size_t bytes)
+struct _CoglUniformBuffer
 {
-  CoglBuffer *buffer = g_slice_new0 (CoglBuffer);
+  CoglBuffer _parent;
+};
 
-  _cogl_buffer_initialize (buffer,
-                           ctx,
+static void _cogl_uniform_buffer_free (CoglUniformBuffer *uniforms);
+
+COGL_BUFFER_DEFINE (UniformBuffer, uniform_buffer);
+COGL_GTYPE_DEFINE_CLASS (UniformBuffer, uniform_buffer);
+
+static CoglUniformBuffer *
+_cogl_uniform_buffer_new (CoglContext *context, size_t bytes)
+{
+  CoglUniformBuffer *indices = g_slice_new (CoglUniformBuffer);
+
+  /* parent's constructor */
+  _cogl_buffer_initialize (COGL_BUFFER (indices),
+                           context,
                            bytes,
                            COGL_BUFFER_BIND_TARGET_UNIFORM_BUFFER,
                            COGL_BUFFER_USAGE_HINT_UNIFORM_BUFFER,
-                           COGL_BUFFER_UPDATE_HINT_DYNAMIC);
+                           COGL_BUFFER_UPDATE_HINT_STATIC);
 
-  return buffer;
+  return _cogl_uniform_buffer_object_new (indices);
 }
 
 static void
-_destroy_uniform_buffer (CoglBuffer *buffer)
+_cogl_uniform_buffer_free (CoglUniformBuffer *uniforms)
 {
-  if (!buffer)
-    return;
+  /* parent's destructor */
+  _cogl_buffer_fini (COGL_BUFFER (uniforms));
 
-  _cogl_buffer_fini (buffer);
-  g_slice_free (CoglBuffer, buffer);
+  g_slice_free (CoglUniformBuffer, uniforms);
 }
 
 static CoglUserDataKey program_state_key;
@@ -237,7 +248,11 @@ destroy_program_state (void *user_data,
       _cogl_matrix_entry_cache_destroy (&program_state->projection_cache);
       _cogl_matrix_entry_cache_destroy (&program_state->modelview_cache);
 
-      _destroy_uniform_buffer (program_state->uniform_buffer);
+      if (program_state->uniform_buffer)
+        {
+          cogl_buffer_unmap (COGL_BUFFER (program_state->uniform_buffer));
+          cogl_object_unref (COGL_OBJECT (program_state->uniform_buffer));
+        }
 
       if (program_state->descriptor_set != VK_NULL_HANDLE)
         vkFreeDescriptorSets (vk_ctx->device,
@@ -311,17 +326,10 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
                            size_t size)
 {
   g_assert (program_state->shader);
+  g_assert (program_state->uniform_data);
 
-  if (G_UNLIKELY (!program_state->uniform_data))
-    {
-      int buffer_size =
-        _cogl_shader_vulkan_get_uniform_block_size (program_state->shader,
-                                                    COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                    0);
-      program_state->uniform_data = g_malloc (buffer_size);
-    }
-
-  COGL_NOTE (VULKAN, "Uniform offset %s = %i" , location->name, location->offset);
+  COGL_NOTE (VULKAN, "Uniform offset %s = offset=%i size=%i",
+             location->name, location->offset, size);
 
   memcpy (program_state->uniform_data + location->offset, data, size);
 }
@@ -767,29 +775,26 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                                     0);
 
       program_state->uniform_buffer =
-        _create_uniform_buffer (ctx, block_size);
+        _cogl_uniform_buffer_new (ctx, block_size);
+      program_state->uniform_data =
+        _cogl_buffer_map (COGL_BUFFER (program_state->uniform_buffer),
+                          COGL_BUFFER_ACCESS_WRITE,
+                          COGL_BUFFER_MAP_HINT_DISCARD,
+                          NULL);
     }
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
     {
-      int nb_buffers = /* program_state->uniform_buffer != NULL ? 2 : 1; */1;
-
       result = vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-          .bindingCount = nb_buffers,
+          .bindingCount = 1,
           .pBindings = (VkDescriptorSetLayoutBinding[]) {
             {
               .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               .descriptorCount = 1,
-              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT /* | VK_SHADER_STAGE_FRAGMENT_BIT */,
               .pImmutableSamplers = NULL
-            }/* , */
-            /* { */
-            /*   .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, */
-            /*   .descriptorCount = 1, */
-            /*   .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT, */
-            /*   .pImmutableSamplers = NULL */
-            /* } */
+            }
           }
         },
         NULL,
@@ -832,7 +837,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
   if (program_state->descriptor_set == VK_NULL_HANDLE)
     {
-      CoglBuffer *buf = program_state->uniform_buffer;
+      CoglBuffer *buf = COGL_BUFFER (program_state->uniform_buffer);
       CoglBufferVulkan *vk_buf = buf->winsys;
       const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -865,23 +870,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         g_warning ("Cannot allocate descriptor set (%d): %s",
                    result, _cogl_vulkan_error_to_string (result));
 
-      vkUpdateDescriptorSets (vk_ctx->device, 1,
-                              (VkWriteDescriptorSet []) {
-                                {
-                                  .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                  .dstSet = program_state->descriptor_set,
-                                  .dstBinding = 0,
-                                  .dstArrayElement = 0,
-                                  .descriptorCount = 1,
-                                  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                  .pBufferInfo = &(VkDescriptorBufferInfo) {
-                                    .buffer = vk_buf->buffer,
-                                    .offset = 0,
-                                    .range = buf->size,
-                                  }
-                                }
-                              },
-                              0, NULL);
     }
 
 
@@ -1030,6 +1018,9 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglBool need_modelview;
   CoglBool need_projection;
   CoglMatrix modelview, projection;
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglBuffer *uniform_buffer;
+  CoglBufferVulkan *vk_buf;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
@@ -1037,15 +1028,13 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
   program_state = get_program_state (pipeline);
 
-  projection_entry = ctx->current_projection_entry;
-  modelview_entry = ctx->current_modelview_entry;
+  uniform_buffer = COGL_BUFFER (program_state->uniform_buffer);
+  vk_buf = uniform_buffer->winsys;
 
-  /* An initial pipeline is flushed while creating the context. At
-     this point there are no matrices selected so we can't do
-     anything */
-  if (modelview_entry == NULL || projection_entry == NULL)
-    return;
+  projection_entry = _cogl_framebuffer_get_projection_entry (framebuffer);
+  modelview_entry = _cogl_framebuffer_get_modelview_entry (framebuffer);
 
+  /* TODO: probably not needed. */
   needs_flip = cogl_is_offscreen (ctx->current_draw_buffer);
 
   projection_changed =
@@ -1108,6 +1097,15 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
              avoiding the matrix multiplication */
           if (cogl_matrix_entry_is_identity (modelview_entry))
             {
+              g_message ("%f %f %f %f",
+                         projection.xx, projection.xy, projection.xz, projection.xw);
+              g_message ("%f %f %f %f",
+                         projection.yx, projection.yy, projection.yz, projection.yw);
+              g_message ("%f %f %f %f",
+                         projection.zx, projection.zy, projection.zz, projection.zw);
+              g_message ("%f %f %f %f",
+                         projection.wx, projection.wy, projection.wz, projection.ww);
+
               set_program_state_uniform_matrix4fv (program_state,
                                                    program_state->mvp_uniform,
                                                    1, /* count */
@@ -1140,6 +1138,24 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                                     needs_flip ? do_flip : dont_flip);
       program_state->flushed_flip_state = needs_flip;
     }
+
+  vkUpdateDescriptorSets (vk_ctx->device, 1,
+                          (VkWriteDescriptorSet []) {
+                            {
+                              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                              .dstSet = program_state->descriptor_set,
+                              .dstBinding = 0,
+                              .dstArrayElement = 0,
+                              .descriptorCount = 1,
+                              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                              .pBufferInfo = &(VkDescriptorBufferInfo) {
+                                .buffer = vk_buf->buffer,
+                                .offset = 0,
+                                .range = uniform_buffer->size,
+                              }
+                            }
+                          },
+                          0, NULL);
 }
 
 static void

@@ -87,15 +87,6 @@
   "#define COGL_VERSION 100\n"                                      \
   "\n"
 
-#define _COGL_VULKAN_VERTEX_SHADER_HEADER       \
-  "#define cogl_color_out _cogl_color\n"        \
-  "#define cogl_position_out gl_Position\n"     \
-  "#define cogl_point_size_out gl_PointSize\n"
-
-#define _COGL_VULKAN_FRAGMENT_SHADER_HEADER       \
-  "#define cogl_color_in _cogl_color\n"           \
-  "#define cogl_tex_coord_in _cogl_tex_coord\n"
-
 #define _COGL_VULKAN_SHADER_UNIFORM_BEGIN                           \
   "layout(std140, set = 0, binding = 0) uniform block {\n"          \
   "    uniform mat4 cogl_modelview_matrix;\n"                       \
@@ -106,6 +97,9 @@
   "};\n"                                                \
   "\n"
 #define _COGL_VERTEX_VULKAN_SHADER_BOILERPLATE          \
+  "#define cogl_color_out _cogl_color\n"                \
+  "#define cogl_position_out gl_Position\n"             \
+  "#define cogl_point_size_out gl_PointSize\n"          \
   "in vec4 cogl_color_in;\n"                            \
   "in vec4 cogl_position_in;\n"                         \
   "\n"                                                  \
@@ -118,11 +112,13 @@
     /* "out vec4 cogl_position_out;\n"                       \ */
 
 #define _COGL_FRAGMENT_VULKAN_SHADER_BOILERPLATE        \
+  "#define cogl_color_in _cogl_color\n"                 \
+  "#define cogl_tex_coord_in _cogl_tex_coord\n"         \
   "in vec4 cogl_color_in;\n"                            \
   "\n"                                                  \
   "#define cogl_tex_coord_in _cogl_tex_coord\n"         \
   "\n"                                                  \
-  "out vec4 cogl_color_out;\n"                          \
-  "out float cogl_depth_out;\n"
+  "out vec4 cogl_color_out;\n" /*                          \ */
+  /* "out float cogl_depth_out;\n" */
 
 #endif /* __COGL_SHADER_BOILERPLATE_H */
