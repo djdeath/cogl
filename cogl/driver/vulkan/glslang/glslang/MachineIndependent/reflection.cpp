@@ -39,8 +39,6 @@
 
 #include "gl_types.h"
 
-#include <iostream>
-
 //
 // Grow the reflection database through a friend traverser class of TReflection and a
 // collection of functions to do a liveness traversal that note what uniforms are used
@@ -89,63 +87,24 @@ public:
     // and only visit each function once.
     void addFunctionCall(TIntermAggregate* call)
     {
-      std::cout << "\t function call : " << call->getName() << std::endl;
         // just use the map to ensure we process each function at most once
-        if (reflection.functionToIndex.find(call->getName()) == reflection.functionToIndex.end()) {
-          std::cout << "\t adding function : " << call->getName() << std::endl;
-            reflection.functionToIndex[call->getName()] = -1;
+        if (reflection.nameToIndex.find(call->getName()) == reflection.nameToIndex.end()) {
+            reflection.nameToIndex[call->getName()] = -1;
             pushFunction(call->getName());
         }
     }
 
     // Add a simple reference to a uniform variable to the uniform database, no dereference involved.
     // However, no dereference doesn't mean simple... it could be a complex aggregate.
-    void addUniform(const TIntermSymbol* base)
+    void addUniform(const TIntermSymbol& base)
     {
-        if (processedDerefs.find(base) == processedDerefs.end()) {
-            processedDerefs.insert(base);
+        if (processedDerefs.find(&base) == processedDerefs.end()) {
+            processedDerefs.insert(&base);
 
             // Use a degenerate (empty) set of dereferences to immediately put as at the end of
             // the dereference change expected by blowUpActiveAggregate.
             TList<TIntermBinary*> derefs;
-            blowUpActiveAggregate(base->getType(), base->getName(), derefs, derefs.end(), -1, -1, 0);
-        }
-    }
-
-    void ensureAttributeLocation(TIntermSymbol* base, bool attributeOutput)
-    {
-        TReflection::TNameToIndex* attributes = attributeOutput ?
-            &reflection.outputAttributes : &reflection.inputAttributes;
-
-        if (!base->getQualifier().hasLocation()) {
-          std::cout << "ensureAttributeLocation"
-                    << " name=" << base->getName()
-                    << " location=" << attributes->size()
-                    << std::endl;
-            base->getQualifier().layoutLocation = attributes->size();
-            (*attributes)[base->getName()] =
-                base->getQualifier().layoutLocation;
-        }
-    }
-
-    void addInputAttribute(TIntermSymbol* base)
-    {
-
-      std::cout << "attribute input " << base->getName() << std::endl;
-        if (processedDerefs.find(base) == processedDerefs.end()) {
-            processedDerefs.insert(base);
-
-            ensureAttributeLocation(base, false);
-        }
-    }
-
-    void addOutputAttribute(TIntermSymbol* base)
-    {
-      std::cout << "attribute output " << base->getName() << std::endl;
-        if (processedDerefs.find(base) == processedDerefs.end()) {
-            processedDerefs.insert(base);
-
-            ensureAttributeLocation(base, true);
+            blowUpActiveAggregate(base.getType(), base.getName(), derefs, derefs.end(), -1, -1, 0);
         }
     }
 
@@ -280,7 +239,7 @@ public:
         TReflection::TNameToIndex::const_iterator it = reflection.nameToIndex.find(name);
         if (it == reflection.nameToIndex.end()) {
             reflection.nameToIndex[name] = (int)reflection.indexToUniform.size();
-            reflection.indexToUniform.push_back(TObjectReflection(name, offset, mapToGlType(*terminalType), arraySize, blockIndex, -1));
+            reflection.indexToUniform.push_back(TObjectReflection(name, offset, mapToGlType(*terminalType), arraySize, blockIndex));
         } else if (arraySize > 1) {
             int& reflectedArraySize = reflection.indexToUniform[it->second].size;
             reflectedArraySize = std::max(arraySize, reflectedArraySize);
@@ -376,7 +335,7 @@ public:
         if (reflection.nameToIndex.find(name) == reflection.nameToIndex.end()) {
             blockIndex = (int)reflection.indexToUniformBlock.size();
             reflection.nameToIndex[name] = blockIndex;
-            reflection.indexToUniformBlock.push_back(TObjectReflection(name, -1, -1, size, -1, -1));
+            reflection.indexToUniformBlock.push_back(TObjectReflection(name, -1, -1, size, -1));
         } else
             blockIndex = it->second;
 
@@ -581,6 +540,8 @@ public:
             case EbtDouble:     return GL_DOUBLE_VEC2                 + offset;
             case EbtInt:        return GL_INT_VEC2                    + offset;
             case EbtUint:       return GL_UNSIGNED_INT_VEC2           + offset;
+            case EbtInt64:      return GL_INT64_ARB                   + offset;
+            case EbtUint64:     return GL_UNSIGNED_INT64_ARB          + offset;
             case EbtBool:       return GL_BOOL_VEC2                   + offset;
             case EbtAtomicUint: return GL_UNSIGNED_INT_ATOMIC_COUNTER + offset;
             default:            return 0;
@@ -646,6 +607,8 @@ public:
             case EbtDouble:     return GL_DOUBLE;
             case EbtInt:        return GL_INT;
             case EbtUint:       return GL_UNSIGNED_INT;
+            case EbtInt64:      return GL_INT64_ARB;
+            case EbtUint64:     return GL_UNSIGNED_INT64_ARB;
             case EbtBool:       return GL_BOOL;
             case EbtAtomicUint: return GL_UNSIGNED_INT_ATOMIC_COUNTER;
             default:            return 0;
@@ -706,33 +669,8 @@ bool TLiveTraverser::visitBinary(TVisit /* visit */, TIntermBinary* node)
 // To reflect non-dereferenced objects.
 void TLiveTraverser::visitSymbol(TIntermSymbol* base)
 {
-    switch (base->getQualifier().storage) {
-    case EvqUniform:
-        addUniform(base);
-        break;
-    case EvqIn:
-    case EvqVaryingIn:
-        addInputAttribute(base);
-        break;
-    case EvqOut:
-    case EvqVaryingOut:
-        addOutputAttribute(base);
-        break;
-    case EvqInOut:
-        std::cout << "visiting in out : "
-                  << " name=" << base->getName()
-                  << " id=" << base->getId()
-                  << " location=" << base->getQualifier().hasLocation()
-                  << std::endl;
-        break;
-    default:
-        std::cout << "visiting unknown symbol : "
-                  << " name=" << base->getName()
-                  << " id=" << base->getId()
-                  << " location=" << base->getQualifier().hasLocation()
-                  << std::endl;
-        break;
-    }
+    if (base->getQualifier().storage == EvqUniform)
+        addUniform(*base);
 }
 
 // To prune semantically dead paths.
@@ -758,19 +696,15 @@ bool TLiveTraverser::visitSelection(TVisit /* visit */,  TIntermSelection* node)
 // Merge live symbols from 'intermediate' into the existing reflection database.
 //
 // Returns false if the input is too malformed to do this.
-bool TReflection::addStage(EShLanguage lang, const TIntermediate& intermediate)
+bool TReflection::addStage(EShLanguage, const TIntermediate& intermediate)
 {
     if (intermediate.getNumMains() != 1 || intermediate.isRecursive())
         return false;
-
-    functionToIndex.clear();
 
     TLiveTraverser it(intermediate, *this);
 
     // put main() on functions to process
     it.pushFunction("main(");
-
-    std::cout << "reflection add stage " << StageName(lang) << std::endl;
 
     // process all the functions
     while (! it.functions.empty()) {

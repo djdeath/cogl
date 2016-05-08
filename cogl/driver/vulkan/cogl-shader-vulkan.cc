@@ -43,7 +43,7 @@ extern "C" {
 
 #include "glslang/InitializeDll.h"
 #include "glslang/glslang/Public/ShaderLang.h"
-#include "glslang/glslang/MachineIndependent/gl_types.h"
+//#include "glslang/glslang/MachineIndependent/gl_types.h"
 #include "glslang/glslang/MachineIndependent/localintermediate.h"
 
 #include "GlslangToSpv.h"
@@ -289,8 +289,9 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
 {
   glslang::TShader *gl_shader =
     new glslang::TShader (_cogl_glsl_shader_type_to_es_language (type));
-
   gl_shader->setStrings(&string, 1);
+
+  glslang::TShader::ForbidInclude no_include;
   bool success = gl_shader->parse(&kDefaultTBuiltInResource,
                                   420,
                                   ENoProfile,
@@ -299,7 +300,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
                                   static_cast<EShMessages>(EShMsgDefault |
                                                            EShMsgSpvRules |
                                                            EShMsgVulkanRules),
-                                  glslang::TShader::ForbidInclude());
+                                  no_include);
 
   if (!success)
     COGL_NOTE (SPIRV, "Shader compilation failed : %s\n%s\n",

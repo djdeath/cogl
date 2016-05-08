@@ -54,7 +54,7 @@ class TLiveTraverser;
 // Data needed for just a single object at the granularity exchanged by the reflection API
 class TObjectReflection {
 public:
-   TObjectReflection(const TString& pName, int pOffset, int pGLDefineType, int pSize, int pIndex, int location) :
+    TObjectReflection(const TString& pName, int pOffset, int pGLDefineType, int pSize, int pIndex) : 
         name(pName), offset(pOffset), glDefineType(pGLDefineType), size(pSize), index(pIndex) { }
     void dump() const { printf("%s: offset %d, type %x, size %d, index %d\n", name.c_str(), offset, glDefineType, size, index); }
     TString name;
@@ -62,13 +62,12 @@ public:
     int glDefineType;
     int size;         // data size in bytes for a block, array size for a (non-block) object that's an array
     int index;
-    int location;
 };
 
 // The full reflection database
 class TReflection {
 public:
-    TReflection() : badReflection("__bad__", -1, -1, -1, -1, -1) {}
+    TReflection() : badReflection("__bad__", -1, -1, -1, -1) {}
     virtual ~TReflection() {}
 
     // grow the reflection stage by stage
@@ -86,7 +85,7 @@ public:
 
     // for mapping a block index to the block's description
     int getNumUniformBlocks() const { return (int)indexToUniformBlock.size(); }
-    const TObjectReflection& getUniformBlock(int i) const
+    const TObjectReflection& getUniformBlock(int i) const 
     {
         if (i >= 0 && i < (int)indexToUniformBlock.size())
             return indexToUniformBlock[i];
@@ -95,29 +94,10 @@ public:
     }
 
     // for mapping any name to its index (both block names and uniforms names)
-    int getIndex(const char* name) const
+    int getIndex(const char* name) const 
     {
         TNameToIndex::const_iterator it = nameToIndex.find(name);
         if (it == nameToIndex.end())
-            return -1;
-        else
-            return it->second;
-    }
-
-    // Attributes
-    int getAttributes() const { return inputAttributes.size() + outputAttributes.size(); }
-    int getInputAttributes() const { return inputAttributes.size(); }
-    int getInputAttributeLocation(const char* name) const {
-        TNameToIndex::const_iterator it = inputAttributes.find(name);
-        if (it == inputAttributes.end())
-            return -1;
-        else
-            return it->second;
-    }
-    int getOutputAttributes() const { return outputAttributes.size(); }
-    int getOutputAttributeLocation(const char* name ) const {
-        TNameToIndex::const_iterator it = outputAttributes.find(name);
-        if (it == outputAttributes.end())
             return -1;
         else
             return it->second;
@@ -134,12 +114,8 @@ protected:
 
     TObjectReflection badReflection; // return for queries of -1 or generally out of range; has expected descriptions with in it for this
     TNameToIndex nameToIndex;        // maps names to indexes; can hold all types of data: uniform/buffer and which function names have been processed
-    TNameToIndex functionToIndex;
     TMapIndexToReflection indexToUniform;
     TMapIndexToReflection indexToUniformBlock;
-
-    TNameToIndex inputAttributes;
-    TNameToIndex outputAttributes;
 };
 
 } // end namespace glslang

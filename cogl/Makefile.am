@@ -270,6 +270,7 @@ libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/MachineIndependent/limits.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/linkValidate.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/parseConst.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/parseVersions.h \
 	driver/vulkan/glslang/glslang/MachineIndependent/reflection.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/Pp.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp \
