@@ -89,21 +89,6 @@ _cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
                                  CoglGlslShaderType stage,
                                  const char *name);
 
-int
-_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader,
-                                       CoglGlslShaderType stage,
-                                       const char *name);
-
-int
-_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader,
-                                               CoglGlslShaderType stage,
-                                               int index);
-
-void *
-_cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
-                                    CoglGlslShaderType type,
-                                    uint32_t *size);
-
 VkShaderModule
 _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
                                        CoglGlslShaderType type);

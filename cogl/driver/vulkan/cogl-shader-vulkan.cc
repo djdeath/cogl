@@ -43,7 +43,6 @@ extern "C" {
 
 #include "glslang/InitializeDll.h"
 #include "glslang/glslang/Public/ShaderLang.h"
-//#include "glslang/glslang/MachineIndependent/gl_types.h"
 #include "glslang/glslang/MachineIndependent/localintermediate.h"
 
 #include "GlslangToSpv.h"
@@ -52,18 +51,22 @@ extern "C" {
 #include <sstream>
 #include <vector>
 
+#define NB_STAGES (COGL_GLSL_SHADER_TYPE_FRAGMENT + 1)
+
 struct _CoglShaderVulkan
 {
   CoglContext *context;
 
   glslang::TProgram *program;
 
-  GHashTable *inputs[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
-  GHashTable *outputs[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+  GHashTable *inputs[NB_STAGES];
+  GHashTable *outputs[NB_STAGES];
 
-  GHashTable *uniforms[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+  GHashTable *uniforms[NB_STAGES];
 
-  GHashTable *bindings[COGL_GLSL_SHADER_TYPE_FRAGMENT + 1];
+  GHashTable *bindings[NB_STAGES];
+
+  VkShaderModule modules[NB_STAGES];
 
   int block_size;
 };
@@ -235,16 +238,18 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
 {
   CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
 
-  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
-       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
-       stage++) {
+  for (int stage = 0; stage < NB_STAGES; stage++) {
     g_hash_table_unref (shader->inputs[stage]);
     g_hash_table_unref (shader->outputs[stage]);
     g_hash_table_unref (shader->uniforms[stage]);
     // g_hash_table_unref (shader->bindings[stage]);
+
+    if (shader->modules[stage] != VK_NULL_HANDLE)
+      vkDestroyShaderModule (vk_ctx->device, shader->modules[stage], NULL);
   }
 
-  delete shader->program;
+  if (shader->program)
+    delete shader->program;
   g_slice_free (CoglShaderVulkan, shader);
 }
 
@@ -258,9 +263,7 @@ _cogl_shader_vulkan_new (CoglContext *context)
   shader->context = context;
   shader->program = new glslang::TProgram();
 
-  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
-       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
-       stage++) {
+  for (int stage = 0; stage < NB_STAGES; stage++) {
     shader->inputs[stage] = g_hash_table_new_full (g_str_hash,
                                                    g_str_equal,
                                                    NULL,
@@ -459,6 +462,38 @@ private:
   SymbolMap map_;
 };
 
+VkShaderModule
+_cogl_shader_vulkan_build_shader_module (CoglShaderVulkan *shader,
+                                         const glslang::TIntermediate *intermediate)
+{
+  CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
+
+  std::vector<uint32_t> spirv;
+  glslang::GlslangToSpv(*intermediate, spirv);
+
+  if (spirv.empty())
+    return VK_NULL_HANDLE;
+
+  if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_SPIRV))) {
+    std::stringstream spirv_dbg;
+    spv::Disassemble(spirv_dbg, spirv);
+
+    COGL_NOTE (SPIRV, "Spirv output size=%u bytes : \n%s",
+               spirv.size() * sizeof (uint32_t),
+               spirv_dbg.str().c_str());
+  }
+
+  VkShaderModuleCreateInfo info;
+  info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  info.codeSize = spirv.size() * sizeof (uint32_t);
+  info.pCode = &spirv[0];
+
+  VkShaderModule module;
+  vkCreateShaderModule (vk_ctx->device, &info, NULL, &module);
+
+  return module;
+}
+
 extern "C" CoglBool
 _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
 {
@@ -467,13 +502,11 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
     return false;
   }
 
-  for (int stage = COGL_GLSL_SHADER_TYPE_VERTEX;
-       stage <= COGL_GLSL_SHADER_TYPE_FRAGMENT;
-       stage++) {
-    g_message ("=========== stage %i ============", stage);
-
+  for (int stage = 0; stage < NB_STAGES; stage++) {
+    EShLanguage lang =
+      _cogl_glsl_shader_type_to_es_language ((CoglGlslShaderType) stage);
     glslang::TIntermediate* intermediate =
-      shader->program->getIntermediate(_cogl_glsl_shader_type_to_es_language ((CoglGlslShaderType) stage));
+      shader->program->getIntermediate(lang);
     const glslang::TIntermSequence& globals =
       intermediate->getTreeRoot()->getAsAggregate()->getSequence();
     glslang::TIntermAggregate* linker_objects = nullptr;
@@ -500,8 +533,8 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
         if (symbol->isStruct() && symbol->getQualifier().layoutBinding != 0)
           continue;
 
-        updated_symbols
-          .insert(std::pair<int, glslang::TIntermSymbol*>(symbol->getId(), symbol));
+        std::pair<int, glslang::TIntermSymbol*> item(symbol->getId(), symbol);
+        updated_symbols.insert(item);
 
         if (symbol->isStruct()) {
           _cogl_shader_vulkan_add_block (shader,
@@ -529,7 +562,15 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
        changed. */
     CoglTraverser traverser(updated_symbols);
     intermediate->getTreeRoot()->traverse(&traverser);
+
+    shader->modules[stage] =
+      _cogl_shader_vulkan_build_shader_module (shader, intermediate);
   }
+
+  /* Destroy the AST once we've extracted all useful informations from
+     it. */
+  delete shader->program;
+  shader->program = nullptr;
 
   return true;
 }
@@ -552,22 +593,6 @@ _cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader,
 }
 
 extern "C" int
-_cogl_shader_vulkan_get_uniform_index (CoglShaderVulkan *shader,
-                                       CoglGlslShaderType stage,
-                                       const char *name)
-{
-  return -1;
-}
-
-extern "C" int
-_cogl_shader_vulkan_get_uniform_buffer_offset (CoglShaderVulkan *shader,
-                                               CoglGlslShaderType stage,
-                                               int index)
-{
-  return 0;
-}
-
-extern "C" int
 _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
                                                   CoglGlslShaderType stage,
                                                   const char *name)
@@ -582,62 +607,11 @@ _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
   return -1;
 }
 
-extern "C" void *
-_cogl_shader_vulkan_stage_to_spirv (CoglShaderVulkan *shader,
-                                    CoglGlslShaderType stage,
-                                    uint32_t *size)
-{
-  const glslang::TIntermediate *intermediate =
-    shader->program->getIntermediate(_cogl_glsl_shader_type_to_es_language (stage));
-
-  std::vector<unsigned int> spirv_data;
-  glslang::GlslangToSpv(*intermediate, spirv_data);
-
-  uint32_t spirv_size = spirv_data.size() * sizeof(spirv_data[0]);
-  if (spirv_size < 1)
-    return NULL;
-
-  if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_SPIRV))) {
-    std::stringstream spirv_dbg;
-    spv::Disassemble(spirv_dbg, spirv_data);
-
-    COGL_NOTE (SPIRV, "Spirv output size=%u bytes : \n%s",
-               spirv_size, spirv_dbg.str().c_str());
-  }
-
-  /* TODO: cache this */
-  void *ret = g_malloc (spirv_size);
-  memcpy (ret, &spirv_data[0], spirv_size);
-
-  if (size)
-    *size = spirv_size;
-
-  return ret;
-}
-
 extern "C" VkShaderModule
 _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
                                        CoglGlslShaderType stage)
 {
   CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
-  void *spirv;
-  uint32_t size;
-  VkShaderModule module;
 
-  spirv = _cogl_shader_vulkan_stage_to_spirv (shader,
-                                              stage,
-                                              &size);
-  if (!spirv)
-    return VK_NULL_HANDLE;
-
-  VkShaderModuleCreateInfo info;
-  info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  info.codeSize = size;
-  info.pCode = (uint32_t *)spirv;
-  vkCreateShaderModule (vk_ctx->device,
-                        &info,
-                        NULL,
-                        &module);
-
-  return module;
+  return shader->modules[stage];
 }
