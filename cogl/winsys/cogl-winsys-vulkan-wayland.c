@@ -440,6 +440,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                             CoglError **error)
 {
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
+  CoglFramebufferVulkan *vk_fb;
   CoglContext *context = framebuffer->context;
   CoglRenderer *renderer = context->display->renderer;
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
@@ -536,6 +537,11 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                            &vk_onscreen->image_count,
                            vk_onscreen->images);
 
+  if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
+    goto error;
+
+  vk_fb = framebuffer->winsys;
+
   for (i = 0; i < vk_onscreen->image_count; i++)
     {
       result = vkCreateImageView (vk_context->device, &(VkImageViewCreateInfo) {
@@ -556,7 +562,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
             .baseArrayLayer = 0,
             .layerCount = 1,
           },
-               },
+        },
         NULL,
         &vk_onscreen->image_views[i]);
       if (result != VK_SUCCESS)
@@ -575,7 +581,8 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
           .pAttachments = &vk_onscreen->image_views[i],
           .width = framebuffer->width,
           .height = framebuffer->height,
-          .layers = 1
+          .layers = 1,
+          .renderPass = vk_fb->render_pass,
         },
         NULL,
         &vk_onscreen->framebuffers[i]);
@@ -589,9 +596,6 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
           goto error;
         }
     }
-
-  if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
-    goto error;
 
   result = vkAcquireNextImageKHR (vk_context->device, vk_onscreen->swap_chain, 0,
                                   VK_NULL_HANDLE, VK_NULL_HANDLE,

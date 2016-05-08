@@ -164,7 +164,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        _cogl_vulkan_error_to_string (result));
       goto error;
     }
-  printf("%d physical devices\n", count);
+  COGL_NOTE (VULKAN, "%d physical devices\n", count);
 
   vkGetPhysicalDeviceProperties (vk_ctx->physical_device,
                                  &vk_ctx->physical_device_properties);
@@ -173,6 +173,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .queueCreateInfoCount = 1,
       .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .queueFamilyIndex = 0,
         .queueCount = 1,
       }
@@ -187,8 +188,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        _cogl_vulkan_error_to_string (result));
       goto error;
     }
-
-  vkGetDeviceQueue(vk_ctx->device, 0, 0, &vk_ctx->queue);
 
   result = vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -205,6 +204,8 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
       goto error;
     }
 
+  vkGetDeviceQueue(vk_ctx->device, 0, 0, &vk_ctx->queue);
+
   result = vkCreateCommandPool (vk_ctx->device, &(const VkCommandPoolCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
       .queueFamilyIndex = 0,
@@ -220,33 +221,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                        _cogl_vulkan_error_to_string (result));
       goto error;
     }
-
-  /* { */
-  /*   const VkDescriptorPoolCreateInfo create_info = { */
-  /*     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, */
-  /*     .pNext = NULL, */
-  /*     .flags = 0, */
-  /*     .maxSets = 1, */
-  /*     .poolSizeCount = 1, */
-  /*     .pPoolSizes = (VkDescriptorPoolSize[]) { */
-  /*       { */
-  /*         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, */
-  /*         .descriptorCount = 1 */
-  /*       }, */
-  /*     } */
-  /*   }; */
-
-  /*   result = vkCreateDescriptorPool (vk_ctx->device, &create_info, */
-  /*                                    NULL, &vk_ctx->desc_pool); */
-  /*   if (result != VK_SUCCESS) */
-  /*     { */
-  /*       _cogl_set_error (error, COGL_DRIVER_ERROR, */
-  /*                      COGL_DRIVER_ERROR_INTERNAL, */
-  /*                      "Cannot create descriptor pool : %s", */
-  /*                      _cogl_vulkan_error_to_string (result)); */
-  /*       goto error; */
-  /*     } */
-  /* } */
 
   return TRUE;
 

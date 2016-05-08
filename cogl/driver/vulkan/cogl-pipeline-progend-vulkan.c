@@ -815,10 +815,11 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         g_warning ("Cannot create pipeline layout (%d): %s",
                    result, _cogl_vulkan_error_to_string (result));
 
-      memset(program_state->stage_info, 0, sizeof(program_state->stage_info));
+      //memset(program_state->stage_info, 0, sizeof(program_state->stage_info));
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = NULL,
+        .flags = 0,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
         .module = _cogl_shader_vulkan_get_shader_module (program_state->shader,
                                                          COGL_GLSL_SHADER_TYPE_VERTEX),
@@ -827,6 +828,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       program_state->stage_info[1] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = NULL,
+        .flags = 0,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
         .module = _cogl_shader_vulkan_get_shader_module (program_state->shader,
                                                          COGL_GLSL_SHADER_TYPE_FRAGMENT),

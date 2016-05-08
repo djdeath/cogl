@@ -246,7 +246,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
   if (vk_pipeline->n_vertex_inputs != n_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
-  vk_pipeline->attribute_buffers = g_malloc (sizeof (VkBuffer) * n_attributes);//VK_NULL_HANDLE;
+  vk_pipeline->attribute_buffers = g_malloc (sizeof (VkBuffer) * n_attributes);
   vk_pipeline->attribute_offsets = g_malloc (sizeof (VkDeviceSize) * n_attributes);
 
   for (i = 0; i < n_attributes; i++)
@@ -277,12 +277,15 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
             _cogl_attribute_type_to_vulkan_format (attribute->d.buffered.type,
                                                    attribute->d.buffered.n_components);
 
-          COGL_NOTE (VULKAN, "Attribute '%s' location=%i offset=%i stride=%i n_components=%i",
+          COGL_NOTE (VULKAN,
+                     "Attribute '%s' location=%i offset=%i"
+                     " stride=%i n_components=%i buffer_size=%i",
                      attribute->name_state->name,
                      vertex_desc->location,
                      attribute->d.buffered.offset,
                      attribute->d.buffered.stride,
-                     attribute->d.buffered.n_components);
+                     attribute->d.buffered.n_components,
+                     buffer->size);
 
           if (vk_pipeline->vertex_inputs &&
               (memcmp (&vk_pipeline->vertex_inputs->pVertexBindingDescriptions[i],
@@ -339,6 +342,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                    .primitiveRestartEnable = VK_FALSE,
                                  },
                                  .pViewportState = &(VkPipelineViewportStateCreateInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
                                    .viewportCount = 1,
                                    .pViewports = &(VkViewport) {
                                      .x = 0,
@@ -368,9 +372,12 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                    .frontFace = VK_FRONT_FACE_CLOCKWISE,
                                  },
                                  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                    .rasterizationSamples = 1,
                                  },
-                                 .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {},
+                                 .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+                                 },
                                  .pColorBlendState = &(VkPipelineColorBlendStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                                    .attachmentCount = 1,
@@ -483,9 +490,6 @@ done:
   if (progend->pre_paint)
     progend->pre_paint (pipeline, framebuffer);
 
-  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, vk_pipeline->n_vertex_inputs,
-                          vk_pipeline->attribute_buffers,
-                          vk_pipeline->attribute_offsets);
   vkCmdBindPipeline (vk_fb->cmd_buffer,
                      VK_PIPELINE_BIND_POINT_GRAPHICS,
                      vk_pipeline->pipeline);
@@ -497,6 +501,10 @@ done:
                            pipeline_layout,
                            0, 1,
                            &descriptor_set, 0, NULL);
+
+  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, vk_pipeline->n_vertex_inputs,
+                          vk_pipeline->attribute_buffers,
+                          vk_pipeline->attribute_offsets);
 
   COGL_TIMER_STOP (_cogl_uprof_context, pipeline_flush_timer);
 }

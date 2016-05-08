@@ -440,7 +440,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
                        "cogl_real_vertex_transform ()\n"
                        "{\n"
                        "  cogl_position_out = "
-                       "cogl_modelview_projection_matrix * "
+                       /* "cogl_modelview_projection_matrix * " */
                        "cogl_position_in;\n"
                        "}\n");
 

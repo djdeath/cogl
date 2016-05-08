@@ -175,18 +175,18 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
     {
       vk_buffer->memory_need_flush = FALSE;
 
-      result = vkFlushMappedMemoryRanges (vk_ctx->device, 1, &(VkMappedMemoryRange) {
-          .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-          .memory = vk_buffer->memory,
-          .offset = vk_buffer->memory_map_offset,
-          .size = vk_buffer->memory_map_size,
-        });
-      if (result != VK_SUCCESS)
-        {
-          g_warning ("%s: Cannot flush memory (%d): %s", G_STRLOC, result,
-                     _cogl_vulkan_error_to_string (result));
-          return;
-        }
+      /* result = vkFlushMappedMemoryRanges (vk_ctx->device, 1, &(VkMappedMemoryRange) { */
+      /*     .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, */
+      /*     .memory = vk_buffer->memory, */
+      /*     .offset = vk_buffer->memory_map_offset, */
+      /*     .size = vk_buffer->memory_map_size, */
+      /*   }); */
+      /* if (result != VK_SUCCESS) */
+      /*   { */
+      /*     g_warning ("%s: Cannot flush memory (%d): %s", G_STRLOC, result, */
+      /*                _cogl_vulkan_error_to_string (result)); */
+      /*     return; */
+      /*   } */
     }
 
   vkUnmapMemory (vk_ctx->device, vk_buffer->memory);
@@ -220,7 +220,7 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
 
   memcpy (data_map, data, size);
 
-  _cogl_buffer_vulkan_unmap (buffer);
+  //_cogl_buffer_vulkan_unmap (buffer);
 
   return TRUE;
 }
