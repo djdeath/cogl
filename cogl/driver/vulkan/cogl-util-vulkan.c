@@ -231,3 +231,35 @@ _cogl_pipeline_wrap_mode_to_vulkan_address_mode (CoglPipelineWrapMode mode)
       g_assert_not_reached();
     }
 }
+
+VkCullModeFlagBits
+_cogl_pipeline_cull_mode_to_vulkan_cull_mode (CoglPipelineCullFaceMode mode)
+{
+  switch (mode)
+    {
+    case COGL_PIPELINE_CULL_FACE_MODE_NONE:
+      return VK_CULL_MODE_NONE;
+    case COGL_PIPELINE_CULL_FACE_MODE_FRONT:
+      return VK_CULL_MODE_FRONT_BIT;
+    case COGL_PIPELINE_CULL_FACE_MODE_BACK:
+      return VK_CULL_MODE_BACK_BIT;
+    case  COGL_PIPELINE_CULL_FACE_MODE_BOTH:
+      return VK_CULL_MODE_FRONT_AND_BACK;
+    default:
+      g_assert_not_reached();
+    }
+}
+
+VkFrontFace
+_cogl_winding_to_vulkan_front_face (CoglWinding winding)
+{
+  switch (winding)
+    {
+    case COGL_WINDING_CLOCKWISE:
+      return VK_FRONT_FACE_CLOCKWISE;
+    case COGL_WINDING_COUNTER_CLOCKWISE:
+      return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    default:
+      g_assert_not_reached();
+    }
+}

@@ -61,4 +61,10 @@ _cogl_pipeline_filter_to_vulkan_filter (CoglPipelineFilter filter,
 VkSamplerAddressMode
 _cogl_pipeline_wrap_mode_to_vulkan_address_mode (CoglPipelineWrapMode mode);
 
+VkCullModeFlagBits
+_cogl_pipeline_cull_mode_to_vulkan_cull_mode (CoglPipelineCullFaceMode mode);
+
+VkFrontFace
+_cogl_winding_to_vulkan_front_face (CoglWinding winding);
+
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */

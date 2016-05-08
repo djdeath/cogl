@@ -1034,8 +1034,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   projection_entry = _cogl_framebuffer_get_projection_entry (framebuffer);
   modelview_entry = _cogl_framebuffer_get_modelview_entry (framebuffer);
 
-  /* TODO: probably not needed. */
-  needs_flip = cogl_is_offscreen (ctx->current_draw_buffer);
+  needs_flip = TRUE; /* TODO: to rework */
 
   projection_changed =
     _cogl_matrix_entry_cache_maybe_update (&program_state->projection_cache,
@@ -1097,15 +1096,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
              avoiding the matrix multiplication */
           if (cogl_matrix_entry_is_identity (modelview_entry))
             {
-              g_message ("%f %f %f %f",
-                         projection.xx, projection.xy, projection.xz, projection.xw);
-              g_message ("%f %f %f %f",
-                         projection.yx, projection.yy, projection.yz, projection.yw);
-              g_message ("%f %f %f %f",
-                         projection.zx, projection.zy, projection.zz, projection.zw);
-              g_message ("%f %f %f %f",
-                         projection.wx, projection.wy, projection.wz, projection.ww);
-
               set_program_state_uniform_matrix4fv (program_state,
                                                    program_state->mvp_uniform,
                                                    1, /* count */
