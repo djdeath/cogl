@@ -42,12 +42,6 @@
 
 //#define VK()
 
-#define COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY          \
-  ((VkComponentMapping) { .r = VK_COMPONENT_SWIZZLE_R,  \
-      .g = VK_COMPONENT_SWIZZLE_G,                      \
-      .b = VK_COMPONENT_SWIZZLE_B,                      \
-      .a = VK_COMPONENT_SWIZZLE_A, })
-
 VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);

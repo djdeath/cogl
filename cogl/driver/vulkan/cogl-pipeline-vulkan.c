@@ -382,18 +382,28 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                                    .attachmentCount = 1,
                                    .pAttachments = (VkPipelineColorBlendAttachmentState []) {
-                                     { .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
+                                     {
+                                       .blendEnable = VK_FALSE,
+                                       .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
                                        VK_COLOR_COMPONENT_R_BIT |
                                        VK_COLOR_COMPONENT_G_BIT |
-                                       VK_COLOR_COMPONENT_B_BIT },
+                                       VK_COLOR_COMPONENT_B_BIT,
+                                     },
                                    }
+                                 },
+                                 .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
+                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+                                   .dynamicStateCount = 1,
+                                   .pDynamicStates = (VkDynamicState []) {
+                                     VK_DYNAMIC_STATE_VIEWPORT
+                                   },
                                  },
                                  .flags = 0,
                                  .layout = _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline),
                                  .renderPass = vk_fb->render_pass,
                                  .subpass = 0,
-                                 .basePipelineHandle = (VkPipeline) { 0 },
-                                 .basePipelineIndex = 0
+                                 .basePipelineHandle = NULL,
+                                 .basePipelineIndex = -1,
                                },
                                NULL,
                                &vk_pipeline->pipeline);

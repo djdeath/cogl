@@ -85,7 +85,7 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       .size = buffer->size,
       .usage = _cogl_buffer_usage_to_vulkan_buffer_usage (buffer->usage_hint),
-      .flags = 0,
+      .flags = VK_SHARING_MODE_EXCLUSIVE,
     },
     NULL,
     &vk_buffer->buffer);

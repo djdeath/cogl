@@ -440,7 +440,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
                        "cogl_real_vertex_transform ()\n"
                        "{\n"
                        "  cogl_position_out = "
-                       /* "cogl_modelview_projection_matrix * " */
+                       "cogl_modelview_projection_matrix * "
                        "cogl_position_in;\n"
                        "}\n");
 
@@ -532,42 +532,6 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       shader_state->source = NULL;
 
       shader_state->shader_source = shader_source;
-      /* shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_VERTEX); */
-      /* _cogl_shader_vulkan_set_source (shader, shader_source->str); */
-      /* g_string_free (shader_source, TRUE); */
-
-
-      /* if (!_cogl_shader_vulkan_link (shader)) */
-      /*   { */
-      /*     g_warning ("Vertex shader compilation failed"); */
-      /*     _cogl_shader_vulkan_free (shader); */
-      /*     shader = NULL; */
-      /*   } */
-
-      /* shader_state->shader = shader; */
-
-/*       g_message ("uniforms: %i", */
-/*                  _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader)); */
-/*       g_message ("uniforms blocks: %i", */
-/*                  _cogl_shader_vulkan_get_num_live_uniform_blocks (shader_state->shader)); */
-
-/*       g_message ("in/out attributes : %i/%i", */
-/*                  _cogl_shader_vulkan_get_num_live_input_attributes (shader_state->shader), */
-/*                  _cogl_shader_vulkan_get_num_live_output_attributes (shader_state->shader)); */
-/* for (i = 0; i < _cogl_shader_vulkan_get_num_live_uniform_variables (shader_state->shader); i++) */
-/*         { */
-/*           g_message ("uniform : %i name=%s offset=%i index=%i", i, */
-/*                      _cogl_shader_vulkan_get_uniform_name (shader_state->shader, */
-/*                                                            i), */
-/*                      _cogl_shader_vulkan_get_uniform_buffer_offset (shader_state->shader, */
-/*                                                                     i), */
-/*                      _cogl_shader_vulkan_get_uniform_block_index(shader_state->shader, */
-/*                                                                  i)); */
-/*         } */
-
-      /* shader = _cogl_shader_vulkan_stage_to_spirv (shader_state->shader, */
-      /*                                              COGL_GLSL_SHADER_TYPE_VERTEX, */
-      /*                                              &shader_size); */
     }
 
   return TRUE;

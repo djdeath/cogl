@@ -452,7 +452,12 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
       .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
-      .components = COGL_VULKAN_COMPONENT_MAPPING_IDENTIFY,
+      .components = {
+        .r = VK_COMPONENT_SWIZZLE_R,
+        .g = VK_COMPONENT_SWIZZLE_G,
+        .b = VK_COMPONENT_SWIZZLE_B,
+        .a = VK_COMPONENT_SWIZZLE_A,
+      },
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
