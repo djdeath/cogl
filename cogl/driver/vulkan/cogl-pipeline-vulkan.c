@@ -206,9 +206,9 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
 
   /* Either generate per layer code snippets or setup the
    * fixed function glTexEnv for each layer... */
-  if (G_UNLIKELY (fragend->add_layer (pipeline,
-                                      layer,
-                                      0)))
+  if (G_UNLIKELY (!fragend->add_layer (pipeline,
+                                       layer,
+                                       0)))
     {
       state->error_adding_layer = TRUE;
       return FALSE;
@@ -327,6 +327,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
 
+  /* TODO: Break this down. */
   result =
     vkCreateGraphicsPipelines (vk_ctx->device,
                                (VkPipelineCache) { VK_NULL_HANDLE },
@@ -339,6 +340,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                  .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
                                    .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+                                   /* TODO: topology shouldn't be fixed */
+                                   /* .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (mode), */
                                    .primitiveRestartEnable = VK_FALSE,
                                  },
                                  .pViewportState = &(VkPipelineViewportStateCreateInfo) {

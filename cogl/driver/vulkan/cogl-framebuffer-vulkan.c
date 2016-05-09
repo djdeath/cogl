@@ -35,15 +35,16 @@
 #include <glib.h>
 #include <string.h>
 
+#include "cogl-buffer-vulkan-private.h"
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
-#include "cogl-util-vulkan-private.h"
+#include "cogl-error-private.h"
 #include "cogl-framebuffer-private.h"
 #include "cogl-framebuffer-vulkan-private.h"
-#include "cogl-buffer-vulkan-private.h"
-#include "cogl-error-private.h"
+#include "cogl-indices-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
+#include "cogl-util-vulkan-private.h"
 
 void
 _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
@@ -369,7 +370,23 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                                   int n_attributes,
                                                   CoglDrawFlags flags)
 {
-  VK_TODO();
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  CoglBuffer *indices_buffer = COGL_BUFFER (indices->buffer);
+  CoglBufferVulkan *vk_buf = indices_buffer->winsys;
+
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  _cogl_flush_attributes_state (framebuffer, pipeline, flags,
+                                attributes, n_attributes);
+
+  _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
+
+  vkCmdBindIndexBuffer (vk_fb->cmd_buffer, vk_buf->buffer,
+                        indices->offset,
+                        _cogl_indices_type_to_vulkan_indices_type (indices->type));
+
+  vkCmdDrawIndexed (vk_fb->cmd_buffer, n_vertices, 0, first_vertex, 0, 0);
+  vk_fb->cmd_buffer_length++;
 }
 
 CoglBool

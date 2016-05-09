@@ -892,8 +892,6 @@ _cogl_pipeline_fragend_vulkan_add_layer (CoglPipeline *pipeline,
   CoglPipelineShaderState *shader_state = get_shader_state (pipeline);
   LayerData *layer_data;
 
-  VK_TODO();
-
   if (!shader_state->source)
     return TRUE;
 

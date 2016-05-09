@@ -48,6 +48,12 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
       return VK_FORMAT_B8G8R8A8_SRGB;
 
+    case COGL_PIXEL_FORMAT_RGB_888:
+      return VK_FORMAT_R8G8B8_SRGB;
+    case COGL_PIXEL_FORMAT_BGR_888:
+      return VK_FORMAT_B8G8R8_SRGB;
+
+
       /* TODO(dixit Mesa): Figure out what all the formats mean and make
        * this table correct.
        */
@@ -61,10 +67,6 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     /*     return VK_FORMAT_R8_SRGB; */
     /* case COGL_PIXEL_FORMAT_RG_88: */
     /*   return VK_FORMAT_R8G8_SRGB; */
-    /* case COGL_PIXEL_FORMAT_RGB_888: */
-    /*   return VK_FORMAT_R8G8B8_SRGB; */
-    /* case COGL_PIXEL_FORMAT_BGR_888: */
-    /*   return VK_FORMAT_B8G8R8_SRGB; */
 
     /* case COGL_PIXEL_FORMAT_RGBA_8888: */
     /* case COGL_PIXEL_FORMAT_RGBA_8888_PRE: */
@@ -259,6 +261,47 @@ _cogl_winding_to_vulkan_front_face (CoglWinding winding)
       return VK_FRONT_FACE_CLOCKWISE;
     case COGL_WINDING_COUNTER_CLOCKWISE:
       return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    default:
+      g_assert_not_reached();
+    }
+}
+
+VkIndexType
+_cogl_indices_type_to_vulkan_indices_type (CoglIndicesType type)
+{
+  switch (type)
+    {
+    case COGL_INDICES_TYPE_UNSIGNED_BYTE:
+      g_warning ("unsigned bytes indices are not supported on Vulkan");
+      g_assert_not_reached();
+    case COGL_INDICES_TYPE_UNSIGNED_SHORT:
+      return VK_INDEX_TYPE_UINT16;
+    case COGL_INDICES_TYPE_UNSIGNED_INT:
+      return VK_INDEX_TYPE_UINT32;
+    default:
+      g_assert_not_reached();
+    }
+}
+
+VkPrimitiveTopology
+_cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode)
+{
+  switch (mode)
+    {
+    case COGL_VERTICES_MODE_POINTS:
+      return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    case COGL_VERTICES_MODE_LINES:
+      return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    case COGL_VERTICES_MODE_LINE_LOOP:
+      g_assert_not_reached(); /* ¯\_(ツ)_/¯ */
+    case COGL_VERTICES_MODE_LINE_STRIP:
+      return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+    case COGL_VERTICES_MODE_TRIANGLES:
+      return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    case COGL_VERTICES_MODE_TRIANGLE_STRIP:
+      return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+    case COGL_VERTICES_MODE_TRIANGLE_FAN:
+      return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
     default:
       g_assert_not_reached();
     }

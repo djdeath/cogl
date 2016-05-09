@@ -67,4 +67,11 @@ _cogl_pipeline_cull_mode_to_vulkan_cull_mode (CoglPipelineCullFaceMode mode);
 VkFrontFace
 _cogl_winding_to_vulkan_front_face (CoglWinding winding);
 
+VkIndexType
+_cogl_indices_type_to_vulkan_indices_type (CoglIndicesType type);
+
+VkPrimitiveTopology
+_cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode);
+
+
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */
