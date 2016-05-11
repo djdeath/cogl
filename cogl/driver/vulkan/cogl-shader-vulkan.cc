@@ -375,9 +375,11 @@ _cogl_shader_vulkan_add_sampler (CoglShaderVulkan *shader,
                                  glslang::TIntermSymbol* symbol)
 {
   // We start mapping samplers at 1 because 0 is used by uniform block.
-  int binding = g_hash_table_size (shader->outputs[stage]) + 1;
+  int binding = g_hash_table_size (shader->samplers[stage]) + 1;
   CoglShaderVulkanSampler *sampler =
     _cogl_shader_vulkan_sampler_new (symbol->getName().c_str(), binding);
+
+  symbol->getQualifier().layoutBinding = sampler->binding;
 
   g_hash_table_insert (shader->samplers[stage], sampler->name, sampler);
 }

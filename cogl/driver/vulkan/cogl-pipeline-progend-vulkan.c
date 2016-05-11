@@ -681,6 +681,7 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
   CreateDescriptorSetLayout *data = user_data;
   VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
 
+  binding->binding = data->n_bindings;
   binding->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   binding->descriptorCount = 1;
   binding->stageFlags = data->stage_flags;
@@ -708,6 +709,7 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
   data.n_bindings = 1;
 
   /* Uniform buffer for all our uniforms. */
+  data.bindings[0].binding = 0;
   data.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   data.bindings[0].descriptorCount = 1;
   data.bindings[0].stageFlags = data.stage_flags;
