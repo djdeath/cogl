@@ -174,7 +174,8 @@ add_layer_declaration_cb (CoglPipelineLayer *layer,
     _cogl_pipeline_layer_get_texture_type (layer);
   const char *target_string;
 
-  _cogl_gl_util_get_texture_target_string (texture_type, &target_string, NULL);
+  _cogl_vulkan_util_get_texture_target_string (texture_type,
+                                               &target_string, NULL);
 
   g_string_append_printf (shader_state->header,
                           "uniform sampler%s cogl_sampler%i;\n",

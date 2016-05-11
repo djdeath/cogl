@@ -90,7 +90,6 @@ typedef struct
 
   CoglPipelineCacheEntry *cache_entry;
 
-  /* CoglShaderVulkan *shader; */
   GString *shader_source;
 } CoglPipelineShaderState;
 
@@ -228,7 +227,8 @@ add_layer_declaration_cb (CoglPipelineLayer *layer,
     _cogl_pipeline_layer_get_texture_type (layer);
   const char *target_string;
 
-  _cogl_gl_util_get_texture_target_string (texture_type, &target_string, NULL);
+  _cogl_vulkan_util_get_texture_target_string (texture_type,
+                                               &target_string, NULL);
 
   g_string_append_printf (shader_state->header,
                           "uniform sampler%s cogl_sampler%i;\n",
@@ -414,9 +414,9 @@ ensure_texture_lookup_generated (CoglPipelineShaderState *shader_state,
 
   texture_type =
     _cogl_pipeline_layer_get_texture_type (layer);
-  _cogl_gl_util_get_texture_target_string (texture_type,
-                                           &target_string,
-                                           &tex_coord_swizzle);
+  _cogl_vulkan_util_get_texture_target_string (texture_type,
+                                               &target_string,
+                                               &tex_coord_swizzle);
 
   shader_state->unit_state[unit_index].sampled = TRUE;
 
@@ -1063,18 +1063,6 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
       shader_state->source = NULL;
 
       shader_state->shader_source = shader_source;
-      /* shader = _cogl_shader_vulkan_new (ctx, COGL_GLSL_SHADER_TYPE_FRAGMENT); */
-      /* _cogl_shader_vulkan_set_source (shader, shader_source->str); */
-      /* g_string_free (shader_source, TRUE); */
-
-      /* if (!_cogl_shader_vulkan_link (shader)) */
-      /*   { */
-      /*     g_warning ("Fragment shader compilation failed"); */
-      /*     _cogl_shader_vulkan_free (shader); */
-      /*     shader = NULL; */
-      /*   } */
-
-      /* shader_state->shader = shader; */
     }
 
   return TRUE;

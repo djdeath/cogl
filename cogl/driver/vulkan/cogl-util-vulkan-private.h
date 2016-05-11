@@ -73,5 +73,9 @@ _cogl_indices_type_to_vulkan_indices_type (CoglIndicesType type);
 VkPrimitiveTopology
 _cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode);
 
+void
+_cogl_vulkan_util_get_texture_target_string (CoglTextureType texture_type,
+                                             const char **target_string_out,
+                                             const char **swizzle_out);
 
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */

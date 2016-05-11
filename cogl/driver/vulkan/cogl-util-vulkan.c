@@ -306,3 +306,43 @@ _cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode)
       g_assert_not_reached();
     }
 }
+
+void
+_cogl_vulkan_util_get_texture_target_string (CoglTextureType texture_type,
+                                             const char **target_string_out,
+                                             const char **swizzle_out)
+{
+  const char *target_string, *tex_coord_swizzle;
+
+  switch (texture_type)
+    {
+#if 0 /* TODO */
+    case COGL_TEXTURE_TYPE_1D:
+      target_string = "1D";
+      tex_coord_swizzle = "s";
+      break;
+#endif
+
+    case COGL_TEXTURE_TYPE_2D:
+      target_string = "2D";
+      tex_coord_swizzle = "st";
+      break;
+
+#if 0 /* TODO */
+    case COGL_TEXTURE_TYPE_3D:
+      target_string = "3D";
+      tex_coord_swizzle = "stp";
+      break;
+#endif
+
+    default:
+      target_string = "Unknown";
+      tex_coord_swizzle = NULL;
+      g_assert_not_reached ();
+    }
+
+  if (target_string_out)
+    *target_string_out = target_string;
+  if (swizzle_out)
+    *swizzle_out = tex_coord_swizzle;
+}
