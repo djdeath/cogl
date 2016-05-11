@@ -62,9 +62,8 @@ struct _CoglShaderVulkan
   GHashTable *inputs[NB_STAGES];
   GHashTable *outputs[NB_STAGES];
 
+  GHashTable *samplers[NB_STAGES];
   GHashTable *uniforms[NB_STAGES];
-
-  GHashTable *bindings[NB_STAGES];
 
   VkShaderModule modules[NB_STAGES];
 
@@ -108,6 +107,26 @@ _cogl_shader_vulkan_uniform_free (CoglShaderVulkanUniform *uniform)
   if (uniform->name)
     g_free (uniform->name);
   g_slice_free (CoglShaderVulkanUniform, uniform);
+}
+
+static CoglShaderVulkanSampler *
+_cogl_shader_vulkan_sampler_new (const char *name, int binding)
+{
+  CoglShaderVulkanSampler *sampler =
+    g_slice_new0 (CoglShaderVulkanSampler);
+
+  sampler->name = g_strdup (name);
+  sampler->binding = binding;
+
+  return sampler;
+}
+
+static void
+_cogl_shader_vulkan_sampler_free (CoglShaderVulkanSampler *sampler)
+{
+  if (sampler->name)
+    g_free (sampler->name);
+  g_slice_free (CoglShaderVulkanSampler, sampler);
 }
 
 static EShLanguage
@@ -241,8 +260,8 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
   for (int stage = 0; stage < NB_STAGES; stage++) {
     g_hash_table_unref (shader->inputs[stage]);
     g_hash_table_unref (shader->outputs[stage]);
+    g_hash_table_unref (shader->samplers[stage]);
     g_hash_table_unref (shader->uniforms[stage]);
-    // g_hash_table_unref (shader->bindings[stage]);
 
     if (shader->modules[stage] != VK_NULL_HANDLE)
       vkDestroyShaderModule (vk_ctx->device, shader->modules[stage], NULL);
@@ -276,10 +295,10 @@ _cogl_shader_vulkan_new (CoglContext *context)
                                                      g_str_equal,
                                                      NULL,
                                                      (GDestroyNotify) _cogl_shader_vulkan_uniform_free);
-    // shader->bindings[stage] = g_hash_table_new_full (g_str_hash,
-    //                                                  g_str_equal,
-    //                                                  NULL,
-    //                                                  (GDestroyNotify) _cogl_shader_vulkan_binding_free);
+    shader->samplers[stage] = g_hash_table_new_full (g_str_hash,
+                                                     g_str_equal,
+                                                     NULL,
+                                                     (GDestroyNotify) _cogl_shader_vulkan_sampler_free);
   }
 
   return shader;
@@ -306,7 +325,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
                                   no_include);
 
   if (!success)
-    COGL_NOTE (SPIRV, "Shader compilation failed : %s\n%s\n",
+    COGL_NOTE (VULKAN, "Shader compilation failed : %s\n%s\n",
                gl_shader->getInfoLog(), gl_shader->getInfoDebugLog());
 
   shader->program->addShader (gl_shader);
@@ -355,7 +374,12 @@ _cogl_shader_vulkan_add_sampler (CoglShaderVulkan *shader,
                                  CoglGlslShaderType stage,
                                  glslang::TIntermSymbol* symbol)
 {
-  // VK_TODO();
+  // We start mapping samplers at 1 because 0 is used by uniform block.
+  int binding = g_hash_table_size (shader->outputs[stage]) + 1;
+  CoglShaderVulkanSampler *sampler =
+    _cogl_shader_vulkan_sampler_new (symbol->getName().c_str(), binding);
+
+  g_hash_table_insert (shader->samplers[stage], sampler->name, sampler);
 }
 
 static void
@@ -449,13 +473,16 @@ private:
 
     if (it != map_.end() && it->second != base) {
       COGL_NOTE (VULKAN,
-                 "updating instance name=%s layout=%i->%i binding=%i",
+                 "updating instance name=%s layout=%i->%i binding=%i->%i",
                  base->getName().c_str(),
                  base->getQualifier().layoutLocation,
                  it->second->getQualifier().layoutLocation,
-                 base->getQualifier().layoutBinding);
+                 base->getQualifier().layoutBinding,
+                 it->second->getQualifier().layoutBinding);
       base->getQualifier().layoutLocation =
         it->second->getQualifier().layoutLocation;
+      base->getQualifier().layoutBinding =
+        it->second->getQualifier().layoutBinding;
     }
   }
 
@@ -551,13 +578,15 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
           _cogl_shader_vulkan_add_vertex_output (shader,
                                                  (CoglGlslShaderType) stage,
                                                  symbol);
-        } else {
-          g_warning ("Unknown global symbol type of `%s'",
-                     symbol->getName().c_str());
+        } else if (symbol->getBasicType() == glslang::EbtSampler) {
+          _cogl_shader_vulkan_add_sampler (shader,
+                                           (CoglGlslShaderType) stage,
+                                           symbol);
         }
       }
     }
 
+    g_message ("stage=%i", stage);
     /* Visit the AST to replace all occurences of nodes we might have
        changed. */
     CoglTraverser traverser(updated_symbols);
@@ -603,6 +632,21 @@ _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
 
   if (attribute)
     return attribute->location;
+
+  return -1;
+}
+
+extern "C" int
+_cogl_shader_vulkan_get_sampler_binding (CoglShaderVulkan *shader,
+                                         CoglGlslShaderType stage,
+                                         const char *name)
+{
+  CoglShaderVulkanSampler *sampler =
+    (CoglShaderVulkanSampler *) g_hash_table_lookup (shader->samplers[stage],
+                                                     name);
+
+  if (sampler)
+    return sampler->binding;
 
   return -1;
 }

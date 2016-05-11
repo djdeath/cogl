@@ -52,11 +52,11 @@ typedef struct _CoglShaderVulkanUniform
   int offset;
 } CoglShaderVulkanUniform;
 
-typedef struct _CoglShaderVulkanBinding
+typedef struct _CoglShaderVulkanSampler
 {
   char *name;
   int binding;
-} CoglShaderVulkanBinding;
+} CoglShaderVulkanSampler;
 
 typedef struct _CoglShaderVulkan CoglShaderVulkan;
 
@@ -86,6 +86,11 @@ _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
 
 CoglShaderVulkanUniform *
 _cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
+                                 CoglGlslShaderType stage,
+                                 const char *name);
+
+CoglShaderVulkanSampler *
+_cogl_shader_vulkan_get_sampler (CoglShaderVulkan *shader,
                                  CoglGlslShaderType stage,
                                  const char *name);
 

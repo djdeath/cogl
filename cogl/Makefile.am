@@ -335,6 +335,8 @@ libspirv_private_la_SOURCES = \
 	driver/vulkan/spirv/InReadableOrder.cpp \
 	driver/vulkan/spirv/GlslangToSpv.cpp \
 	driver/vulkan/spirv/GlslangToSpv.h \
+	driver/vulkan/spirv/Logger.cpp \
+	driver/vulkan/spirv/Logger.h \
 	driver/vulkan/spirv/spirv.hpp \
 	driver/vulkan/spirv/SpvBuilder.cpp \
 	driver/vulkan/spirv/SpvBuilder.h \

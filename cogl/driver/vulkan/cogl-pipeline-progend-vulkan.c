@@ -110,11 +110,14 @@ typedef struct
 {
   unsigned int ref_count;
 
+  /* TODO: Maybe factorize the uniform buffer out of the program state. It
+     could be per pipeline, avoiding a lot of flushing code here. */
   CoglBuffer *uniform_buffer;
   void *uniform_data; /* Just a pointer to uniform_buffer memory */
 
   VkPipelineLayout pipeline_layout;
 
+  VkDescriptorSetLayout descriptor_set_layout;
   VkDescriptorPool descriptor_pool;
   VkDescriptorSet descriptor_set;
 
@@ -662,10 +665,73 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
     _cogl_bitmask_clear_all (&uniforms_state->changed_mask);
 }
 
+typedef struct
+{
+  CoglPipelineProgramState *program_state;
+  int n_bindings;
+
+  VkShaderStageFlags stage_flags;
+  VkDescriptorSetLayoutBinding *bindings;
+} CreateDescriptorSetLayout;
+
+static CoglBool
+add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
+                                    void *user_data)
+{
+  CreateDescriptorSetLayout *data = user_data;
+  VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
+
+  binding->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  binding->descriptorCount = 1;
+  binding->stageFlags = data->stage_flags;
+  binding->pImmutableSamplers = NULL;
+
+  data->n_bindings++;
+
+  return TRUE;
+}
+
+static void
+_cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
+                                             CoglPipelineProgramState *program_state,
+                                             CoglContextVulkan *vk_ctx)
+{
+  VkDescriptorSetLayoutCreateInfo info;
+  CreateDescriptorSetLayout data;
+  VkResult result;
+
+  data.program_state = program_state;
+  data.n_bindings = 1;
+  data.stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+  data.bindings = g_new0 (VkDescriptorSetLayoutBinding,
+                          cogl_pipeline_get_n_layers (pipeline) + 1);
+  data.n_bindings = 1;
+
+  /* Uniform buffer for all our uniforms. */
+  data.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  data.bindings[0].descriptorCount = 1;
+  data.bindings[0].stageFlags = data.stage_flags;
+  data.bindings[0].pImmutableSamplers = NULL;
+
+  /* All other potential samplers for each layer. */
+  _cogl_pipeline_foreach_layer_internal (pipeline,
+                                         add_layer_to_descriptor_set_layout,
+                                         &data);
+
+  info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  info.bindingCount = data.n_bindings;
+  info.pBindings = data.bindings;
+  result = vkCreateDescriptorSetLayout (vk_ctx->device, &info,
+                                        NULL,
+                                        &program_state->descriptor_set_layout);
+  if (result != VK_SUCCESS)
+    g_warning ("Cannot create descriptor set layout (%d): %s",
+               result, _cogl_vulkan_error_to_string (result));
+}
+
 static CoglBool
 _cogl_pipeline_progend_vulkan_start (CoglPipeline *pipeline)
 {
-  CoglPipelineProgramState *program_state = get_program_state (pipeline);
   return TRUE;
 }
 
@@ -681,7 +747,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
   UpdateUniformsState state;
   CoglProgram *user_program;
   CoglPipelineCacheEntry *cache_entry = NULL;
-  VkDescriptorSetLayout set_layout;
   VkResult result;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
@@ -786,28 +851,14 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
     {
-      result = vkCreateDescriptorSetLayout (vk_ctx->device, &(VkDescriptorSetLayoutCreateInfo) {
-          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-          .bindingCount = 1,
-          .pBindings = (VkDescriptorSetLayoutBinding[]) {
-            {
-              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              .descriptorCount = 1,
-              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT /* | VK_SHADER_STAGE_FRAGMENT_BIT */,
-              .pImmutableSamplers = NULL
-            }
-          }
-        },
-        NULL,
-        &set_layout);
-      if (result != VK_SUCCESS)
-        g_warning ("Cannot create descriptor set layout (%d): %s",
-                   result, _cogl_vulkan_error_to_string (result));
+      _cogl_pipeline_create_descriptor_set_layout (pipeline,
+                                                   program_state,
+                                                   vk_ctx);
 
       result = vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
           .setLayoutCount = 1,
-          .pSetLayouts = &set_layout,
+          .pSetLayouts = &program_state->descriptor_set_layout,
         },
         NULL,
         &program_state->pipeline_layout);
@@ -815,7 +866,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         g_warning ("Cannot create pipeline layout (%d): %s",
                    result, _cogl_vulkan_error_to_string (result));
 
-      //memset(program_state->stage_info, 0, sizeof(program_state->stage_info));
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = NULL,
@@ -866,7 +916,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
           .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
           .descriptorPool = program_state->descriptor_pool,
           .descriptorSetCount = 1,
-          .pSetLayouts = &set_layout,
+          .pSetLayouts = &program_state->descriptor_set_layout,
         },
         &program_state->descriptor_set);
       if (result != VK_SUCCESS)

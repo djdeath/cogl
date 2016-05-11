@@ -249,7 +249,7 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
       if (shader_type == COGL_GLSL_SHADER_TYPE_VERTEX)
         {
           g_string_append_printf (builder.attributes,
-                                  "in vec4 _cogl_tex_coord[%d];\n",
+                                  "out vec4 _cogl_tex_coord[%d];\n",
                                   n_layers);
           g_string_append_printf (builder.uniforms,
                                   "uniform mat4 cogl_texture_matrix[%d];\n",
@@ -261,6 +261,9 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
         }
       else if (shader_type == COGL_GLSL_SHADER_TYPE_FRAGMENT)
         {
+          g_string_append_printf (builder.attributes,
+                                  "in vec4 _cogl_tex_coord[%d];\n",
+                                  n_layers);
           _cogl_pipeline_foreach_layer_internal (pipeline,
                                                  add_layer_vulkan_fragment_boilerplate_cb,
                                                  &builder);
