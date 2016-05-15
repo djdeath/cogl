@@ -67,7 +67,7 @@ struct _CoglShaderVulkan
 
   VkShaderModule modules[NB_STAGES];
 
-  int block_size;
+  int block_size[NB_STAGES];
 };
 
 static CoglShaderVulkanAttribute *
@@ -460,7 +460,7 @@ _cogl_shader_vulkan_add_block (CoglShaderVulkan *shader,
                                      member_offset);
   }
 
-  shader->block_size = member_offset + member_size;
+  shader->block_size[stage] = member_offset + member_size;
 }
 
 typedef std::map<int, glslang::TIntermSymbol*> SymbolMap;
@@ -603,6 +603,10 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
   delete shader->program;
   shader->program = nullptr;
 
+  if (shader->block_size[COGL_GLSL_SHADER_TYPE_VERTEX] !=
+      shader->block_size[COGL_GLSL_SHADER_TYPE_FRAGMENT])
+    g_warning ("Vertex & fragment shaders have different block sizes.");
+
   return true;
 }
 
@@ -620,7 +624,7 @@ _cogl_shader_vulkan_get_uniform_block_size (CoglShaderVulkan *shader,
                                             CoglGlslShaderType stage,
                                             int index)
 {
-  return shader->block_size;
+  return shader->block_size[stage];
 }
 
 extern "C" int

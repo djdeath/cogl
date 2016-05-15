@@ -246,13 +246,14 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
   n_layers = cogl_pipeline_get_n_layers (pipeline);
   if (n_layers)
     {
+      g_string_append_printf (builder.uniforms,
+                              "uniform mat4 cogl_texture_matrix[%d];\n",
+                              n_layers);
+
       if (shader_type == COGL_GLSL_SHADER_TYPE_VERTEX)
         {
           g_string_append_printf (builder.attributes,
                                   "out vec4 _cogl_tex_coord[%d];\n",
-                                  n_layers);
-          g_string_append_printf (builder.uniforms,
-                                  "uniform mat4 cogl_texture_matrix[%d];\n",
                                   n_layers);
 
           _cogl_pipeline_foreach_layer_internal (pipeline,

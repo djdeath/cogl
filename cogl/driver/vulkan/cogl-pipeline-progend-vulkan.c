@@ -98,12 +98,17 @@ const CoglPipelineProgend _cogl_pipeline_vulkan_progend;
 
 typedef struct _UnitState
 {
+  CoglPipelineLayerState changes;
+
   unsigned int dirty_combine_constant:1;
   unsigned int dirty_texture_matrix:1;
+  unsigned int dirty_texture:1;
 
   CoglShaderVulkanUniform *combine_constant_uniform;
-
   CoglShaderVulkanUniform *texture_matrix_uniform;
+
+  VkSampler sampler;
+  int binding;
 } UnitState;
 
 typedef struct
@@ -151,7 +156,17 @@ typedef struct
   CoglShaderVulkanUniform *flip_uniform;
   int flushed_flip_state;
 
+  /* Array of descriptors to write before doing any drawing. This array is
+     allocated with (n_layer + 1) elements. */
+  VkWriteDescriptorSet *write_descriptor_sets;
+  int n_write_descriptor_sets;
+
+  /* Array of image descriptors mapping 1:1 with write_descriptor_sets. This
+     array is allocated with n_layer elements. */
+  VkDescriptorImageInfo *descriptor_image_infos;
+
   UnitState *unit_state;
+  int n_layers;
 
   CoglPipelineCacheEntry *cache_entry;
 } CoglPipelineProgramState;
@@ -219,7 +234,10 @@ program_state_new (int n_layers,
 
   program_state = g_slice_new0 (CoglPipelineProgramState);
   program_state->ref_count = 1;
-  program_state->unit_state = g_new (UnitState, n_layers);
+  program_state->n_layers = n_layers;
+  program_state->unit_state = g_new0 (UnitState, n_layers);
+  program_state->write_descriptor_sets = g_new0 (VkWriteDescriptorSet, n_layers + 1);
+  program_state->descriptor_image_infos = g_new0 (VkDescriptorImageInfo, n_layers);
   program_state->uniform_locations = NULL;
   program_state->cache_entry = cache_entry;
   _cogl_matrix_entry_cache_init (&program_state->modelview_cache);
@@ -235,6 +253,7 @@ destroy_program_state (void *user_data,
   CoglPipelineProgramState *program_state = user_data;
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
   CoglContextVulkan *vk_ctx = ctx->winsys;
+  int i;
 
   /* If the program state was last used for this pipeline then clear
      it so that if same address gets used again for a new pipeline
@@ -272,6 +291,13 @@ destroy_program_state (void *user_data,
         vkDestroyPipelineLayout (vk_ctx->device,
                                  program_state->pipeline_layout, NULL);
 
+      for (i = 0; i < program_state->n_layers; i++)
+        {
+          if (program_state->unit_state[i].sampler != VK_NULL_HANDLE)
+            vkDestroySampler (vk_ctx->device,
+                              program_state->unit_state[i].sampler,
+                              NULL);
+        }
       g_free (program_state->unit_state);
 
       if (program_state->uniform_locations)
@@ -321,6 +347,15 @@ get_program_state_uniform_location (CoglPipelineProgramState *program_state,
   return _cogl_shader_vulkan_get_uniform (program_state->shader,
                                           COGL_GLSL_SHADER_TYPE_VERTEX,
                                           name);
+}
+
+static int
+get_program_state_sampler_binding (CoglPipelineProgramState *program_state,
+                                   const char *name)
+{
+  return _cogl_shader_vulkan_get_sampler_binding (program_state->shader,
+                                                  COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                  name);
 }
 
 static void
@@ -400,22 +435,24 @@ get_uniform_cb (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  /* We can reuse the source buffer to create the uniform name because
-     the program has now been linked */
-  g_string_set_size (ctx->codegen_source_buffer, 0);
-  g_string_append_printf (ctx->codegen_source_buffer,
-                          "cogl_sampler%i", layer_index);
+  /* /\* We can reuse the source buffer to create the uniform name because */
+  /*    the program has now been linked *\/ */
+  /* g_string_set_size (ctx->codegen_source_buffer, 0); */
+  /* g_string_append_printf (ctx->codegen_source_buffer, */
+  /*                         "cogl_sampler%i", layer_index); */
 
-  uniform_location =
-    get_program_state_uniform_location (program_state,
-                                        ctx->codegen_source_buffer->str);
+  /* uniform_location = */
+  /*   get_program_state_uniform_location (program_state, */
+  /*                                       ctx->codegen_source_buffer->str); */
 
-  /* We can set the uniform immediately because the samplers are the
-     unit index not the texture object number so it will never
-     change. Unfortunately GL won't let us use a constant instead of a
-     uniform */
-  if (uniform_location != NULL)
-    set_program_state_uniform1i (program_state, uniform_location, state->unit);
+  /* /\* We can set the uniform immediately because the samplers are the */
+  /*    unit index not the texture object number so it will never */
+  /*    change. Unfortunately GL won't let us use a constant instead of a */
+  /*    uniform *\/ */
+  /* if (uniform_location != NULL) */
+  /*   set_program_state_uniform1i (program_state, uniform_location, state->unit); */
+
+
 
   g_string_set_size (ctx->codegen_source_buffer, 0);
   g_string_append_printf (ctx->codegen_source_buffer,
@@ -474,6 +511,32 @@ update_constants_cb (CoglPipeline *pipeline,
                                            unit_state->texture_matrix_uniform,
                                            1, array);
       unit_state->dirty_texture_matrix = FALSE;
+    }
+
+  if (state->update_all || unit_state->dirty_texture)
+    {
+      CoglTexture *texture = cogl_pipeline_get_layer_texture (pipeline, layer_index);
+
+      if (COGL_IS_TEXTURE_2D (texture))
+        {
+          int index = program_state->n_write_descriptor_sets++;
+          VkWriteDescriptorSet *write_set =
+            program_state->write_descriptor_sets[index];
+          VkDescriptorImageInfo *image_info =
+            program_state->descriptor_image_infos[index];
+
+
+          write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+          write_set->dstSet = program_state->descriptor_set;
+          write_set->dstBinding = unit_state->binding;
+          write_set->descriptorCount = 1;
+          write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+          write_set->pImageInfo = image_info;
+
+          image_info->sampler = unit_state->sampler;
+          image_info->imageView = ;//demo->textures[i].view;
+          image_info->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        }
     }
 
   return TRUE;
@@ -560,9 +623,14 @@ flush_uniform_cb (int uniform_num, void *user_data)
         }
 
       if (uniform_location != NULL)
-        _cogl_boxed_value_set_uniform (data->ctx,
-                                       uniform_location,
-                                       data->values + data->value_index);
+        {
+          const CoglBoxedValue *v = &data->values[data->value_index];
+
+          set_program_state_uniform (data->program_state,
+                                     uniform_location,
+                                     _cogl_boxed_value_get_pointer (v),
+                                     _cogl_boxed_value_get_size (v));
+        }
 
       data->n_differences--;
       COGL_FLAGS_SET (data->uniform_differences, uniform_num, FALSE);
@@ -665,6 +733,45 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
     _cogl_bitmask_clear_all (&uniforms_state->changed_mask);
 }
 
+static CoglBool
+update_samplers_cb (CoglPipeline *pipeline,
+                    int layer_index,
+                    void *user_data)
+{
+  UpdateUniformsState *state = user_data;
+  CoglPipelineProgramState *program_state = state->program_state;
+  UnitState *unit_state = &program_state->unit_state[state->unit++];
+
+  _COGL_GET_CONTEXT (ctx, FALSE);
+
+  if (unit_state->sampler == VK_NULL_HANDLE)
+    {
+      VkSamplerCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1,
+        .compareOp = VK_COMPARE_OP_NEVER,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+        .unnormalizedCoordinates = VK_FALSE,
+      };
+
+      _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline, layer_index),
+                                              &info.magFilter,
+                                              NULL);
+      _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline, layer_index),
+                                              &info.minFilter,
+                                              &info.mipmapMode);
+      info.addressModeU = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
+      info.addressModeV = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
+      info.addressModeW = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
+    }
+
+  return TRUE;
+}
+
 typedef struct
 {
   CoglPipelineProgramState *program_state;
@@ -680,8 +787,21 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
 {
   CreateDescriptorSetLayout *data = user_data;
   VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
+  CoglShaderVulkanSampler *sampler;
+  UnitState *unit_state = &data->program_state->unit_state[data->n_bindings++];
 
-  binding->binding = data->n_bindings;
+  _COGL_GET_CONTEXT (ctx, FALSE);
+
+  /* We can reuse the source buffer to create the uniform name because
+     the program has now been linked */
+  g_string_set_size (ctx->codegen_source_buffer, 0);
+  g_string_append_printf (ctx->codegen_source_buffer,
+                          "cogl_sampler%i", layer->index);
+
+  binding->binding =
+    unit_state->binding =
+    get_program_state_sampler_binding (data->program_state,
+                                       ctx->codegen_source_buffer->str);
   binding->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   binding->descriptorCount = 1;
   binding->stageFlags = data->stage_flags;
@@ -983,6 +1103,10 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                                 program_state,
                                                 program_changed);
 
+  cogl_pipeline_foreach_layer (pipeline,
+                               update_samplers_cb,
+                               &state);
+
   /* We need to track the last pipeline that the program was used with
    * so know if we need to update all of the uniforms */
   program_state->last_used_for_pipeline = pipeline;
@@ -1033,6 +1157,7 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayerState change)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
 
   if ((change & (_cogl_pipeline_get_layer_state_for_fragment_codegen (ctx) |
                  COGL_PIPELINE_LAYER_STATE_AFFECTS_VERTEX_CODEGEN)))
@@ -1055,6 +1180,30 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
         {
           int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
           program_state->unit_state[unit_index].dirty_texture_matrix = TRUE;
+        }
+    }
+  else if (change & COGL_PIPELINE_LAYER_STATE_SAMPLER)
+    {
+      CoglPipelineProgramState *program_state = get_program_state (owner);
+      if (program_state)
+        {
+          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
+          if (program_state->unit_state[unit_index].sampler != VK_NULL_HANDLE)
+            {
+              vkDestroySampler (vk_ctx->device,
+                                program_state->unit_state[unit_index].sampler,
+                                NULL);
+              program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
+            }
+        }
+    }
+  else if (change & COGL_PIPELINE_LAYER_STATE_TEXTURE_DATA)
+    {
+      CoglPipelineProgramState *program_state = get_program_state (owner);
+      if (program_state)
+        {
+          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
+          program_state->unit_state[unit_index].dirty_texture = TRUE;
         }
     }
 }

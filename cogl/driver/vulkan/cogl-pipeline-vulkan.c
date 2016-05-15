@@ -58,9 +58,6 @@ typedef struct _CoglPipelineVulkan
   VkPipelineVertexInputStateCreateInfo *vertex_inputs;
   int n_vertex_inputs;
 
-  VkSampler *samplers;
-  int n_samplers;
-
   VkBuffer *attribute_buffers; /* Content of array not owned */
   VkDeviceSize *attribute_offsets;
 } CoglPipelineVulkan;
@@ -138,29 +135,6 @@ void
 _cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline)
 {
   _cogl_pipeline_vulkan_invalidate_internal (pipeline);
-}
-
-void
-_cogl_pipeline_vulkan_invalidate_samplers (CoglPipeline *pipeline)
-{
-  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-  int i;
-
-  if (!vk_pipeline)
-    return;
-
-  if (vk_pipeline->samplers == NULL)
-    return;
-
-  for (int i = 0; i < vk_pipeline->n_samplers; i++)
-    {
-      if (vk_pipeline->samplers[i] != VK_NULL_HANDLE)
-        {
-          vkDestroySampler (vk_ctx->device, vk_pipeline->samplers[i], NULL);
-          vk_pipeline->samplers[i] = VK_NULL_HANDLE;
-        }
-    }
 }
 
 typedef struct

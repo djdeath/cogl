@@ -61,7 +61,6 @@ typedef struct
   CoglPipelineCacheEntry *cache_entry;
 
   GString *shader_source;
-  /* CoglShaderVulkan *shader; */
 } CoglPipelineShaderState;
 
 static CoglUserDataKey shader_state_key;
