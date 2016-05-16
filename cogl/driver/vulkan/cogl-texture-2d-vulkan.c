@@ -47,6 +47,12 @@ _cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d)
   return tex_2d->vk_image;
 }
 
+VkImageView
+_cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d)
+{
+  return tex_2d->vk_image_view;
+}
+
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 {
@@ -58,12 +64,10 @@ _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d)
 {
   CoglContextVulkan *vk_ctx = tex_2d->_parent.context->winsys;
 
-  if (tex_2d->vk_image_valid)
-    {
-      vkDestroyImage(vk_ctx->device,
-                     tex_2d->vk_image, NULL);
-      tex_2d->vk_image_valid = FALSE;
-    }
+  if (tex_2d->vk_image_view != VK_NULL_HANDLE)
+    vkDestroyImageView (vk_ctx->device, tex_2d->vk_image_view, NULL);
+  if (tex_2d->vk_image != VK_NULL_HANDLE)
+    vkDestroyImage (vk_ctx->device, tex_2d->vk_image, NULL);
 }
 
 CoglBool
@@ -79,7 +83,7 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
                                            NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
-  vkGetPhysicalDeviceProperties(vk_ctx->physical_device, &props);
+  vkGetPhysicalDeviceProperties (vk_ctx->physical_device, &props);
 
   if (width >= props.limits.maxFramebufferWidth ||
       height >= props.limits.maxFramebufferHeight)
@@ -91,7 +95,7 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
 void
 _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
 {
-  tex_2d->gl_texture = 0;
+  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   /* We default to GL_LINEAR for both filters */
   tex_2d->vk_min_filter = VK_FILTER_LINEAR;
@@ -129,26 +133,61 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  result = vkCreateImage(vk_ctx->device,
-                         &(VkImageCreateInfo) {
-                           .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                           .imageType = VK_IMAGE_TYPE_2D,
-                           .format = vk_format,
-                           .extent = { .width = width, .height = height, .depth = 1 },
-                           .mipLevels = 1 + floor (log2 (MAX (width, height))),
-                           .arrayLayers = 1,
-                           .samples = 1,
-                           .tiling = VK_IMAGE_TILING_OPTIMAL,
-                           .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                           .flags = 0,
-                         },
-                         NULL,
-                         &tex_2d->vk_image);
+  result = vkCreateImage (vk_ctx->device, &(VkImageCreateInfo) {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .format = vk_format,
+      .extent = {
+        .width = width,
+        .height = height,
+        .depth = 1
+      },
+      .mipLevels = 1 + floor (log2 (MAX (width, height))),
+      .arrayLayers = 1,
+      .samples = 1,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .flags = 0,
+      .initialLayout = tex_2d->vk_image_layout,
+    },
+    NULL,
+    &tex_2d->vk_image);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
                        COGL_TEXTURE_ERROR_BAD_PARAMETER,
                        "Failed to create 2d texture : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
+
+  result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .flags = 0,
+      .image = tex_2d->vk_image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = vk_format,
+      .components = {
+        .r = VK_COMPONENT_SWIZZLE_R,
+        .g = VK_COMPONENT_SWIZZLE_G,
+        .b = VK_COMPONENT_SWIZZLE_B,
+        .a = VK_COMPONENT_SWIZZLE_A,
+      },
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+    },
+    NULL,
+    &tex_2d->vk_image_view);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
+                       "Failed to create 2d texture view : %s",
                        _cogl_vulkan_error_to_string (result));
       return FALSE;
     }

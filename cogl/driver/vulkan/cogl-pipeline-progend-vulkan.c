@@ -54,6 +54,7 @@
 #include "cogl-framebuffer-private.h"
 #include "cogl-pipeline-progend-vulkan-private.h"
 #include "cogl-shader-vulkan-private.h"
+#include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
 /* These are used to generalise updating some uniforms that are
@@ -517,14 +518,13 @@ update_constants_cb (CoglPipeline *pipeline,
     {
       CoglTexture *texture = cogl_pipeline_get_layer_texture (pipeline, layer_index);
 
-      if (COGL_IS_TEXTURE_2D (texture))
+      if (_cogl_texture_get_type (texture) == COGL_TEXTURE_TYPE_2D)
         {
           int index = program_state->n_write_descriptor_sets++;
           VkWriteDescriptorSet *write_set =
-            program_state->write_descriptor_sets[index];
+            &program_state->write_descriptor_sets[index];
           VkDescriptorImageInfo *image_info =
-            program_state->descriptor_image_infos[index];
-
+            &program_state->descriptor_image_infos[index];
 
           write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
           write_set->dstSet = program_state->descriptor_set;
@@ -534,7 +534,8 @@ update_constants_cb (CoglPipeline *pipeline,
           write_set->pImageInfo = image_info;
 
           image_info->sampler = unit_state->sampler;
-          image_info->imageView = ;//demo->textures[i].view;
+          image_info->imageView =
+            _cogl_texture_2d_get_vulkan_image_view (COGL_TEXTURE_2D (texture));
           image_info->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         }
     }

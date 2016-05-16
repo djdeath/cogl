@@ -38,6 +38,9 @@
 VkImage
 _cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d);
 
+VkImageView
+_cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d);
+
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d);
 

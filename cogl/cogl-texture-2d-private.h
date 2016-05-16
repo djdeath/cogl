@@ -67,9 +67,11 @@ struct _CoglTexture2D
 
 #ifdef COGL_HAS_VULKAN
   VkImage vk_image;
-  CoglBool vk_image_valid;
+  VkImageView vk_image_view;
 
   VkDeviceMemory vk_memory;
+
+  VkImageLayout vk_image_layout;
 
   VkFilter vk_min_filter;
   VkFilter vk_mag_filter;
