@@ -657,6 +657,13 @@ _cogl_shader_vulkan_get_sampler_binding (CoglShaderVulkan *shader,
   return -1;
 }
 
+extern "C" int
+_cogl_shader_vulkan_get_n_samplers (CoglShaderVulkan *shader,
+                                    CoglGlslShaderType stage)
+{
+  return g_hash_table_size (shader->samplers[stage]);
+}
+
 extern "C" VkShaderModule
 _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
                                        CoglGlslShaderType stage)

@@ -457,10 +457,11 @@ ensure_texture_lookup_generated (CoglPipelineShaderState *shader_state,
 
       if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_DISABLE_TEXTURING)))
         g_string_append (shader_state->header,
-                         "vec4 (1.0, 1.0, 1.0, 1.0);\n");
+                         "vec4(1.0, 1.0, 1.0, 1.0);\n");
       else
         g_string_append_printf (shader_state->header,
-                                "texture (tex, coords.%s);\n",
+                                "texture(cogl_sampler%i, coords.%s);\n",
+                                layer->index,
                                 tex_coord_swizzle);
 
       g_string_append (shader_state->header, "}\n");

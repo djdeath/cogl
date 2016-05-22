@@ -83,6 +83,30 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     }
 }
 
+VkFormat
+_cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
+                                                  CoglBool *premultiplied)
+{
+
+  if (premultiplied)
+    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
+
+  switch (format)
+    {
+    case COGL_PIXEL_FORMAT_RGBA_8888:
+    case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
+      return VK_FORMAT_B8G8R8A8_UNORM;
+
+    case COGL_PIXEL_FORMAT_RGB_888:
+      return VK_FORMAT_R8G8B8_UNORM;
+    case COGL_PIXEL_FORMAT_BGR_888:
+      return VK_FORMAT_B8G8R8_UNORM;
+
+    default:
+      return VK_FORMAT_UNDEFINED;
+    }
+}
+
 static VkFormat _attributes_to_formats[5][4] = {
   /* COGL_ATTRIBUTE_TYPE_BYTE */
   { VK_FORMAT_R8_SNORM, VK_FORMAT_R8G8_SNORM, VK_FORMAT_R8G8B8_SNORM, VK_FORMAT_R8G8B8A8_SNORM },

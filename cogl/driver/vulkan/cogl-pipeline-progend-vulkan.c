@@ -41,18 +41,19 @@
 #include "cogl-pipeline-vulkan-private.h"
 #include "cogl-offscreen.h"
 
+#include "cogl-object-private.h"
+#include "cogl-attribute-private.h"
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
-#include "cogl-object-private.h"
-#include "cogl-program-private.h"
-#include "cogl-pipeline-fragend-vulkan-private.h"
-#include "cogl-pipeline-vertend-vulkan-private.h"
-#include "cogl-pipeline-cache.h"
-#include "cogl-pipeline-state-private.h"
-#include "cogl-attribute-private.h"
 #include "cogl-framebuffer-private.h"
+#include "cogl-gtype-private.h"
+#include "cogl-pipeline-cache.h"
+#include "cogl-pipeline-fragend-vulkan-private.h"
 #include "cogl-pipeline-progend-vulkan-private.h"
+#include "cogl-pipeline-state-private.h"
+#include "cogl-pipeline-vertend-vulkan-private.h"
+#include "cogl-program-private.h"
 #include "cogl-shader-vulkan-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
@@ -172,12 +173,17 @@ typedef struct
   CoglPipelineCacheEntry *cache_entry;
 } CoglPipelineProgramState;
 
+
 typedef struct _CoglUniformBuffer CoglUniformBuffer;
 struct _CoglUniformBuffer
 {
   CoglBuffer _parent;
 };
 
+#ifdef COGL_HAS_GTYPE_SUPPORT
+GType cogl_uniform_buffer_get_gtype (void);
+#endif
+CoglBool cogl_is_uniform_buffer (void *object);
 static void _cogl_uniform_buffer_free (CoglUniformBuffer *uniforms);
 
 COGL_BUFFER_DEFINE (UniformBuffer, uniform_buffer);
@@ -300,6 +306,9 @@ destroy_program_state (void *user_data,
                               NULL);
         }
       g_free (program_state->unit_state);
+
+      g_free (program_state->write_descriptor_sets);
+      g_free (program_state->descriptor_image_infos);
 
       if (program_state->uniform_locations)
         g_array_free (program_state->uniform_locations, TRUE);
@@ -476,6 +485,46 @@ get_uniform_cb (CoglPipeline *pipeline,
   return TRUE;
 }
 
+static void
+create_sampler (CoglPipeline *pipeline,
+                int layer_index,
+                UnitState *unit_state)
+{
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  VkResult result;
+  VkSamplerCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+    .mipLodBias = 0.0f,
+    .anisotropyEnable = VK_FALSE,
+    .maxAnisotropy = 1,
+    .compareOp = VK_COMPARE_OP_NEVER,
+    .minLod = 0.0f,
+    .maxLod = 0.0f,
+    .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+    .unnormalizedCoordinates = VK_FALSE,
+  };
+
+  _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline, layer_index),
+                                          &info.magFilter,
+                                          NULL);
+  _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline, layer_index),
+                                          &info.minFilter,
+                                          &info.mipmapMode);
+  info.addressModeU = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
+  info.addressModeV = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
+  info.addressModeW = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
+
+  result = vkCreateSampler (vk_ctx->device,
+                            &info,
+                            NULL,
+                            &unit_state->sampler);
+
+  if (result != VK_SUCCESS)
+    g_warning ("Cannot create sampler (%d): %s", result,
+               _cogl_vulkan_error_to_string (result));
+}
+
 static CoglBool
 update_constants_cb (CoglPipeline *pipeline,
                      int layer_index,
@@ -484,8 +533,8 @@ update_constants_cb (CoglPipeline *pipeline,
   UpdateUniformsState *state = user_data;
   CoglPipelineProgramState *program_state = state->program_state;
   UnitState *unit_state = &program_state->unit_state[state->unit++];
-
   _COGL_GET_CONTEXT (ctx, FALSE);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
 
   if (unit_state->combine_constant_uniform != NULL &&
       (state->update_all || unit_state->dirty_combine_constant))
@@ -525,6 +574,9 @@ update_constants_cb (CoglPipeline *pipeline,
             &program_state->write_descriptor_sets[index];
           VkDescriptorImageInfo *image_info =
             &program_state->descriptor_image_infos[index];
+
+          if (unit_state->sampler == VK_NULL_HANDLE)
+            create_sampler (pipeline, layer_index, unit_state);
 
           write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
           write_set->dstSet = program_state->descriptor_set;
@@ -734,45 +786,6 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
     _cogl_bitmask_clear_all (&uniforms_state->changed_mask);
 }
 
-static CoglBool
-update_samplers_cb (CoglPipeline *pipeline,
-                    int layer_index,
-                    void *user_data)
-{
-  UpdateUniformsState *state = user_data;
-  CoglPipelineProgramState *program_state = state->program_state;
-  UnitState *unit_state = &program_state->unit_state[state->unit++];
-
-  _COGL_GET_CONTEXT (ctx, FALSE);
-
-  if (unit_state->sampler == VK_NULL_HANDLE)
-    {
-      VkSamplerCreateInfo info = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .mipLodBias = 0.0f,
-        .anisotropyEnable = VK_FALSE,
-        .maxAnisotropy = 1,
-        .compareOp = VK_COMPARE_OP_NEVER,
-        .minLod = 0.0f,
-        .maxLod = 0.0f,
-        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
-        .unnormalizedCoordinates = VK_FALSE,
-      };
-
-      _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline, layer_index),
-                                              &info.magFilter,
-                                              NULL);
-      _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline, layer_index),
-                                              &info.minFilter,
-                                              &info.mipmapMode);
-      info.addressModeU = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
-      info.addressModeV = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
-      info.addressModeW = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
-    }
-
-  return TRUE;
-}
-
 typedef struct
 {
   CoglPipelineProgramState *program_state;
@@ -789,7 +802,7 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
   CreateDescriptorSetLayout *data = user_data;
   VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
   CoglShaderVulkanSampler *sampler;
-  UnitState *unit_state = &data->program_state->unit_state[data->n_bindings++];
+  UnitState *unit_state = &data->program_state->unit_state[data->n_bindings];
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
@@ -822,28 +835,28 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
   CreateDescriptorSetLayout data;
   VkResult result;
 
-  data.program_state = program_state;
-  data.n_bindings = 1;
-  data.stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
   data.bindings = g_new0 (VkDescriptorSetLayoutBinding,
                           cogl_pipeline_get_n_layers (pipeline) + 1);
-  data.n_bindings = 1;
-
-  /* Uniform buffer for all our uniforms. */
-  data.bindings[0].binding = 0;
-  data.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  data.bindings[0].descriptorCount = 1;
-  data.bindings[0].stageFlags = data.stage_flags;
-  data.bindings[0].pImmutableSamplers = NULL;
+  data.program_state = program_state;
+  data.n_bindings = 0;
+  data.stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
   /* All other potential samplers for each layer. */
   _cogl_pipeline_foreach_layer_internal (pipeline,
                                          add_layer_to_descriptor_set_layout,
                                          &data);
 
+  /* Uniform buffer for all our uniforms. */
+  data.bindings[data.n_bindings].binding = 0;
+  data.bindings[data.n_bindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  data.bindings[data.n_bindings].descriptorCount = 1;
+  data.bindings[data.n_bindings].stageFlags = data.stage_flags;
+  data.bindings[data.n_bindings].pImmutableSamplers = NULL;
+
   info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  info.bindingCount = data.n_bindings;
+  info.bindingCount = ++data.n_bindings;
   info.pBindings = data.bindings;
+
   result = vkCreateDescriptorSetLayout (vk_ctx->device, &info,
                                         NULL,
                                         &program_state->descriptor_set_layout);
@@ -1015,16 +1028,23 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
     {
       CoglBuffer *buf = program_state->uniform_buffer;
       CoglBufferVulkan *vk_buf = buf->winsys;
+      int n_samplers =
+        _cogl_shader_vulkan_get_n_samplers (program_state->shader,
+                                            COGL_GLSL_SHADER_TYPE_FRAGMENT);
       const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = NULL,
         .flags = 0,
         .maxSets = 1,
-        .poolSizeCount = 1,
+        .poolSizeCount = n_samplers > 0 ? 2 : 1,
         .pPoolSizes = (VkDescriptorPoolSize[]) {
           {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1
+          },
+          {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = n_samplers,
           },
         }
       };
@@ -1103,10 +1123,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
   _cogl_pipeline_progend_vulkan_flush_uniforms (pipeline,
                                                 program_state,
                                                 program_changed);
-
-  cogl_pipeline_foreach_layer (pipeline,
-                               update_samplers_cb,
-                               &state);
 
   /* We need to track the last pipeline that the program was used with
    * so know if we need to update all of the uniforms */
@@ -1210,6 +1226,36 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
 }
 
 static void
+_cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_state,
+                                          CoglFramebuffer *framebuffer)
+{
+  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglBufferVulkan *vk_uniform_buffer = program_state->uniform_buffer->winsys;
+  VkWriteDescriptorSet *write_set =
+    &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets++];
+  VkDescriptorBufferInfo descriptor_buffer_info;
+
+  descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
+  descriptor_buffer_info.offset = 0;
+  descriptor_buffer_info.range = program_state->uniform_buffer->size;
+
+  write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write_set->dstSet = program_state->descriptor_set;
+  write_set->dstBinding = 0;
+  write_set->dstArrayElement = 0;
+  write_set->descriptorCount = 1;
+  write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  write_set->pBufferInfo = &descriptor_buffer_info;
+
+  vkUpdateDescriptorSets (vk_ctx->device,
+                          program_state->n_write_descriptor_sets,
+                          program_state->write_descriptor_sets,
+                          0, NULL);
+
+  program_state->n_write_descriptor_sets = 0;
+}
+
+static void
 _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                                          CoglFramebuffer *framebuffer)
 {
@@ -1222,7 +1268,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglBool need_modelview;
   CoglBool need_projection;
   CoglMatrix modelview, projection;
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglBuffer *uniform_buffer;
   CoglBufferVulkan *vk_uniform_buffer;
 
@@ -1231,7 +1276,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   program_state = get_program_state (pipeline);
 
   g_assert (program_state->uniform_buffer);
-  vk_uniform_buffer = program_state->uniform_buffer->winsys;
 
   projection_entry = _cogl_framebuffer_get_projection_entry (framebuffer);
   modelview_entry = _cogl_framebuffer_get_modelview_entry (framebuffer);
@@ -1331,23 +1375,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
       program_state->flushed_flip_state = needs_flip;
     }
 
-  vkUpdateDescriptorSets (vk_ctx->device, 1,
-                          (VkWriteDescriptorSet []) {
-                            {
-                              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                              .dstSet = program_state->descriptor_set,
-                              .dstBinding = 0,
-                              .dstArrayElement = 0,
-                              .descriptorCount = 1,
-                              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                              .pBufferInfo = &(VkDescriptorBufferInfo) {
-                                .buffer = vk_uniform_buffer->buffer,
-                                .offset = 0,
-                                .range = program_state->uniform_buffer->size,
-                              }
-                            }
-                          },
-                          0, NULL);
+  _cogl_pipeline_progend_write_descriptors (program_state, framebuffer);
 }
 
 static void

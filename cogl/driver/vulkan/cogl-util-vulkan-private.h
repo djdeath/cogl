@@ -47,6 +47,10 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);
 
 VkFormat
+_cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
+                                                  CoglBool *premultiplied);
+
+VkFormat
 _cogl_attribute_type_to_vulkan_format (CoglAttributeType type,
                                        int n_components);
 

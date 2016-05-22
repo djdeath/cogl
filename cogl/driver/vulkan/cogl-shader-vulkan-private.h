@@ -94,6 +94,10 @@ _cogl_shader_vulkan_get_sampler_binding (CoglShaderVulkan *shader,
                                          CoglGlslShaderType stage,
                                          const char *name);
 
+int
+_cogl_shader_vulkan_get_n_samplers (CoglShaderVulkan *shader,
+                                    CoglGlslShaderType stage);
+
 VkShaderModule
 _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
                                        CoglGlslShaderType type);
