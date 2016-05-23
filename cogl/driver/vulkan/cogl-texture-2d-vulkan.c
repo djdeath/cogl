@@ -285,37 +285,6 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .flags = 0,
-      .image = tex_2d->vk_image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = vk_format,
-      .components = {
-        .r = VK_COMPONENT_SWIZZLE_R,
-        .g = VK_COMPONENT_SWIZZLE_G,
-        .b = VK_COMPONENT_SWIZZLE_B,
-        .a = VK_COMPONENT_SWIZZLE_A,
-      },
-      .subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-      },
-    },
-    NULL,
-    &tex_2d->vk_image_view);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_TEXTURE_ERROR,
-                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
-                       "Failed to create 2d texture view : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
-
   vkGetImageMemoryRequirements (vk_ctx->device,
                                 tex_2d->vk_image,
                                 &requirements);
@@ -362,6 +331,37 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
                        COGL_TEXTURE_ERROR_BAD_PARAMETER,
                        "Failed to bind memory to 2d texture : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
+
+  result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .flags = 0,
+      .image = tex_2d->vk_image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = vk_format,
+      .components = {
+        .r = VK_COMPONENT_SWIZZLE_R,
+        .g = VK_COMPONENT_SWIZZLE_G,
+        .b = VK_COMPONENT_SWIZZLE_B,
+        .a = VK_COMPONENT_SWIZZLE_A,
+      },
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+    },
+    NULL,
+    &tex_2d->vk_image_view);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
+                       "Failed to create 2d texture view : %s",
                        _cogl_vulkan_error_to_string (result));
       return FALSE;
     }
