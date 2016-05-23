@@ -1235,10 +1235,6 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
     &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets++];
   VkDescriptorBufferInfo descriptor_buffer_info;
 
-  descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
-  descriptor_buffer_info.offset = 0;
-  descriptor_buffer_info.range = program_state->uniform_buffer->size;
-
   write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   write_set->dstSet = program_state->descriptor_set;
   write_set->dstBinding = 0;
@@ -1246,6 +1242,10 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
   write_set->descriptorCount = 1;
   write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   write_set->pBufferInfo = &descriptor_buffer_info;
+
+  descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
+  descriptor_buffer_info.offset = 0;
+  descriptor_buffer_info.range = program_state->uniform_buffer->size;
 
   vkUpdateDescriptorSets (vk_ctx->device,
                           program_state->n_write_descriptor_sets,
