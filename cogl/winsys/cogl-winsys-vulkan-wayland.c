@@ -698,7 +698,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                  COGL_FRAMEBUFFER (onscreen),
                                  COGL_FRAMEBUFFER_STATE_BIND);
 
-  vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
+  result = vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       .swapchainCount = 1,
       .pSwapchains = (VkSwapchainKHR[]) { vk_onscreen->swap_chain, },
