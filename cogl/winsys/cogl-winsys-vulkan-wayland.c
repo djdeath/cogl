@@ -446,6 +446,9 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
   CoglContextVulkan *vk_context = context->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
+  CoglPixelFormat cogl_format = onscreen->_parent.internal_format;
+  VkFormat vk_format =
+    _cogl_pixel_format_to_vulkan_format (cogl_format, NULL);
   VkResult result;
   uint32_t i;
 
@@ -501,11 +504,12 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
+  /* TODO: GetPhysicalDeviceSurfaceFormatsKHR() */
   result = vkCreateSwapchainKHR (vk_context->device, &(VkSwapchainCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = vk_onscreen->wsi_surface,
       .minImageCount = 2,
-      .imageFormat = _cogl_pixel_format_to_vulkan_format (onscreen->_parent.internal_format, NULL),
+      .imageFormat = vk_format,
       .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
       .imageExtent = { framebuffer->width, framebuffer->height },
       .imageArrayLayers = 1,
@@ -532,6 +536,9 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                            &vk_onscreen->image_count, NULL);
   g_assert (vk_onscreen->image_count <= MAX_SWAP_CHAIN_LENGTH);
 
+  COGL_NOTE (VULKAN,
+             "Got swapchain with %i image(s)", vk_onscreen->image_count);
+
   vkGetSwapchainImagesKHR (vk_context->device,
                            vk_onscreen->swap_chain,
                            &vk_onscreen->image_count,
@@ -548,7 +555,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
           .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = vk_onscreen->images[i],
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = VK_FORMAT_B8G8R8A8_SRGB,
+            .format = vk_format,
             .components = {
             .r = VK_COMPONENT_SWIZZLE_R,
             .g = VK_COMPONENT_SWIZZLE_G,
