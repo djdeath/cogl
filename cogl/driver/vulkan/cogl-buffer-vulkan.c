@@ -157,6 +157,8 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
       return NULL;
     }
 
+  buffer->flags |= COGL_BUFFER_FLAG_MAPPED;
+
   vk_buffer->memory_need_flush = (access & COGL_BUFFER_ACCESS_WRITE);
   vk_buffer->memory_map_offset = offset;
   vk_buffer->memory_map_size = size;
@@ -190,6 +192,8 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
     }
 
   vkUnmapMemory (vk_ctx->device, vk_buffer->memory);
+
+  buffer->flags &= ~COGL_BUFFER_FLAG_MAPPED;
 }
 
 CoglBool
