@@ -76,9 +76,11 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
         {
           .format = _cogl_pixel_format_to_vulkan_format (framebuffer->internal_format,
                                                          NULL),
-          .samples = 1,
+          .samples = VK_SAMPLE_COUNT_1_BIT,
           .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
           .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+          .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+          .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
           .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
           .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         }
@@ -95,15 +97,10 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
               .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
             }
           },
-          .pResolveAttachments = (VkAttachmentReference []) {
-            {
-              .attachment = VK_ATTACHMENT_UNUSED,
-              .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            }
-          },
+          .pResolveAttachments = NULL,
           .pDepthStencilAttachment = NULL,
-          .preserveAttachmentCount = 1,
-          .pPreserveAttachments = (uint32_t []) { 0 },
+          .preserveAttachmentCount = 0,
+          .pPreserveAttachments = NULL,
         }
       },
       .dependencyCount = 0
