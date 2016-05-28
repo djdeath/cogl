@@ -67,8 +67,6 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkResult result;
 
-  g_message ("Creating render pass");
-
   result = vkCreateRenderPass (vk_ctx->device, &(VkRenderPassCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
       .attachmentCount = 1,
@@ -139,8 +137,6 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
     return;
-
-  g_message ("Creating command buffer");
 
   result = vkAllocateCommandBuffers (vk_ctx->device, &(VkCommandBufferAllocateInfo) {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -265,13 +261,15 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                      &(VkSubmitInfo) {
                        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                        .commandBufferCount = 1,
-                       &vk_fb->cmd_buffer,
-                     }, vk_ctx->fence);
+                       .pCommandBuffers = &vk_fb->cmd_buffer,
+                         }, /* vk_ctx->fence */VK_NULL_HANDLE);
 
-      vkWaitForFences (vk_ctx->device, 1, (VkFence[]) { vk_ctx->fence },
-                       VK_TRUE, INT64_MAX);
+      vkQueueWaitIdle (vk_ctx->queue);
+      /* vkWaitForFences (vk_ctx->device, 1, (VkFence[]) { vk_ctx->fence }, */
+      /*                  VK_TRUE, INT64_MAX); */
 
-      vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0);
+      vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool, 1, &vk_fb->cmd_buffer);
+      /* vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0); */
 
       vk_fb->cmd_buffer = VK_NULL_HANDLE;
       vk_fb->cmd_buffer_length = 0;
@@ -356,6 +354,21 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffer_length++;
 }
 
+static size_t
+sizeof_indices_type (CoglIndicesType type)
+{
+  switch (type)
+    {
+    case COGL_INDICES_TYPE_UNSIGNED_BYTE:
+      return 1;
+    case COGL_INDICES_TYPE_UNSIGNED_SHORT:
+      return 2;
+    case COGL_INDICES_TYPE_UNSIGNED_INT:
+      return 4;
+    }
+  g_return_val_if_reached (0);
+}
+
 void
 _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                                   CoglPipeline *pipeline,
@@ -382,7 +395,10 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                         indices->offset,
                         _cogl_indices_type_to_vulkan_indices_type (indices->type));
 
-  vkCmdDrawIndexed (vk_fb->cmd_buffer, n_vertices, 0, first_vertex, 0, 0);
+  vkCmdDrawIndexed (vk_fb->cmd_buffer,
+                    (indices->buffer->_parent.size - indices->offset) /
+                    sizeof_indices_type(cogl_indices_get_type (indices)),
+                    0, first_vertex, 0, 0);
   vk_fb->cmd_buffer_length++;
 }
 

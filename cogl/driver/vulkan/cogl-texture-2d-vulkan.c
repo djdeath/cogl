@@ -56,7 +56,8 @@ _cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d)
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 {
-  return _cogl_pixel_format_to_vulkan_format (tex_2d->internal_format, NULL);
+  return _cogl_pixel_format_to_vulkan_format_for_sampling (tex_2d->internal_format,
+                                                           NULL);
 }
 
 void
@@ -79,8 +80,8 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   VkPhysicalDeviceProperties props;
 
-  if (_cogl_pixel_format_to_vulkan_format (internal_format,
-                                           NULL) == VK_FORMAT_UNDEFINED)
+  if (_cogl_pixel_format_to_vulkan_format_for_sampling (internal_format,
+                                                        NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
   vkGetPhysicalDeviceProperties (vk_ctx->physical_device, &props);
@@ -123,7 +124,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
   internal_format =
     _cogl_texture_determine_internal_format (tex, COGL_PIXEL_FORMAT_ANY);
   vk_format =
-    _cogl_pixel_format_to_vulkan_format (internal_format, NULL);
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
 
   if (vk_format == VK_FORMAT_UNDEFINED)
     {
@@ -146,7 +147,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
       .flags = 0,
       .initialLayout = tex_2d->vk_image_layout,
     },
@@ -270,7 +271,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_LINEAR,
-      .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
       .flags = 0,
       .initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED,
     },
@@ -305,6 +306,17 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
+  result = vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
+                             tex_2d->vk_memory, 0);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
+                       "Failed to bind memory to 2d texture : %s",
+                       _cogl_vulkan_error_to_string (result));
+      return FALSE;
+    }
+
   result = vkMapMemory (vk_ctx->device,
                         tex_2d->vk_memory,
                         0,
@@ -323,17 +335,6 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   memcpy (data, loader->src.bitmap.bitmap->data, requirements.size);
 
   vkUnmapMemory (vk_ctx->device, tex_2d->vk_memory);
-
-  result = vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
-                             tex_2d->vk_memory, 0);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_TEXTURE_ERROR,
-                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
-                       "Failed to bind memory to 2d texture : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
 
   result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

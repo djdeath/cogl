@@ -454,10 +454,28 @@ _cogl_shader_vulkan_add_block (CoglShaderVulkan *shader,
                                     block_type.getQualifier().layoutPacking == glslang::ElpStd140,
                                     block_type.getQualifier().layoutMatrix == glslang::ElmRowMajor);
 
-    _cogl_shader_vulkan_add_uniform (shader,
-                                     stage,
-                                     member_type.getFieldName().c_str(),
-                                     member_offset);
+    /* TODO: We need a not so hacky way of accessing array elements. */
+    if (member_type.isArray() &&
+        member_type.isExplicitlySizedArray() &&
+        member_type.getArraySizes()->getNumDims() == 1) {
+      int nb_items = member_type.getArraySizes()->getDimSize(0);
+      int item_offset = member_size / nb_items;
+
+      for (int j = 0; j < nb_items; j++) {
+        gchar* name_item =
+          g_strdup_printf ("%s[%i]", member_type.getFieldName().c_str(), j);
+        _cogl_shader_vulkan_add_uniform (shader,
+                                         stage,
+                                         name_item,
+                                         member_offset + j * item_offset);
+        g_free (name_item);
+      }
+    } else {
+      _cogl_shader_vulkan_add_uniform (shader,
+                                       stage,
+                                       member_type.getFieldName().c_str(),
+                                       member_offset);
+    }
   }
 
   shader->block_size[stage] = member_offset + member_size;
@@ -588,7 +606,6 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
       }
     }
 
-    g_message ("stage=%i", stage);
     /* Visit the AST to replace all occurences of nodes we might have
        changed. */
     CoglTraverser traverser(updated_symbols);

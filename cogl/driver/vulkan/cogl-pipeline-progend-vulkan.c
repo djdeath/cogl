@@ -445,25 +445,6 @@ get_uniform_cb (CoglPipeline *pipeline,
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
-  /* /\* We can reuse the source buffer to create the uniform name because */
-  /*    the program has now been linked *\/ */
-  /* g_string_set_size (ctx->codegen_source_buffer, 0); */
-  /* g_string_append_printf (ctx->codegen_source_buffer, */
-  /*                         "cogl_sampler%i", layer_index); */
-
-  /* uniform_location = */
-  /*   get_program_state_uniform_location (program_state, */
-  /*                                       ctx->codegen_source_buffer->str); */
-
-  /* /\* We can set the uniform immediately because the samplers are the */
-  /*    unit index not the texture object number so it will never */
-  /*    change. Unfortunately GL won't let us use a constant instead of a */
-  /*    uniform *\/ */
-  /* if (uniform_location != NULL) */
-  /*   set_program_state_uniform1i (program_state, uniform_location, state->unit); */
-
-
-
   g_string_set_size (ctx->codegen_source_buffer, 0);
   g_string_append_printf (ctx->codegen_source_buffer,
                           "_cogl_layer_constant_%i", layer_index);

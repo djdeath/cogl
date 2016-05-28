@@ -251,16 +251,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
             _cogl_attribute_type_to_vulkan_format (attribute->d.buffered.type,
                                                    attribute->d.buffered.n_components);
 
-          COGL_NOTE (VULKAN,
-                     "Attribute '%s' location=%i offset=%i"
-                     " stride=%i n_components=%i buffer_size=%i",
-                     attribute->name_state->name,
-                     vertex_desc->location,
-                     attribute->d.buffered.offset,
-                     attribute->d.buffered.stride,
-                     attribute->d.buffered.n_components,
-                     buffer->size);
-
           if (vk_pipeline->vertex_inputs &&
               (memcmp (&vk_pipeline->vertex_inputs->pVertexBindingDescriptions[i],
                        vertex_bind,
@@ -268,7 +258,11 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                memcmp (&vk_pipeline->vertex_inputs->pVertexAttributeDescriptions[i],
                        vertex_desc,
                        sizeof (VkVertexInputAttributeDescription))))
-            _cogl_pipeline_vulkan_invalidate (pipeline);
+            {
+              COGL_NOTE (VULKAN,
+                         "Invalidate pipeline because of vertex layout");
+              _cogl_pipeline_vulkan_invalidate (pipeline);
+            }
 
           vk_pipeline->attribute_buffers[i] = vk_buf->buffer;
           vk_pipeline->attribute_offsets[i] = attribute->d.buffered.offset;
@@ -282,6 +276,26 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
 
   if (vk_pipeline->vertex_inputs == NULL)
     {
+      if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_VULKAN)))
+        {
+          for (i = 0; i < n_attributes; i++)
+            {
+              CoglAttribute *attribute = attributes[i];
+              VkVertexInputAttributeDescription *vertex_desc =
+                (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
+
+              COGL_NOTE (VULKAN,
+                         "Attribute '%s' location=%i offset=%i"
+                         " stride=%i n_components=%i vk_format=%i",
+                         attribute->name_state->name,
+                         vertex_desc->location,
+                         attribute->d.buffered.offset,
+                         attribute->d.buffered.stride,
+                         attribute->d.buffered.n_components,
+                         vertex_desc->format);
+            }
+        }
+
       vk_pipeline->vertex_inputs = info;
       vk_pipeline->n_vertex_inputs = n_attributes;
     }
@@ -313,7 +327,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                  .pVertexInputState = vk_pipeline->vertex_inputs,
                                  .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                                   .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+                                   .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
                                    /* TODO: topology shouldn't be fixed */
                                    /* .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (mode), */
                                    .primitiveRestartEnable = VK_FALSE,

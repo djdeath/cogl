@@ -729,6 +729,10 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                  _cogl_vulkan_error_to_string (result));
       return;
     }
+
+  _cogl_framebuffer_vulkan_update_framebuffer (COGL_FRAMEBUFFER (onscreen),
+                                               vk_onscreen->framebuffers[vk_onscreen->image_index]);
+
 }
 
 static void
