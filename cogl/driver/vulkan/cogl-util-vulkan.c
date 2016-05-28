@@ -95,8 +95,7 @@ _cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
     {
     case COGL_PIXEL_FORMAT_RGBA_8888:
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      return VK_FORMAT_B8G8R8A8_UNORM;
-
+      return VK_FORMAT_R8G8B8A8_UNORM;
     case COGL_PIXEL_FORMAT_RGB_888:
       return VK_FORMAT_R8G8B8_UNORM;
     case COGL_PIXEL_FORMAT_BGR_888:
