@@ -250,8 +250,7 @@ _cogl_pipeline_wrap_mode_to_vulkan_address_mode (CoglPipelineWrapMode mode)
     case COGL_PIPELINE_WRAP_MODE_CLAMP_TO_EDGE:
       return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     case COGL_PIPELINE_WRAP_MODE_AUTOMATIC:
-      /* TODO: this isn't accurate with regards to Cogl's API. */
-      return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+      return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     default:
       g_assert_not_reached();
     }
