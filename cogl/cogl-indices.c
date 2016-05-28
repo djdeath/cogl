@@ -197,8 +197,8 @@ cogl_get_rectangle_indices (CoglContext *ctx, int n_rectangles)
       /* Generate the byte array if we haven't already */
       if (ctx->rectangle_byte_indices == NULL)
         {
-          uint8_t *byte_array = g_malloc (256 / 4 * 6 * sizeof (uint8_t));
-          uint8_t *p = byte_array;
+          uint16_t *byte_array = g_malloc (256 / 4 * 6 * sizeof (uint16_t));
+          uint16_t *p = byte_array;
           int i, vert_num = 0;
 
           for (i = 0; i < 256 / 4; i++)
@@ -214,7 +214,7 @@ cogl_get_rectangle_indices (CoglContext *ctx, int n_rectangles)
 
           ctx->rectangle_byte_indices
             = cogl_indices_new (ctx,
-                                COGL_INDICES_TYPE_UNSIGNED_BYTE,
+                                COGL_INDICES_TYPE_UNSIGNED_SHORT,
                                 byte_array,
                                 256 / 4 * 6);
 
