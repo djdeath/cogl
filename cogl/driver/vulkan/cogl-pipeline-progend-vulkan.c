@@ -1118,6 +1118,8 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
+  _cogl_pipeline_vulkan_pre_change_notify (pipeline, change);
+
   if ((change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
                  _cogl_pipeline_get_state_for_fragment_codegen (ctx))))
     {
