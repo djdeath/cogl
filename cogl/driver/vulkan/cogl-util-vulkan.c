@@ -369,3 +369,55 @@ _cogl_vulkan_util_get_texture_target_string (CoglTextureType texture_type,
   if (swizzle_out)
     *swizzle_out = tex_coord_swizzle;
 }
+
+VkBlendFactor
+_cogl_pipeline_blend_factor_to_vulkan_blend_factor (CoglPipelineBlendFactor factor)
+{
+  switch (factor)
+    {
+    case COGL_PIPELINE_BLEND_FACTOR_ZERO:
+      return VK_BLEND_FACTOR_ZERO;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE:
+      return VK_BLEND_FACTOR_ONE;
+    case COGL_PIPELINE_BLEND_FACTOR_SRC_ALPHA_SATURATE:
+      return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+      return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_SRC_COLOR:
+      return VK_BLEND_FACTOR_SRC_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
+      return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    case COGL_PIPELINE_BLEND_FACTOR_SRC_ALPHA:
+      return VK_BLEND_FACTOR_SRC_ALPHA;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+      return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_DST_COLOR:
+      return VK_BLEND_FACTOR_DST_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+      return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+    case COGL_PIPELINE_BLEND_FACTOR_DST_ALPHA:
+      return VK_BLEND_FACTOR_DST_ALPHA;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
+      return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_CONSTANT_COLOR:
+      return VK_BLEND_FACTOR_CONSTANT_COLOR;
+    case COGL_PIPELINE_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA:
+      return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    case COGL_PIPELINE_BLEND_FACTOR_CONSTANT_ALPHA:
+      return VK_BLEND_FACTOR_CONSTANT_ALPHA;
+    default:
+      g_assert_not_reached();
+    }
+}
+
+VkBlendOp
+_cogl_pipeline_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation)
+{
+  switch (equation)
+    {
+    case COGL_PIPELINE_BLEND_EQUATION_ADD:
+      return VK_BLEND_OP_ADD;
+    default:
+      g_assert_not_reached();
+    }
+}

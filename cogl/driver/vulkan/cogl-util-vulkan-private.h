@@ -82,4 +82,10 @@ _cogl_vulkan_util_get_texture_target_string (CoglTextureType texture_type,
                                              const char **target_string_out,
                                              const char **swizzle_out);
 
+VkBlendFactor
+_cogl_pipeline_blend_factor_to_vulkan_blend_factor (CoglPipelineBlendFactor factor);
+
+VkBlendOp
+_cogl_pipeline_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation);
+
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */

@@ -312,8 +312,53 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkResult result;
 
+  VkPipelineColorBlendStateCreateInfo vk_blend_state;
+  VkPipelineColorBlendAttachmentState vk_blend_attachment_state;
+
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
+
+  {
+    CoglPipeline *blend_authority =
+      _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_BLEND);
+    CoglPipelineBlendState *blend_state =
+      &blend_authority->big_state->blend_state;
+
+    memset (&vk_blend_state, 0, sizeof (vk_blend_state));
+    memset (&vk_blend_attachment_state, 0, sizeof (vk_blend_attachment_state));
+
+    vk_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+    vk_blend_state.attachmentCount = 1;
+    vk_blend_state.pAttachments = &vk_blend_attachment_state;
+
+    vk_blend_state.blendConstants[0] =
+      cogl_color_get_red_float (&blend_state->blend_constant);
+    vk_blend_state.blendConstants[1] =
+      cogl_color_get_green_float (&blend_state->blend_constant);
+    vk_blend_state.blendConstants[2] =
+      cogl_color_get_blue_float (&blend_state->blend_constant);
+    vk_blend_state.blendConstants[3] =
+      cogl_color_get_alpha_float (&blend_state->blend_constant);
+
+    vk_blend_attachment_state.blendEnable =
+      _cogl_pipeline_get_blend_enabled (blend_authority) == COGL_PIPELINE_BLEND_ENABLE_DISABLED ? VK_FALSE : VK_TRUE;
+    vk_blend_attachment_state.colorWriteMask = (VK_COLOR_COMPONENT_A_BIT |
+                                                VK_COLOR_COMPONENT_R_BIT |
+                                                VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT);
+    vk_blend_attachment_state.srcColorBlendFactor =
+      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_rgb);
+    vk_blend_attachment_state.dstColorBlendFactor =
+      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_rgb);
+    vk_blend_attachment_state.colorBlendOp =
+      _cogl_pipeline_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_rgb);
+    vk_blend_attachment_state.srcAlphaBlendFactor =
+      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_alpha);
+    vk_blend_attachment_state.dstAlphaBlendFactor =
+      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_alpha);
+    vk_blend_attachment_state.alphaBlendOp =
+      _cogl_pipeline_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
+  }
 
   /* TODO: Break this down. */
   result =
@@ -369,19 +414,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                  .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
                                  },
-                                 .pColorBlendState = &(VkPipelineColorBlendStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-                                   .attachmentCount = 1,
-                                   .pAttachments = (VkPipelineColorBlendAttachmentState []) {
-                                     {
-                                       .blendEnable = VK_FALSE,
-                                       .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
-                                       VK_COLOR_COMPONENT_R_BIT |
-                                       VK_COLOR_COMPONENT_G_BIT |
-                                       VK_COLOR_COMPONENT_B_BIT,
-                                     },
-                                   }
-                                 },
+                                 .pColorBlendState = &vk_blend_state,
                                  .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
                                    .dynamicStateCount = 1,
