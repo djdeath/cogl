@@ -48,4 +48,11 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
                                    CoglAttribute **attributes,
                                    int n_attributes);
 
+void
+_cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline);
+
+void
+_cogl_pipeline_vulkan_pre_change_notify (CoglPipeline *pipeline,
+                                         CoglPipelineState change);
+
 #endif /* __COGL_PIPELINE_VULKAN_PRIVATE_H */

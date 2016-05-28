@@ -556,3 +556,14 @@ _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
                                      attributes,
                                      n_attributes);
 }
+
+void
+_cogl_pipeline_vulkan_pre_change_notify (CoglPipeline *pipeline,
+                                         CoglPipelineState change)
+{
+  if (change & (COGL_PIPELINE_STATE_BLEND |
+                COGL_PIPELINE_STATE_BLEND_ENABLE |
+                COGL_PIPELINE_STATE_CULL_FACE |
+                COGL_PIPELINE_STATE_DEPTH))
+    _cogl_pipeline_vulkan_invalidate (pipeline);
+}

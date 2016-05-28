@@ -348,6 +348,7 @@ dirty_program_state (CoglPipeline *pipeline)
                              &program_state_key,
                              NULL,
                              NULL);
+  _cogl_pipeline_vulkan_invalidate (pipeline);
 }
 
 static CoglShaderVulkanUniform *
