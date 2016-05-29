@@ -250,6 +250,15 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   CoglContextVulkan *vk_ctx = draw_buffer->context->winsys;
   CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
+  if (state & COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW)
+    _cogl_context_set_current_modelview_entry (draw_buffer->context,
+                                               _cogl_framebuffer_get_modelview_entry (draw_buffer));
+
+  if (state & COGL_FRAMEBUFFER_STATE_INDEX_PROJECTION)
+    _cogl_context_set_current_projection_entry (draw_buffer->context,
+                                                _cogl_framebuffer_get_projection_entry (draw_buffer));
+
+
   /* We only want to flush if commands have been emitted. */
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE &&
       vk_fb->cmd_buffer_length > 0)

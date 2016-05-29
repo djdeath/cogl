@@ -1261,8 +1261,14 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
   g_assert (program_state->uniform_buffer);
 
-  projection_entry = _cogl_framebuffer_get_projection_entry (framebuffer);
-  modelview_entry = _cogl_framebuffer_get_modelview_entry (framebuffer);
+  projection_entry = ctx->current_projection_entry;
+  modelview_entry = ctx->current_modelview_entry;
+
+  /* An initial pipeline is flushed while creating the context. At
+     this point there are no matrices selected so we can't do
+     anything */
+  if (modelview_entry == NULL || projection_entry == NULL)
+    return;
 
   needs_flip = TRUE; /* TODO: to rework */
 
