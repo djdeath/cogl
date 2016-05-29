@@ -405,9 +405,9 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                         _cogl_indices_type_to_vulkan_indices_type (indices->type));
 
   vkCmdDrawIndexed (vk_fb->cmd_buffer,
-                    (indices->buffer->_parent.size - indices->offset) /
-                    sizeof_indices_type(cogl_indices_get_type (indices)),
-                    0, first_vertex, 0, 0);
+                    n_vertices, 1,
+                    indices->offset, first_vertex,
+                    1 /* TODO: Figure out why 1... */);
   vk_fb->cmd_buffer_length++;
 }
 

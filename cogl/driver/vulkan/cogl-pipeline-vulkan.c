@@ -315,6 +315,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   VkPipelineColorBlendStateCreateInfo vk_blend_state;
   VkPipelineColorBlendAttachmentState vk_blend_attachment_state;
 
+  VkPipelineRasterizationStateCreateInfo vk_raster_state;
+
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
 
@@ -360,6 +362,19 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
       _cogl_pipeline_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
   }
 
+  {
+    memset (&vk_raster_state, 0, sizeof (vk_raster_state));
+
+    vk_raster_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    vk_raster_state.rasterizerDiscardEnable = VK_FALSE;
+    vk_raster_state.polygonMode = VK_POLYGON_MODE_FILL;
+    vk_raster_state.cullMode =
+      _cogl_pipeline_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline));
+    vk_raster_state.frontFace =
+      _cogl_winding_to_vulkan_front_face (cogl_pipeline_get_front_face_winding (pipeline));
+
+  }
+
   /* TODO: Break this down. */
   result =
     vkCreateGraphicsPipelines (vk_ctx->device,
@@ -400,13 +415,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                      },
                                    },
                                  },
-                                 .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                                   .rasterizerDiscardEnable = VK_FALSE,
-                                   .polygonMode = VK_POLYGON_MODE_FILL,
-                                   .cullMode = _cogl_pipeline_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline)),
-                                   .frontFace = _cogl_winding_to_vulkan_front_face (cogl_pipeline_get_front_face_winding (pipeline)),
-                                 },
+                                 .pRasterizationState = &vk_raster_state,
                                  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                    .rasterizationSamples = 1,
