@@ -55,7 +55,7 @@
 
 // Required to avoid missing prototype warnings for some compilers
 int yylex(YYSTYPE*, glslang::TParseContext&);
-
+    
 namespace glslang {
 
 // read past any white space
@@ -142,13 +142,13 @@ void TInputScanner::consumeWhitespaceComment(bool& foundNonSpaceTab)
 {
     do {
         consumeWhiteSpace(foundNonSpaceTab);
-
+ 
         // if not starting a comment now, then done
         int c = peek();
         if (c != '/' || c == EndOfInput)
             return;
 
-        // skip potential comment
+        // skip potential comment 
         foundNonSpaceTab = true;
         if (! consumeComment())
             return;
@@ -199,10 +199,10 @@ bool TInputScanner::scanVersion(int& version, EProfile& profile, bool& notFirstT
         }
         lookingInMiddle = true;
 
-        // Nominal start, skipping the desktop allowed comments and white space, but tracking if
+        // Nominal start, skipping the desktop allowed comments and white space, but tracking if 
         // something else was found for ES:
         consumeWhitespaceComment(foundNonSpaceTab);
-        if (foundNonSpaceTab)
+        if (foundNonSpaceTab) 
             versionNotFirst = true;
 
         // "#"
@@ -561,7 +561,7 @@ void TScanContext::fillInKeywordMap()
     (*KeywordMap)["superp"] =                  SUPERP;
 
     ReservedSet = new std::unordered_set<const char*, str_hash, str_eq>;
-
+    
     ReservedSet->insert("common");
     ReservedSet->insert("partition");
     ReservedSet->insert("active");
@@ -675,7 +675,7 @@ int TScanContext::tokenize(TPpContext* pp, TParserToken& token)
 
         case PpAtomDecrement:          return DEC_OP;
         case PpAtomIncrement:          return INC_OP;
-
+                                   
         case PpAtomConstInt:           parserToken->sType.lex.i   = ppToken.ival;       return INTCONSTANT;
         case PpAtomConstUint:          parserToken->sType.lex.i   = ppToken.ival;       return UINTCONSTANT;
         case PpAtomConstInt64:         parserToken->sType.lex.i64 = ppToken.i64val;     return INT64CONSTANT;
@@ -774,7 +774,7 @@ int TScanContext::tokenizeIdentifier()
         return keyword;
 
     case BUFFER:
-        if ((parseContext.profile == EEsProfile && parseContext.version < 310) ||
+        if ((parseContext.profile == EEsProfile && parseContext.version < 310) || 
             (parseContext.profile != EEsProfile && parseContext.version < 430))
             return identifierOrType();
         return keyword;
@@ -847,7 +847,7 @@ int TScanContext::tokenizeIdentifier()
     case MAT3X4:
     case MAT4X2:
     case MAT4X3:
-    case MAT4X4:
+    case MAT4X4:        
         return matNxM();
 
     case DMAT2:
@@ -973,7 +973,7 @@ int TScanContext::tokenizeIdentifier()
     case USAMPLER2DARRAY:
         afterType = true;
         return nonreservedKeyword(300, 130);
-
+        
     case ISAMPLER2DRECT:
     case USAMPLER2DRECT:
         afterType = true;
@@ -991,7 +991,7 @@ int TScanContext::tokenizeIdentifier()
         if (parseContext.extensionsTurnedOn(Num_AEP_texture_buffer, AEP_texture_buffer))
             return keyword;
         return es30ReservedFromGLSL(140);
-
+        
     case SAMPLER2DMS:
     case ISAMPLER2DMS:
     case USAMPLER2DMS:
@@ -1110,7 +1110,7 @@ int TScanContext::tokenizeIdentifier()
 
     case NOPERSPECTIVE:
         return es30ReservedFromGLSL(130);
-
+        
     case SMOOTH:
         if ((parseContext.profile == EEsProfile && parseContext.version < 300) ||
             (parseContext.profile != EEsProfile && parseContext.version < 130))
@@ -1130,7 +1130,7 @@ int TScanContext::tokenizeIdentifier()
         return keyword;
 
     case PRECISE:
-        if ((parseContext.profile == EEsProfile && parseContext.extensionsTurnedOn(Num_AEP_gpu_shader5, AEP_gpu_shader5)) ||
+        if ((parseContext.profile == EEsProfile && parseContext.extensionsTurnedOn(Num_AEP_gpu_shader5, AEP_gpu_shader5)) || 
             (parseContext.profile != EEsProfile && parseContext.version >= 400))
             return keyword;
         if (parseContext.profile == EEsProfile && parseContext.version == 310) {
@@ -1161,7 +1161,7 @@ int TScanContext::tokenizeIdentifier()
         bool reserved = parseContext.profile == EEsProfile || parseContext.version >= 130;
         return identifierOrReserved(reserved);
     }
-
+    
     default:
         parseContext.infoSink.info.message(EPrefixInternalError, "Unknown glslang keyword", loc);
         return 0;
@@ -1292,7 +1292,7 @@ int TScanContext::dMat()
 
 int TScanContext::firstGenerationImage(bool inEs310)
 {
-    if (parseContext.symbolTable.atBuiltInLevel() ||
+    if (parseContext.symbolTable.atBuiltInLevel() || 
         (parseContext.profile != EEsProfile && (parseContext.version >= 420 || parseContext.extensionTurnedOn(E_GL_ARB_shader_image_load_store))) ||
         (inEs310 && parseContext.profile == EEsProfile && parseContext.version >= 310))
         return keyword;
@@ -1317,8 +1317,8 @@ int TScanContext::secondGenerationImage()
         return keyword;
     }
 
-    if (parseContext.symbolTable.atBuiltInLevel() ||
-        (parseContext.profile != EEsProfile &&
+    if (parseContext.symbolTable.atBuiltInLevel() || 
+        (parseContext.profile != EEsProfile && 
          (parseContext.version >= 420 || parseContext.extensionTurnedOn(E_GL_ARB_shader_image_load_store))))
         return keyword;
 

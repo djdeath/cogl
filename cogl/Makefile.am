@@ -279,6 +279,8 @@ libglslang_private_la_SOURCES = \
 	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpSymbols.cpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/preprocessor/PpTokens.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/propagateNoContraction.cpp \
+	driver/vulkan/glslang/glslang/MachineIndependent/propagateNoContraction.h \
 	driver/vulkan/glslang/glslang/MachineIndependent/glslang.hpp \
 	driver/vulkan/glslang/glslang/MachineIndependent/gl_types.h \
 	driver/vulkan/glslang/glslang/MachineIndependent/Initialize.h \

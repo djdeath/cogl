@@ -1,6 +1,6 @@
 //
 //Copyright (C) 2002-2005  3Dlabs Inc. Ltd.
-//Copyright (C) 2012-2015 LunarG, Inc.
+//Copyright (C) 2012-2016 LunarG, Inc.
 //Copyright (C) 2015-2016 Google, Inc.
 //
 //All rights reserved.
@@ -43,9 +43,9 @@
 // Where to put a built-in:
 //   TBuiltIns::initialize(version,profile)       context-independent textual built-ins; add them to the right string
 //   TBuiltIns::initialize(resources,...)         context-dependent textual built-ins; add them to the right string
-//   IdentifyBuiltIns(...,symbolTable)            context-independent programmatic additions/mappings to the symbol table,
+//   TBuiltIns::identifyBuiltIns(...,symbolTable) context-independent programmatic additions/mappings to the symbol table,
 //                                                including identifying what extensions are needed if a version does not allow a symbol
-//   IdentifyBuiltIns(...,symbolTable, resources) context-dependent programmatic additions/mappings to the symbol table,
+//   TBuiltIns::identifyBuiltIns(...,symbolTable, resources) context-dependent programmatic additions/mappings to the symbol table,
 //                                                including identifying what extensions are needed if a version does not allow a symbol
 //
 
@@ -66,6 +66,16 @@ bool PureOperatorBuiltins = true;
 inline bool IncludeLegacy(int version, EProfile profile, int spv)
 {
     return profile != EEsProfile && (version <= 130 || (spv == 0 && ARBCompatibility) || profile == ECompatibilityProfile);
+}
+
+// Construct TBuiltInParseables base class.  This can be used for language-common constructs.
+TBuiltInParseables::TBuiltInParseables()
+{
+}
+
+// Destroy TBuiltInParseables.
+TBuiltInParseables::~TBuiltInParseables()
+{
 }
 
 TBuiltIns::TBuiltIns()
@@ -94,6 +104,7 @@ TBuiltIns::TBuiltIns()
 TBuiltIns::~TBuiltIns()
 {
 }
+
 
 //
 // Add all context-independent built-in functions and variables that are present
@@ -628,6 +639,30 @@ void TBuiltIns::initialize(int version, EProfile profile, int spv, int vulkan)
             "dmat2 inverse(dmat2);"
             "dmat3 inverse(dmat3);"
             "dmat4 inverse(dmat4);"
+
+            "bvec2 lessThan(dvec2, dvec2);"
+            "bvec3 lessThan(dvec3, dvec3);"
+            "bvec4 lessThan(dvec4, dvec4);"
+
+            "bvec2 lessThanEqual(dvec2, dvec2);"
+            "bvec3 lessThanEqual(dvec3, dvec3);"
+            "bvec4 lessThanEqual(dvec4, dvec4);"
+
+            "bvec2 greaterThan(dvec2, dvec2);"
+            "bvec3 greaterThan(dvec3, dvec3);"
+            "bvec4 greaterThan(dvec4, dvec4);"
+
+            "bvec2 greaterThanEqual(dvec2, dvec2);"
+            "bvec3 greaterThanEqual(dvec3, dvec3);"
+            "bvec4 greaterThanEqual(dvec4, dvec4);"
+
+            "bvec2 equal(dvec2, dvec2);"
+            "bvec3 equal(dvec3, dvec3);"
+            "bvec4 equal(dvec4, dvec4);"
+
+            "bvec2 notEqual(dvec2, dvec2);"
+            "bvec3 notEqual(dvec3, dvec3);"
+            "bvec4 notEqual(dvec4, dvec4);"
 
             "\n");
     }
@@ -1242,26 +1277,6 @@ void TBuiltIns::initialize(int version, EProfile profile, int spv, int vulkan)
     if ((profile == EEsProfile && version >= 310) ||
         (profile != EEsProfile && version >= 400)) {
         commonBuiltins.append(
-            "highp  uint uaddCarry( uint,  uint, out  uint carry);"
-            "highp uvec2 uaddCarry(uvec2, uvec2, out uvec2 carry);"
-            "highp uvec3 uaddCarry(uvec3, uvec3, out uvec3 carry);"
-            "highp uvec4 uaddCarry(uvec4, uvec4, out uvec4 carry);"
-
-            "highp  uint usubBorrow( uint,  uint, out  uint borrow);"
-            "highp uvec2 usubBorrow(uvec2, uvec2, out uvec2 borrow);"
-            "highp uvec3 usubBorrow(uvec3, uvec3, out uvec3 borrow);"
-            "highp uvec4 usubBorrow(uvec4, uvec4, out uvec4 borrow);"
-
-            "void umulExtended( uint,  uint, out  uint, out  uint lsb);"
-            "void umulExtended(uvec2, uvec2, out uvec2, out uvec2 lsb);"
-            "void umulExtended(uvec3, uvec3, out uvec3, out uvec3 lsb);"
-            "void umulExtended(uvec4, uvec4, out uvec4, out uvec4 lsb);"
-
-            "void imulExtended(  int,   int, out   int, out   int lsb);"
-            "void imulExtended(ivec2, ivec2, out ivec2, out ivec2 lsb);"
-            "void imulExtended(ivec3, ivec3, out ivec3, out ivec3 lsb);"
-            "void imulExtended(ivec4, ivec4, out ivec4, out ivec4 lsb);"
-
             "  int bitfieldExtract(  int, int, int);"
             "ivec2 bitfieldExtract(ivec2, int, int);"
             "ivec3 bitfieldExtract(ivec3, int, int);"
@@ -1281,6 +1296,41 @@ void TBuiltIns::initialize(int version, EProfile profile, int spv, int vulkan)
             "uvec2 bitfieldInsert(uvec2 base, uvec2, int, int);"
             "uvec3 bitfieldInsert(uvec3 base, uvec3, int, int);"
             "uvec4 bitfieldInsert(uvec4 base, uvec4, int, int);"
+
+            "lowp   int findLSB(  int);"
+            "lowp ivec2 findLSB(ivec2);"
+            "lowp ivec3 findLSB(ivec3);"
+            "lowp ivec4 findLSB(ivec4);"
+
+            "lowp   int findLSB( uint);"
+            "lowp ivec2 findLSB(uvec2);"
+            "lowp ivec3 findLSB(uvec3);"
+            "lowp ivec4 findLSB(uvec4);"
+
+            "\n");
+    }
+
+    if (profile != EEsProfile && version >= 400) {
+        commonBuiltins.append(
+            " uint uaddCarry( uint,  uint, out  uint carry);"
+            "uvec2 uaddCarry(uvec2, uvec2, out uvec2 carry);"
+            "uvec3 uaddCarry(uvec3, uvec3, out uvec3 carry);"
+            "uvec4 uaddCarry(uvec4, uvec4, out uvec4 carry);"
+
+            " uint usubBorrow( uint,  uint, out  uint borrow);"
+            "uvec2 usubBorrow(uvec2, uvec2, out uvec2 borrow);"
+            "uvec3 usubBorrow(uvec3, uvec3, out uvec3 borrow);"
+            "uvec4 usubBorrow(uvec4, uvec4, out uvec4 borrow);"
+
+            "void umulExtended( uint,  uint, out  uint, out  uint lsb);"
+            "void umulExtended(uvec2, uvec2, out uvec2, out uvec2 lsb);"
+            "void umulExtended(uvec3, uvec3, out uvec3, out uvec3 lsb);"
+            "void umulExtended(uvec4, uvec4, out uvec4, out uvec4 lsb);"
+
+            "void imulExtended(  int,   int, out   int, out   int lsb);"
+            "void imulExtended(ivec2, ivec2, out ivec2, out ivec2 lsb);"
+            "void imulExtended(ivec3, ivec3, out ivec3, out ivec3 lsb);"
+            "void imulExtended(ivec4, ivec4, out ivec4, out ivec4 lsb);"
 
             "  int bitfieldReverse(  int);"
             "ivec2 bitfieldReverse(ivec2);"
@@ -1302,16 +1352,6 @@ void TBuiltIns::initialize(int version, EProfile profile, int spv, int vulkan)
             "ivec3 bitCount(uvec3);"
             "ivec4 bitCount(uvec4);"
 
-            "lowp   int findLSB(  int);"
-            "lowp ivec2 findLSB(ivec2);"
-            "lowp ivec3 findLSB(ivec3);"
-            "lowp ivec4 findLSB(ivec4);"
-
-            "lowp   int findLSB( uint);"
-            "lowp ivec2 findLSB(uvec2);"
-            "lowp ivec3 findLSB(uvec3);"
-            "lowp ivec4 findLSB(uvec4);"
-
             "  int findMSB(  int);"
             "ivec2 findMSB(ivec2);"
             "ivec3 findMSB(ivec3);"
@@ -1321,6 +1361,61 @@ void TBuiltIns::initialize(int version, EProfile profile, int spv, int vulkan)
             "ivec2 findMSB(uvec2);"
             "ivec3 findMSB(uvec3);"
             "ivec4 findMSB(uvec4);"
+
+            "\n");
+    }
+
+    if (profile == EEsProfile && version >= 310) {
+        commonBuiltins.append(
+            "highp  uint uaddCarry(highp  uint, highp  uint, out lowp  uint carry);"
+            "highp uvec2 uaddCarry(highp uvec2, highp uvec2, out lowp uvec2 carry);"
+            "highp uvec3 uaddCarry(highp uvec3, highp uvec3, out lowp uvec3 carry);"
+            "highp uvec4 uaddCarry(highp uvec4, highp uvec4, out lowp uvec4 carry);"
+
+            "highp  uint usubBorrow(highp  uint, highp  uint, out lowp  uint borrow);"
+            "highp uvec2 usubBorrow(highp uvec2, highp uvec2, out lowp uvec2 borrow);"
+            "highp uvec3 usubBorrow(highp uvec3, highp uvec3, out lowp uvec3 borrow);"
+            "highp uvec4 usubBorrow(highp uvec4, highp uvec4, out lowp uvec4 borrow);"
+
+            "void umulExtended(highp  uint, highp  uint, highp out  uint, out highp  uint lsb);"
+            "void umulExtended(highp uvec2, highp uvec2, highp out uvec2, out highp uvec2 lsb);"
+            "void umulExtended(highp uvec3, highp uvec3, highp out uvec3, out highp uvec3 lsb);"
+            "void umulExtended(highp uvec4, highp uvec4, highp out uvec4, out highp uvec4 lsb);"
+
+            "void imulExtended(highp   int, highp   int, highp out   int, out highp   int lsb);"
+            "void imulExtended(highp ivec2, highp ivec2, highp out ivec2, out highp ivec2 lsb);"
+            "void imulExtended(highp ivec3, highp ivec3, highp out ivec3, out highp ivec3 lsb);"
+            "void imulExtended(highp ivec4, highp ivec4, highp out ivec4, out highp ivec4 lsb);"
+
+            "highp   int bitfieldReverse(highp   int);"
+            "highp ivec2 bitfieldReverse(highp ivec2);"
+            "highp ivec3 bitfieldReverse(highp ivec3);"
+            "highp ivec4 bitfieldReverse(highp ivec4);"
+
+            "highp  uint bitfieldReverse(highp  uint);"
+            "highp uvec2 bitfieldReverse(highp uvec2);"
+            "highp uvec3 bitfieldReverse(highp uvec3);"
+            "highp uvec4 bitfieldReverse(highp uvec4);"
+
+            "lowp   int bitCount(  int);"
+            "lowp ivec2 bitCount(ivec2);"
+            "lowp ivec3 bitCount(ivec3);"
+            "lowp ivec4 bitCount(ivec4);"
+
+            "lowp   int bitCount( uint);"
+            "lowp ivec2 bitCount(uvec2);"
+            "lowp ivec3 bitCount(uvec3);"
+            "lowp ivec4 bitCount(uvec4);"
+
+            "lowp   int findMSB(highp   int);"
+            "lowp ivec2 findMSB(highp ivec2);"
+            "lowp ivec3 findMSB(highp ivec3);"
+            "lowp ivec4 findMSB(highp ivec4);"
+
+            "lowp   int findMSB(highp  uint);"
+            "lowp ivec2 findMSB(highp uvec2);"
+            "lowp ivec3 findMSB(highp uvec3);"
+            "lowp ivec4 findMSB(highp uvec4);"
             
             "\n");
     }
@@ -3441,7 +3536,7 @@ static void BuiltInVariable(const char* blockName, const char* name, TBuiltInVar
 // 3) Tag extension-related symbols added to their base version with their extensions, so
 //    that if an early version has the extension turned off, there is an error reported on use.
 //
-void IdentifyBuiltIns(int version, EProfile profile, int spv, int vulkan, EShLanguage language, TSymbolTable& symbolTable)
+void TBuiltIns::identifyBuiltIns(int version, EProfile profile, int spv, int vulkan, EShLanguage language, TSymbolTable& symbolTable)
 {
     //
     // Tag built-in variables and functions with additional qualifier and extension information
@@ -4137,7 +4232,7 @@ void IdentifyBuiltIns(int version, EProfile profile, int spv, int vulkan, EShLan
 // 2) Tag extension-related symbols added to their base version with their extensions, so
 //    that if an early version has the extension turned off, there is an error reported on use.
 //
-void IdentifyBuiltIns(int version, EProfile profile, int spv, int /*vulkan*/, EShLanguage language, TSymbolTable& symbolTable, const TBuiltInResource &resources)
+void TBuiltIns::identifyBuiltIns(int version, EProfile profile, int spv, int /*vulkan*/, EShLanguage language, TSymbolTable& symbolTable, const TBuiltInResource &resources)
 {
     if (profile != EEsProfile && version >= 430 && version < 440) {
         symbolTable.setVariableExtensions("gl_MaxTransformFeedbackBuffers", 1, &E_GL_ARB_enhanced_layouts);

@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2016 Google, Inc.
+// Copyright (C) 2015-2016 Google, Inc.
 //
 // All rights reserved.
 //
@@ -32,43 +32,22 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef GLSLANG_SPIRV_LOGGER_H
-#define GLSLANG_SPIRV_LOGGER_H
+//
+// Visit the nodes in the glslang intermediate tree representation to
+// propagate 'noContraction' qualifier.
+//
 
-#include <string>
-#include <vector>
+#include "../Include/intermediate.h"
 
-namespace spv {
+namespace glslang {
 
-// A class for holding all SPIR-V build status messages, including
-// missing/TBD functionalities, warnings, and errors.
-class SpvBuildLogger {
-public:
-    SpvBuildLogger() {}
-
-    // Registers a TBD functionality.
-    void tbdFunctionality(const std::string& f);
-    // Registers a missing functionality.
-    void missingFunctionality(const std::string& f);
-
-    // Logs a warning.
-    void warning(const std::string& w) { warnings.push_back(w); }
-    // Logs an error.
-    void error(const std::string& e) { errors.push_back(e); }
-
-    // Returns all messages accumulated in the order of:
-    // TBD functionalities, missing functionalities, warnings, errors.
-    std::string getAllMessages() const;
-
-private:
-    SpvBuildLogger(const SpvBuildLogger&);
-
-    std::vector<std::string> tbdFeatures;
-    std::vector<std::string> missingFeatures;
-    std::vector<std::string> warnings;
-    std::vector<std::string> errors;
+// Propagates the 'precise' qualifier for objects (objects marked with
+// 'noContraction' qualifier) from the shader source specified 'precise'
+// variables to all the involved objects, and add 'noContraction' qualifier for
+// the involved arithmetic operations.
+// Note that the same qualifier: 'noContraction' is used in both object nodes
+// and arithmetic operation nodes, but has different meaning. For object nodes,
+// 'noContraction' means the object is 'precise'; and for arithmetic operation
+// nodes, it means the operation should not be contracted.
+void PropagateNoContraction(const glslang::TIntermediate& intermediate);
 };
-
-} // end spv namespace
-
-#endif // GLSLANG_SPIRV_LOGGER_H
