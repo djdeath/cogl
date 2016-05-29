@@ -34,6 +34,7 @@
 
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
+#include "cogl-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-texture-2d-private.h"
@@ -238,17 +239,15 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglContextVulkan *vk_ctx = tex->context->winsys;
-  CoglPixelFormat internal_format;
+  CoglPixelFormat internal_format = loader->src.bitmap.bitmap->format;
+  int format_bpp = _cogl_pixel_format_get_bytes_per_pixel (internal_format);
   int width = loader->src.bitmap.bitmap->width;
   int height = loader->src.bitmap.bitmap->height;
-  VkFormat vk_format;
+  VkFormat vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
   VkResult result;
   VkMemoryRequirements requirements;
   void *data;
-
-  internal_format = loader->src.bitmap.bitmap->format;
-  vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
 
   if (vk_format == VK_FORMAT_UNDEFINED)
     {
@@ -332,7 +331,22 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  memcpy (data, loader->src.bitmap.bitmap->data, requirements.size);
+  if (loader->src.bitmap.bitmap->rowstride ==
+      width * _cogl_pixel_format_get_bytes_per_pixel (internal_format))
+    {
+      memcpy (data, loader->src.bitmap.bitmap->data, requirements.size);
+    }
+  else
+    {
+      int i, dst_rowstride = width * format_bpp;
+
+      for (i = 0; i < height; i++) {
+        memcpy (data + i * dst_rowstride,
+                loader->src.bitmap.bitmap->data +
+                i * loader->src.bitmap.bitmap->rowstride,
+                dst_rowstride);
+      }
+    }
 
   vkUnmapMemory (vk_ctx->device, tex_2d->vk_memory);
 
