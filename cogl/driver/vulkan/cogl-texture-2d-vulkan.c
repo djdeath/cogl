@@ -249,6 +249,8 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   VkMemoryRequirements requirements;
   void *data;
 
+  /* TODO: Deal with cases where the bitmap has a backing CoglBuffer. */
+
   if (vk_format == VK_FORMAT_UNDEFINED)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
