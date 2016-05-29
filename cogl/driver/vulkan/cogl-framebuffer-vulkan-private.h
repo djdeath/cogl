@@ -46,6 +46,12 @@ typedef struct _CoglFramebufferVulkan
   float clear_color[4]; /* rgba */
 
   VkRect2D render_area;
+
+  /* This is a temporary variable used to work around Cogl internal API that
+     is doesn't currently propagate vertices mode down to the pipeline
+     flushing. The API should be reworked to better fit Vulkan's pipeline
+     setup. */
+  CoglVerticesMode vertices_mode;
 } CoglFramebufferVulkan;
 
 typedef struct _CoglOffscreenVulkan

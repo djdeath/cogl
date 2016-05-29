@@ -352,6 +352,8 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
 {
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
+  vk_fb->vertices_mode = mode;
+
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   _cogl_flush_attributes_state (framebuffer, pipeline, flags,
@@ -392,6 +394,8 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglBuffer *indices_buffer = COGL_BUFFER (indices->buffer);
   CoglBufferVulkan *vk_buf = indices_buffer->winsys;
+
+  vk_fb->vertices_mode = mode;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 

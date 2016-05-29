@@ -60,6 +60,8 @@ typedef struct _CoglPipelineVulkan
 
   VkBuffer *attribute_buffers; /* Content of array not owned */
   VkDeviceSize *attribute_offsets;
+
+  CoglVerticesMode vertices_mode;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -320,6 +322,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
 
+  vk_pipeline->vertices_mode = vk_fb->vertices_mode;
+
   {
     CoglPipeline *blend_authority =
       _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_BLEND);
@@ -387,9 +391,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                  .pVertexInputState = vk_pipeline->vertex_inputs,
                                  .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                                   .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
-                                   /* TODO: topology shouldn't be fixed */
-                                   /* .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (mode), */
+                                   .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (vk_pipeline->vertices_mode),
                                    .primitiveRestartEnable = VK_FALSE,
                                  },
                                  .pViewportState = &(VkPipelineViewportStateCreateInfo) {
@@ -475,6 +477,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
       _cogl_pipeline_vertend_vulkan_get_shader (pipeline) != NULL &&
       _cogl_pipeline_fragend_vulkan_get_shader (pipeline) != NULL)
     {
+      if (vk_fb->vertices_mode != vk_pipeline->vertices_mode)
+        _cogl_pipeline_vulkan_invalidate (pipeline);
 
       _cogl_pipeline_vulkan_compute_attributes (pipeline, vk_pipeline,
                                                 attributes, n_attributes);
