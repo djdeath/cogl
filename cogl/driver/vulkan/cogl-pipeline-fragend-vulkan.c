@@ -448,7 +448,7 @@ ensure_texture_lookup_generated (CoglPipelineShaderState *shader_state,
     {
       g_string_append_printf (shader_state->header,
                               "vec4\n"
-                              "cogl_real_texture_lookup%i (sampler%s tex,\n"
+                              "cogl_real_texture_lookup%i (in sampler%s tex,\n"
                               "                            vec4 coords)\n"
                               "{\n"
                               "  return ",
@@ -480,7 +480,7 @@ ensure_texture_lookup_generated (CoglPipelineShaderState *shader_state,
   snippet_data.return_variable = "cogl_texel";
   snippet_data.arguments = "cogl_sampler, cogl_tex_coord";
   snippet_data.argument_declarations =
-    g_strdup_printf ("sampler%s cogl_sampler, vec4 cogl_tex_coord",
+    g_strdup_printf ("in sampler%s cogl_sampler, vec4 cogl_tex_coord",
                      target_string);
   snippet_data.source_buf = shader_state->header;
 

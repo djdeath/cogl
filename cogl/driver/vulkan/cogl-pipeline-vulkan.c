@@ -62,6 +62,11 @@ typedef struct _CoglPipelineVulkan
   VkDeviceSize *attribute_offsets;
 
   CoglVerticesMode vertices_mode;
+
+  /* A bit field of CoglAttributeNameID easily figure out what attributes
+     are available and which one need to be hardcoded in the vertex
+     shader. */
+  uint32_t attributes_field;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -107,7 +112,7 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
     }
 }
 
-void
+static void
 vk_pipeline_destroy (void *user_data,
                      void *instance)
 {
@@ -191,6 +196,34 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
     }
 
   return TRUE;
+}
+
+static void
+_cogl_pipeline_vulkan_build_attributes_field (CoglPipelineVulkan *vk_pipeline,
+                                             CoglAttribute **attributes,
+                                             int n_attributes)
+{
+  int i;
+
+  vk_pipeline->attributes_field = 0;
+
+  for (i = 0; i < n_attributes; i++)
+    {
+      if (attributes[i]->name_state->name_id <
+          COGL_ATTRIBUTE_NAME_ID_CUSTOM_ARRAY)
+        {
+          vk_pipeline->attributes_field |=
+            1 << attributes[i]->name_state->name_id;
+        }
+    }
+}
+
+uint32_t
+_cogl_pipeline_vulkan_get_attributes_field (CoglPipeline *pipeline)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  return vk_pipeline->attributes_field;
 }
 
 static void
@@ -527,6 +560,10 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
 
+  _cogl_pipeline_vulkan_build_attributes_field (vk_pipeline,
+                                                attributes,
+                                                n_attributes);
+
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
   progend = _cogl_pipeline_progends[COGL_PIPELINE_PROGEND_VULKAN];
@@ -560,6 +597,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
 
   progend->end (pipeline, 0);
 
+  /* Compute the attributes' layout by querying the AST of the generated
+     vertex shader. */
   _cogl_pipeline_vulkan_compute_attributes (pipeline, vk_pipeline,
                                             attributes, n_attributes);
   _cogl_pipeline_vulkan_create_pipeline (pipeline, vk_pipeline, framebuffer);

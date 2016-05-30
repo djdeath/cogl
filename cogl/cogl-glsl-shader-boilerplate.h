@@ -104,12 +104,9 @@
   "#define cogl_tex_coord_out _cogl_tex_coord\n"        \
   "\n"                                                  \
   "in vec4 cogl_position_in;\n"                         \
-  "in vec4 cogl_color_in;\n"                            \
-  "in vec3 cogl_normal_in;\n"                           \
   "\n"                                                  \
   "out vec4 cogl_color_out;\n"                          \
   "\n"
-  /* "out vec4 cogl_position_out;\n"                       \ */
 
 #define _COGL_FRAGMENT_VULKAN_SHADER_BOILERPLATE        \
   "#define cogl_color_in _cogl_color\n"                 \
