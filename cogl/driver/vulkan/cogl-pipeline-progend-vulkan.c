@@ -491,16 +491,18 @@ create_sampler (CoglPipeline *pipeline,
     .unnormalizedCoordinates = VK_FALSE,
   };
 
-  _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline, layer_index),
-                                          &info.magFilter,
-                                          NULL);
-  _cogl_pipeline_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline, layer_index),
-                                          &info.minFilter,
-                                          &info.mipmapMode);
+  _cogl_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline,
+                                                                     layer_index),
+                                 &info.magFilter,
+                                 NULL);
+  _cogl_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline,
+                                                                     layer_index),
+                                 &info.minFilter,
+                                 &info.mipmapMode);
 
-  info.addressModeU = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
-  info.addressModeV = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
-  info.addressModeW = _cogl_pipeline_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
+  info.addressModeU = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
+  info.addressModeV = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
+  info.addressModeW = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
 
   result = vkCreateSampler (vk_ctx->device,
                             &info,

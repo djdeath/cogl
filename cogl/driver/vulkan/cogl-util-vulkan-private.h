@@ -58,15 +58,15 @@ const char *
 _cogl_vulkan_error_to_string (VkResult error);
 
 void
-_cogl_pipeline_filter_to_vulkan_filter (CoglPipelineFilter filter,
-                                        VkFilter *vkfilter,
-                                        VkSamplerMipmapMode *vksamplermode);
+_cogl_filter_to_vulkan_filter (CoglPipelineFilter filter,
+                               VkFilter *vkfilter,
+                               VkSamplerMipmapMode *vksamplermode);
 
 VkSamplerAddressMode
-_cogl_pipeline_wrap_mode_to_vulkan_address_mode (CoglPipelineWrapMode mode);
+_cogl_wrap_mode_to_vulkan_address_mode (CoglPipelineWrapMode mode);
 
 VkCullModeFlagBits
-_cogl_pipeline_cull_mode_to_vulkan_cull_mode (CoglPipelineCullFaceMode mode);
+_cogl_cull_mode_to_vulkan_cull_mode (CoglPipelineCullFaceMode mode);
 
 VkFrontFace
 _cogl_winding_to_vulkan_front_face (CoglWinding winding);
@@ -83,9 +83,9 @@ _cogl_vulkan_util_get_texture_target_string (CoglTextureType texture_type,
                                              const char **swizzle_out);
 
 VkBlendFactor
-_cogl_pipeline_blend_factor_to_vulkan_blend_factor (CoglPipelineBlendFactor factor);
+_cogl_blend_factor_to_vulkan_blend_factor (CoglPipelineBlendFactor factor);
 
 VkBlendOp
-_cogl_pipeline_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation);
+_cogl_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation);
 
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */

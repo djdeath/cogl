@@ -353,17 +353,17 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                                 VK_COLOR_COMPONENT_G_BIT |
                                                 VK_COLOR_COMPONENT_B_BIT);
     vk_blend_attachment_state.srcColorBlendFactor =
-      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_rgb);
+      _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_rgb);
     vk_blend_attachment_state.dstColorBlendFactor =
-      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_rgb);
+      _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_rgb);
     vk_blend_attachment_state.colorBlendOp =
-      _cogl_pipeline_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_rgb);
+      _cogl_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_rgb);
     vk_blend_attachment_state.srcAlphaBlendFactor =
-      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_alpha);
+      _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_alpha);
     vk_blend_attachment_state.dstAlphaBlendFactor =
-      _cogl_pipeline_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_alpha);
+      _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_alpha);
     vk_blend_attachment_state.alphaBlendOp =
-      _cogl_pipeline_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
+      _cogl_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
   }
 
   {
@@ -372,8 +372,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     vk_raster_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     vk_raster_state.rasterizerDiscardEnable = VK_FALSE;
     vk_raster_state.polygonMode = VK_POLYGON_MODE_FILL;
-    vk_raster_state.cullMode =
-      _cogl_pipeline_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline));
+    vk_raster_state.cullMode = VK_CULL_MODE_NONE,
+      _cogl_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline));
     vk_raster_state.frontFace =
       _cogl_winding_to_vulkan_front_face (cogl_pipeline_get_front_face_winding (pipeline));
 
