@@ -460,8 +460,7 @@ ensure_texture_lookup_generated (CoglPipelineShaderState *shader_state,
                          "vec4(1.0, 1.0, 1.0, 1.0);\n");
       else
         g_string_append_printf (shader_state->header,
-                                "texture(cogl_sampler%i, coords.%s);\n",
-                                layer->index,
+                                "texture(tex, coords.%s);\n",
                                 tex_coord_swizzle);
 
       g_string_append (shader_state->header, "}\n");
