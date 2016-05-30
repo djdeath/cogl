@@ -171,6 +171,8 @@ typedef struct
   int n_layers;
 
   CoglPipelineCacheEntry *cache_entry;
+
+  unsigned int uniforms_dirty:1;
 } CoglPipelineProgramState;
 
 
@@ -382,6 +384,8 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
              location->name, location->offset, size);
 
   memcpy (program_state->uniform_data + location->offset, data, size);
+
+  program_state->uniforms_dirty = TRUE;
 }
 
 #define set_program_state_uniform1i(program_state, location, data)      \
@@ -1217,27 +1221,36 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
   CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
   CoglBufferVulkan *vk_uniform_buffer = program_state->uniform_buffer->winsys;
   VkWriteDescriptorSet *write_set =
-    &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets++];
+    &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets];
   VkDescriptorBufferInfo descriptor_buffer_info;
 
-  write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  write_set->dstSet = program_state->descriptor_set;
-  write_set->dstBinding = 0;
-  write_set->dstArrayElement = 0;
-  write_set->descriptorCount = 1;
-  write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  write_set->pBufferInfo = &descriptor_buffer_info;
+  if (program_state->uniforms_dirty)
+    {
 
-  descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
-  descriptor_buffer_info.offset = 0;
-  descriptor_buffer_info.range = program_state->uniform_buffer->size;
+      write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      write_set->dstSet = program_state->descriptor_set;
+      write_set->dstBinding = 0;
+      write_set->dstArrayElement = 0;
+      write_set->descriptorCount = 1;
+      write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      write_set->pBufferInfo = &descriptor_buffer_info;
 
-  vkUpdateDescriptorSets (vk_ctx->device,
-                          program_state->n_write_descriptor_sets,
-                          program_state->write_descriptor_sets,
-                          0, NULL);
+      descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
+      descriptor_buffer_info.offset = 0;
+      descriptor_buffer_info.range = program_state->uniform_buffer->size;
 
-  program_state->n_write_descriptor_sets = 0;
+      program_state->n_write_descriptor_sets++;
+      program_state->uniforms_dirty = FALSE;
+    }
+
+  if (program_state->n_write_descriptor_sets > 0)
+    {
+      vkUpdateDescriptorSets (vk_ctx->device,
+                              program_state->n_write_descriptor_sets,
+                              program_state->write_descriptor_sets,
+                              0, NULL);
+      program_state->n_write_descriptor_sets = 0;
+    }
 }
 
 static void
