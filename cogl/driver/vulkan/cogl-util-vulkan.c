@@ -420,3 +420,29 @@ _cogl_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation)
       g_assert_not_reached();
     }
 }
+
+VkCompareOp
+_cogl_depth_test_function_to_vulkan_compare_op (CoglDepthTestFunction function)
+{
+  switch (function)
+    {
+    case COGL_DEPTH_TEST_FUNCTION_NEVER:
+      return VK_COMPARE_OP_NEVER;
+    case COGL_DEPTH_TEST_FUNCTION_LESS:
+      return VK_COMPARE_OP_LESS;
+    case COGL_DEPTH_TEST_FUNCTION_EQUAL:
+      return VK_COMPARE_OP_EQUAL;
+    case COGL_DEPTH_TEST_FUNCTION_LEQUAL:
+      return VK_COMPARE_OP_LESS_OR_EQUAL;
+    case COGL_DEPTH_TEST_FUNCTION_GREATER:
+      return VK_COMPARE_OP_GREATER;
+    case COGL_DEPTH_TEST_FUNCTION_NOTEQUAL:
+      return VK_COMPARE_OP_NOT_EQUAL;
+    case COGL_DEPTH_TEST_FUNCTION_GEQUAL:
+      return VK_COMPARE_OP_GREATER_OR_EQUAL;
+    case COGL_DEPTH_TEST_FUNCTION_ALWAYS:
+      return VK_COMPARE_OP_ALWAYS;
+    default:
+      g_assert_not_reached();
+    }
+}

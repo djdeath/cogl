@@ -319,11 +319,18 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
 
   VkPipelineRasterizationStateCreateInfo vk_raster_state;
 
+  VkPipelineDepthStencilStateCreateInfo vk_depth_state;
+
+  VkPipelineViewportStateCreateInfo vk_viewport_state;
+  VkViewport vk_viewport;
+  VkRect2D vk_scissor;
+
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
 
   vk_pipeline->vertices_mode = vk_fb->vertices_mode;
 
+  /* Blending */
   {
     CoglPipeline *blend_authority =
       _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_BLEND);
@@ -333,7 +340,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     memset (&vk_blend_state, 0, sizeof (vk_blend_state));
     memset (&vk_blend_attachment_state, 0, sizeof (vk_blend_attachment_state));
 
-    vk_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+    vk_blend_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     vk_blend_state.attachmentCount = 1;
     vk_blend_state.pAttachments = &vk_blend_attachment_state;
 
@@ -347,7 +355,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
       cogl_color_get_alpha_float (&blend_state->blend_constant);
 
     vk_blend_attachment_state.blendEnable =
-      _cogl_pipeline_get_blend_enabled (blend_authority) == COGL_PIPELINE_BLEND_ENABLE_DISABLED ? VK_FALSE : VK_TRUE;
+      _cogl_pipeline_get_blend_enabled (blend_authority) ==
+      COGL_PIPELINE_BLEND_ENABLE_DISABLED ? VK_FALSE : VK_TRUE;
     vk_blend_attachment_state.colorWriteMask = (VK_COLOR_COMPONENT_A_BIT |
                                                 VK_COLOR_COMPONENT_R_BIT |
                                                 VK_COLOR_COMPONENT_G_BIT |
@@ -366,17 +375,69 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
       _cogl_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
   }
 
+  /* Rastering */
   {
     memset (&vk_raster_state, 0, sizeof (vk_raster_state));
 
-    vk_raster_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    vk_raster_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     vk_raster_state.rasterizerDiscardEnable = VK_FALSE;
     vk_raster_state.polygonMode = VK_POLYGON_MODE_FILL;
-    vk_raster_state.cullMode = VK_CULL_MODE_NONE,
+    vk_raster_state.cullMode =
       _cogl_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline));
     vk_raster_state.frontFace =
       _cogl_winding_to_vulkan_front_face (cogl_pipeline_get_front_face_winding (pipeline));
 
+  }
+
+  /* Depth */
+  {
+    CoglPipeline *authority =
+      _cogl_pipeline_get_authority (pipeline, COGL_PIPELINE_STATE_DEPTH);
+    CoglDepthState *depth_state = &authority->big_state->depth_state;
+
+    memset (&vk_depth_state, 0, sizeof (vk_depth_state));
+
+    vk_depth_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    vk_depth_state.depthTestEnable =
+      depth_state->test_enabled ? VK_TRUE : VK_FALSE;
+    vk_depth_state.depthWriteEnable =
+      depth_state->write_enabled ? VK_TRUE : VK_FALSE;
+    vk_depth_state.depthCompareOp =
+      _cogl_depth_test_function_to_vulkan_compare_op (depth_state->test_function);
+    vk_depth_state.depthBoundsTestEnable = VK_FALSE;
+    vk_depth_state.back.failOp = VK_STENCIL_OP_KEEP;
+    vk_depth_state.back.passOp = VK_STENCIL_OP_KEEP;
+    vk_depth_state.back.compareOp = VK_COMPARE_OP_ALWAYS;
+    vk_depth_state.stencilTestEnable = VK_FALSE;
+    vk_depth_state.front = vk_depth_state.back;
+  }
+
+  /* Viewport */
+  {
+    memset (&vk_viewport_state, 0, sizeof (vk_viewport_state));
+    memset (&vk_viewport, 0, sizeof (vk_viewport));
+    memset (&vk_scissor, 0, sizeof (vk_scissor));
+
+    vk_viewport_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vk_viewport_state.viewportCount = 1;
+    vk_viewport_state.pViewports = &vk_viewport;
+    vk_viewport_state.scissorCount = 1;
+    vk_viewport_state.pScissors = &vk_scissor;
+
+    vk_viewport.x = 0;
+    vk_viewport.y = 0;
+    vk_viewport.width = framebuffer->width;
+    vk_viewport.height = framebuffer->height;
+    vk_viewport.minDepth = 0;
+    vk_viewport.maxDepth = 1;
+
+    vk_scissor.offset.x = 0;
+    vk_scissor.offset.y = 0;
+    vk_scissor.extent.width = framebuffer->width;
+    vk_scissor.extent.height = framebuffer->height;
   }
 
   /* TODO: Break this down. */
@@ -394,37 +455,13 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                    .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (vk_pipeline->vertices_mode),
                                    .primitiveRestartEnable = VK_FALSE,
                                  },
-                                 .pViewportState = &(VkPipelineViewportStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-                                   .viewportCount = 1,
-                                   .pViewports = &(VkViewport) {
-                                     .x = 0,
-                                     .y = 0,
-                                     .width = framebuffer->width,
-                                     .height = framebuffer->height,
-                                     .minDepth = 0,
-                                     .maxDepth = 1,
-                                   },
-                                   .scissorCount = 1,
-                                   .pScissors = &(VkRect2D) {
-                                     .offset = {
-                                       .x = 0,
-                                       .y = 0,
-                                     },
-                                     .extent = {
-                                       .width = framebuffer->width,
-                                       .height = framebuffer->height,
-                                     },
-                                   },
-                                 },
+                                 .pViewportState = &vk_viewport_state,
                                  .pRasterizationState = &vk_raster_state,
                                  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                    .rasterizationSamples = 1,
                                  },
-                                 .pDepthStencilState = &(VkPipelineDepthStencilStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-                                 },
+                                 .pDepthStencilState = &vk_depth_state,
                                  .pColorBlendState = &vk_blend_state,
                                  .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
                                    .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,

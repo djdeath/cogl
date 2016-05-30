@@ -88,4 +88,7 @@ _cogl_blend_factor_to_vulkan_blend_factor (CoglPipelineBlendFactor factor);
 VkBlendOp
 _cogl_blend_equation_to_vulkan_blend_op (CoglPipelineBlendEquation equation);
 
+VkCompareOp
+_cogl_depth_test_function_to_vulkan_compare_op (CoglDepthTestFunction function);
+
 #endif /* _COGL_UTIL_VULKAN_PRIVATE_H_ */
