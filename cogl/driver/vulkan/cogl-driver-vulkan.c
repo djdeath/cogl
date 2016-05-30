@@ -169,6 +169,8 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   vkGetPhysicalDeviceProperties (vk_ctx->physical_device,
                                  &vk_ctx->physical_device_properties);
+  vkGetPhysicalDeviceMemoryProperties (vk_ctx->physical_device,
+                                       &vk_ctx->physical_device_memory_properties);
 
   result = vkCreateDevice(vk_ctx->physical_device, &(VkDeviceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -246,6 +248,27 @@ _cogl_vulkan_context_deinit (CoglContext *context)
     vkDestroyDevice (vk_ctx->device, NULL);
 
   g_slice_free (CoglContextVulkan, vk_ctx);
+}
+
+uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
+                                               VkMemoryPropertyFlags flags)
+{
+  CoglContextVulkan *vk_ctx = context->winsys;
+  uint32_t i;
+
+  for (i = 0; i < vk_ctx->physical_device_memory_properties.memoryTypeCount; i++)
+    {
+      const VkMemoryType *mem_type =
+        &vk_ctx->physical_device_memory_properties.memoryTypes[i];
+
+      if ((mem_type->propertyFlags & flags) == flags)
+        return mem_type->heapIndex;
+    }
+
+  g_warning ("Cannot file memory heap for flags %x, default to first heap.",
+             flags);
+
+  return 0;
 }
 
 const CoglDriverVtable
