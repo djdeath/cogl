@@ -143,26 +143,26 @@ _cogl_glsl_shader_type_to_es_language (CoglGlslShaderType type)
     }
 }
 
-// These numbers come from the OpenGL 4.4 core profile specification Chapter 23
-// unless otherwise specified.
+/* These numbers come from the OpenGL 4.4 core profile specification Chapter
+   23 unless otherwise specified. */
 const TBuiltInResource kDefaultTBuiltInResource = {
-  /*.maxLights = */ 8,         // From OpenGL 3.0 table 6.46.
-  /*.maxClipPlanes = */ 6,     // From OpenGL 3.0 table 6.46.
-  /*.maxTextureUnits = */ 2,   // From OpenGL 3.0 table 6.50.
-  /*.maxTextureCoords = */ 8,  // From OpenGL 3.0 table 6.50.
+  /*.maxLights = */ 8,         /* From OpenGL 3.0 table 6.46. */
+  /*.maxClipPlanes = */ 6,     /* From OpenGL 3.0 table 6.46. */
+  /*.maxTextureUnits = */ 2,   /* From OpenGL 3.0 table 6.50. */
+  /*.maxTextureCoords = */ 8,  /* From OpenGL 3.0 table 6.50. */
   /*.maxVertexAttribs = */ 16,
   /*.maxVertexUniformComponents = */ 4096,
-  /*.maxVaryingFloats = */ 60,  // From OpenGLES 3.1 table 6.44.
+  /*.maxVaryingFloats = */ 60,  /* From OpenGLES 3.1 table 6.44. */
   /*.maxVertexTextureImageUnits = */ 16,
   /*.maxCombinedTextureImageUnits = */ 80,
   /*.maxTextureImageUnits = */ 16,
   /*.maxFragmentUniformComponents = */ 1024,
   /*.maxDrawBuffers = */ 2,
   /*.maxVertexUniformVectors = */ 256,
-  /*.maxVaryingVectors = */ 15,  // From OpenGLES 3.1 table 6.44.
+  /*.maxVaryingVectors = */ 15,  /* From OpenGLES 3.1 table 6.44. */
   /*.maxFragmentUniformVectors = */ 256,
-  /*.maxVertexOutputVectors = */ 16,   // maxVertexOutputComponents / 4
-  /*.maxFragmentInputVectors = */ 15,  // maxFragmentInputComponents / 4
+  /*.maxVertexOutputVectors = */ 16,   /* maxVertexOutputComponents / 4 */
+  /*.maxFragmentInputVectors = */ 15,  /* maxFragmentInputComponents / 4 */
   /*.minProgramTexelOffset = */ -8,
   /*.maxProgramTexelOffset = */ 7,
   /*.maxClipDistances = */ 8,
@@ -176,14 +176,14 @@ const TBuiltInResource kDefaultTBuiltInResource = {
   /*.maxComputeTextureImageUnits = */ 16,
   /*.maxComputeImageUniforms = */ 8,
   /*.maxComputeAtomicCounters = */ 8,
-  /*.maxComputeAtomicCounterBuffers = */ 1,  // From OpenGLES 3.1 Table 6.43
+  /*.maxComputeAtomicCounterBuffers = */ 1,  /* From OpenGLES 3.1 Table 6.43 */
   /*.maxVaryingComponents = */ 60,
   /*.maxVertexOutputComponents = */ 64,
   /*.maxGeometryInputComponents = */ 64,
   /*.maxGeometryOutputComponents = */ 128,
   /*.maxFragmentInputComponents = */ 128,
-  /*.maxImageUnits = */ 8,  // This does not seem to be defined anywhere,
-  // set to ImageUnits.
+  /*.maxImageUnits = */ 8,  /* This does not seem to be defined anywhere,
+    set to ImageUnits. */
   /*.maxCombinedImageUnitsAndFragmentOutputs = */ 8,
   /*.maxCombinedShaderOutputResources = */ 8,
   /*.maxImageSamples = */ 0,
@@ -197,9 +197,8 @@ const TBuiltInResource kDefaultTBuiltInResource = {
   /*.maxGeometryOutputVertices = */ 256,
   /*.maxGeometryTotalOutputComponents = */ 1024,
   /*.maxGeometryUniformComponents = */ 512,
-  /*.maxGeometryVaryingComponents = */ 60,  // Does not seem to be defined
-  // anywhere, set equal to
-  // maxVaryingComponents.
+  /*.maxGeometryVaryingComponents = */ 60,  /* Does not seem to be defined
+   anywhere, set equal to maxVaryingComponents. */
   /*.maxTessControlInputComponents = */ 128,
   /*.maxTessControlOutputComponents = */ 128,
   /*.maxTessControlTextureImageUnits = */ 16,
@@ -220,25 +219,24 @@ const TBuiltInResource kDefaultTBuiltInResource = {
   /*.maxFragmentAtomicCounters = */ 8,
   /*.maxCombinedAtomicCounters = */ 8,
   /*.maxAtomicCounterBindings = */ 1,
-  /*.maxVertexAtomicCounterBuffers = */ 0,  // From OpenGLES 3.1 Table 6.41.
-
-  // ARB_shader_atomic_counters.
+  /*.maxVertexAtomicCounterBuffers = */ 0,  /* From OpenGLES 3.1 Table 6.41.
+    ARB_shader_atomic_counters.*/
   /*.maxTessControlAtomicCounterBuffers = */ 0,
   /*.maxTessEvaluationAtomicCounterBuffers = */ 0,
   /*.maxGeometryAtomicCounterBuffers = */ 0,
-  // /ARB_shader_atomic_counters.
+  /* /ARB_shader_atomic_counters. */
 
-  /*.maxFragmentAtomicCounterBuffers = */ 0,  // From OpenGLES 3.1 Table 6.43.
+  /*.maxFragmentAtomicCounterBuffers = */ 0,  /* From OpenGLES 3.1 Table 6.43. */
   /*.maxCombinedAtomicCounterBuffers = */ 1,
   /*.maxAtomicCounterBufferSize = */ 32,
   /*.maxTransformFeedbackBuffers = */ 4,
   /*.maxTransformFeedbackInterleavedComponents = */ 64,
-  /*.maxCullDistances = */ 8,                 // ARB_cull_distance.
-  /*.maxCombinedClipAndCullDistances = */ 8,  // ARB_cull_distance.
+  /*.maxCullDistances = */ 8,                 /* ARB_cull_distance. */
+  /*.maxCombinedClipAndCullDistances = */ 8,  /* ARB_cull_distance. */
   /*.maxSamples = */ 4,
-  // This is the glslang TLimits structure.
-  // It defines whether or not the following features are enabled.
-  // We want them to all be enabled.
+  /* This is the glslang TLimits structure.
+     It defines whether or not the following features are enabled.
+     We want them to all be enabled. */
   /*.limits = */ {
     /*.nonInductiveForLoops = */ 1,
     /*.whileLoops = */ 1,
@@ -374,7 +372,7 @@ _cogl_shader_vulkan_add_sampler (CoglShaderVulkan *shader,
                                  CoglGlslShaderType stage,
                                  glslang::TIntermSymbol* symbol)
 {
-  // We start mapping samplers at 1 because 0 is used by uniform block.
+  /* We start mapping samplers at 1 because 0 is used by uniform block. */
   int binding = g_hash_table_size (shader->samplers[stage]) + 1;
   CoglShaderVulkanSampler *sampler =
     _cogl_shader_vulkan_sampler_new (symbol->getName().c_str(), binding);
@@ -396,17 +394,17 @@ _cogl_shader_vulkan_add_uniform (CoglShaderVulkan *shader,
   g_hash_table_insert (shader->uniforms[stage], uniform->name, uniform);
 }
 
-// Lookup or calculate the offset of a block member, using the recursively
-// defined block offset rules.
+/* Lookup or calculate the offset of a block member, using the recursively
+   defined block offset rules. */
 static int getOffset(glslang::TIntermediate* intermediate,
                      const glslang::TType& type,
                      int index)
 {
   const glslang::TTypeList& memberList = *type.getStruct();
 
-  // Don't calculate offset if one is present, it could be user supplied and
-  // different than what would be calculated. That is, this is faster, but
-  // not just an optimization.
+  /* Don't calculate offset if one is present, it could be user supplied and
+     different than what would be calculated. That is, this is faster, but
+     not just an optimization. */
   if (memberList[index].type->getQualifier().hasOffset())
     return memberList[index].type->getQualifier().layoutOffset;
 
@@ -414,8 +412,8 @@ static int getOffset(glslang::TIntermediate* intermediate,
   int dummyStride;
   int offset = 0;
   for (int m = 0; m <= index; ++m) {
-    // modify just the children's view of matrix layout, if there is one for
-    // this member
+    /* modify just the children's view of matrix layout, if there is one for
+       this member */
     glslang::TLayoutMatrix subMatrixLayout =
       memberList[m].type->getQualifier().layoutMatrix;
     int memberAlignment =

@@ -40,8 +40,6 @@
     g_warning("Unimplemented function %s : %s", G_STRFUNC, G_STRLOC);   \
   } while(0)
 
-//#define VK()
-
 VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);

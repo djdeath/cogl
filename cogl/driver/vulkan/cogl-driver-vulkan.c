@@ -52,7 +52,7 @@ _cogl_driver_pixel_format_from_gl_internal (CoglContext *context,
                                             GLenum gl_int_format,
                                             CoglPixelFormat *out_format)
 {
-  // OpenG... What??
+  /* OpenG... What?? */
   return FALSE;
 }
 
