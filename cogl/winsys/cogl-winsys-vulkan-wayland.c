@@ -391,11 +391,13 @@ static void
 _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
 {
   CoglContextVulkan *vk_context = onscreen->_parent.context->winsys;
+  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   FrameCallbackData *frame_callback_data, *tmp;
   uint32_t i;
 
-  _cogl_framebuffer_vulkan_deinit (COGL_FRAMEBUFFER (onscreen));
+  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer, VK_NULL_HANDLE);
+  _cogl_framebuffer_vulkan_deinit (framebuffer);
 
   for (i = 0; i < vk_onscreen->image_count; i++)
     {
