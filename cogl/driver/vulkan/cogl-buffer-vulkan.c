@@ -40,9 +40,6 @@
 #include "cogl-error-private.h"
 #include "cogl-util-vulkan-private.h"
 
-#define BUFFER_MEMORY_PROPERTIES (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | \
-                                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-
 static VkBufferUsageFlags
 _cogl_buffer_usage_to_vulkan_buffer_usage (CoglBufferUsageHint usage)
 {
