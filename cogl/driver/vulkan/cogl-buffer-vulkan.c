@@ -66,25 +66,10 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
 {
   CoglContextVulkan *vk_ctx = buffer->context->winsys;
   CoglBufferVulkan *vk_buffer = g_slice_new0 (CoglBufferVulkan);
+  VkMemoryRequirements mem_reqs;
   VkResult result;
 
   buffer->winsys = vk_buffer;
-
-  result = vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .allocationSize = buffer->size,
-      .memoryTypeIndex =
-        _cogl_vulkan_context_get_memory_heap (buffer->context,
-                                              BUFFER_MEMORY_PROPERTIES),
-    },
-    NULL,
-    &vk_buffer->memory);
-  if (result != VK_SUCCESS)
-    {
-      g_warning ("%s: Cannot allocate memory (%d): %s\n", G_STRLOC, result,
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
 
   result = vkCreateBuffer (vk_ctx->device, &(VkBufferCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -97,6 +82,24 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
   if (result != VK_SUCCESS)
     {
       g_warning ("%s: Cannot create buffer (%d): %s\n", G_STRLOC, result,
+                 _cogl_vulkan_error_to_string (result));
+      return;
+    }
+
+  vkGetBufferMemoryRequirements (vk_ctx->device, vk_buffer->buffer, &mem_reqs);
+
+  result = vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize = mem_reqs.size,
+      .memoryTypeIndex =
+        _cogl_vulkan_context_get_memory_heap (buffer->context,
+                                              mem_reqs.memoryTypeBits),
+    },
+    NULL,
+    &vk_buffer->memory);
+  if (result != VK_SUCCESS)
+    {
+      g_warning ("%s: Cannot allocate buffer memory (%d): %s\n", G_STRLOC, result,
                  _cogl_vulkan_error_to_string (result));
       return;
     }
