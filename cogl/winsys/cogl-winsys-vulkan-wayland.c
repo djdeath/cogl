@@ -444,7 +444,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   CoglContext *context = framebuffer->context;
   CoglRenderer *renderer = context->display->renderer;
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
-  CoglContextVulkan *vk_context = context->winsys;
+  CoglContextVulkan *vk_ctx = context->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   CoglPixelFormat cogl_format = onscreen->_parent.internal_format;
   VkFormat vk_format =
@@ -476,7 +476,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       wl_shell_get_shell_surface (vk_renderer->wayland_shell,
                                   vk_onscreen->wayland_surface);
 
-  if (!vk_renderer->get_wayland_presentation_support (vk_context->physical_device,
+  if (!vk_renderer->get_wayland_presentation_support (vk_ctx->physical_device,
                                                       0,
                                                       vk_renderer->wayland_display))
     {
@@ -505,7 +505,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
     }
 
   /* TODO: GetPhysicalDeviceSurfaceFormatsKHR() */
-  result = vkCreateSwapchainKHR (vk_context->device, &(VkSwapchainCreateInfoKHR) {
+  result = vkCreateSwapchainKHR (vk_ctx->device, &(VkSwapchainCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = vk_onscreen->wsi_surface,
       .minImageCount = 2,
@@ -532,14 +532,14 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  vkGetSwapchainImagesKHR (vk_context->device, vk_onscreen->swap_chain,
+  vkGetSwapchainImagesKHR (vk_ctx->device, vk_onscreen->swap_chain,
                            &vk_onscreen->image_count, NULL);
   g_assert (vk_onscreen->image_count <= MAX_SWAP_CHAIN_LENGTH);
 
   COGL_NOTE (VULKAN,
              "Got swapchain with %i image(s)", vk_onscreen->image_count);
 
-  vkGetSwapchainImagesKHR (vk_context->device,
+  vkGetSwapchainImagesKHR (vk_ctx->device,
                            vk_onscreen->swap_chain,
                            &vk_onscreen->image_count,
                            vk_onscreen->images);
@@ -551,7 +551,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   for (i = 0; i < vk_onscreen->image_count; i++)
     {
-      result = vkCreateImageView (vk_context->device, &(VkImageViewCreateInfo) {
+      result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
           .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = vk_onscreen->images[i],
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -582,17 +582,10 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
           goto error;
         }
 
-      result = vkCreateFramebuffer (vk_context->device, &(VkFramebufferCreateInfo) {
-          .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-          .attachmentCount = 1,
-          .pAttachments = &vk_onscreen->image_views[i],
-          .width = framebuffer->width,
-          .height = framebuffer->height,
-          .layers = 1,
-          .renderPass = vk_fb->render_pass,
-        },
-        NULL,
-        &vk_onscreen->framebuffers[i]);
+      result =
+        _cogl_framebuffer_vulkan_create_framebuffer (framebuffer,
+                                                     vk_onscreen->image_views[i],
+                                                     &vk_onscreen->framebuffers[i]);
       if (result != VK_SUCCESS)
         {
           _cogl_set_error (error,
@@ -604,7 +597,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
         }
     }
 
-  result = vkAcquireNextImageKHR (vk_context->device, vk_onscreen->swap_chain, 0,
+  result = vkAcquireNextImageKHR (vk_ctx->device, vk_onscreen->swap_chain, 0,
                                   VK_NULL_HANDLE, VK_NULL_HANDLE,
                                   &vk_onscreen->image_index);
   if (result != VK_SUCCESS)

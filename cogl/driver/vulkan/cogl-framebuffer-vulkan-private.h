@@ -38,12 +38,18 @@ typedef struct _CoglFramebufferVulkan
   VkFramebuffer framebuffer;
 
   /* Owned. */
+  VkFormat depth_format;
+  VkImage depth_image;
+  VkImageView depth_image_view;
+  VkDeviceMemory depth_memory;
+
   VkRenderPass render_pass;
   VkCommandBuffer cmd_buffer;
 
   uint32_t cmd_buffer_length;
 
   float clear_color[4]; /* rgba */
+  unsigned long clear_mask;
 
   VkRect2D render_area;
 
@@ -71,13 +77,18 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
 void
 _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer);
 
-void
-_cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
-                               CoglFramebuffer *framebuffer);
+VkResult
+_cogl_framebuffer_vulkan_create_framebuffer (CoglFramebuffer *framebuffer,
+                                             VkImageView vk_image_view,
+                                             VkFramebuffer *vk_framebuffer);
 
 void
 _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
                                              VkFramebuffer vk_framebuffer);
+
+void
+_cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
+                               CoglFramebuffer *framebuffer);
 
 void
 _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
