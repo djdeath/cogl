@@ -496,7 +496,17 @@ void
 _cogl_framebuffer_vulkan_query_bits (CoglFramebuffer *framebuffer,
                                      CoglFramebufferBits *bits)
 {
-  VK_TODO();
+  uint64_t bit_field =
+    _cogl_pixel_format_query_bits (framebuffer->internal_format);
+
+  bits->alpha = _COGL_COLOR_BITS_GET_ALPHA (bit_field);
+  bits->red = _COGL_COLOR_BITS_GET_RED (bit_field);
+  bits->green = _COGL_COLOR_BITS_GET_GREEN (bit_field);
+  bits->blue = _COGL_COLOR_BITS_GET_BLUE (bit_field);
+
+  /* TODO: Hardcoded for now. */
+  bits->depth = 16;
+  bits->stencil = 0;
 }
 
 void
