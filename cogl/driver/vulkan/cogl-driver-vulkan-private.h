@@ -38,19 +38,24 @@
 typedef struct _CoglRendererVulkan
 {
   VkInstance instance;
+  VkPhysicalDevice physical_device;
+  VkPhysicalDeviceProperties physical_device_properties;
+
+  PFN_vkCreateInstance vkCreateInstance;
+  PFN_vkDestroyInstance vkDestroyInstance;
+  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+  PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
+  PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
 } CoglRendererVulkan;
 
 typedef struct _CoglContextVulkan
 {
-  VkPhysicalDevice physical_device;
   VkPhysicalDeviceProperties physical_device_properties;
   VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
   VkDevice device;
   VkQueue queue;
   VkFence fence;
   VkCommandPool cmd_pool;
-
-  /* VkDescriptorPool desc_pool; */
 } CoglContextVulkan;
 
 CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,

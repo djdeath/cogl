@@ -204,7 +204,7 @@ static CoglDriverDescription _cogl_drivers[] =
       -1 },
     &_cogl_driver_vulkan,
     &_cogl_texture_driver_vulkan,
-    NULL,
+    COGL_VULKAN_LIBNAME,
   },
 #endif
   {

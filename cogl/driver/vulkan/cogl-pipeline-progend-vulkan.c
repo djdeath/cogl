@@ -287,25 +287,29 @@ destroy_program_state (void *user_data,
         }
 
       if (program_state->descriptor_set != VK_NULL_HANDLE)
-        vkFreeDescriptorSets (vk_ctx->device,
-                              program_state->descriptor_pool,
-                              1, &program_state->descriptor_set);
+        VK ( ctx,
+             vkFreeDescriptorSets (vk_ctx->device,
+                                   program_state->descriptor_pool,
+                                   1, &program_state->descriptor_set) );
 
       if (program_state->descriptor_pool != VK_NULL_HANDLE)
-        vkDestroyDescriptorPool (vk_ctx->device,
-                                 program_state->descriptor_pool,
-                                 NULL);
+        VK ( ctx,
+             vkDestroyDescriptorPool (vk_ctx->device,
+                                      program_state->descriptor_pool,
+                                      NULL) );
 
       if (program_state->pipeline_layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout (vk_ctx->device,
-                                 program_state->pipeline_layout, NULL);
+        VK ( ctx,
+             vkDestroyPipelineLayout (vk_ctx->device,
+                                      program_state->pipeline_layout, NULL) );
 
       for (i = 0; i < program_state->n_layers; i++)
         {
           if (program_state->unit_state[i].sampler != VK_NULL_HANDLE)
-            vkDestroySampler (vk_ctx->device,
-                              program_state->unit_state[i].sampler,
-                              NULL);
+            VK ( ctx,
+                 vkDestroySampler (vk_ctx->device,
+                                   program_state->unit_state[i].sampler,
+                                   NULL) );
         }
       g_free (program_state->unit_state);
 
@@ -378,13 +382,20 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
                            size_t size)
 {
   g_assert (program_state->shader);
-  g_assert (program_state->uniform_data);
 
   COGL_NOTE (VULKAN, "Uniform offset %s = offset=%i size=%i",
              location->name, location->offset, size);
 
-  memcpy (program_state->uniform_data + location->offset, data, size);
+  if (G_UNLIKELY (program_state->uniform_data == NULL))
+    {
+      program_state->uniform_data =
+        _cogl_buffer_map (program_state->uniform_buffer,
+                          COGL_BUFFER_ACCESS_WRITE,
+                          COGL_BUFFER_MAP_HINT_DISCARD,
+                          NULL);
+    }
 
+  memcpy (program_state->uniform_data + location->offset, data, size);
   program_state->uniforms_dirty = TRUE;
 }
 
@@ -478,7 +489,6 @@ create_sampler (CoglPipeline *pipeline,
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  VkResult result;
   VkSamplerCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
     .mipLodBias = 0.0f,
@@ -504,14 +514,11 @@ create_sampler (CoglPipeline *pipeline,
   info.addressModeV = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
   info.addressModeW = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
 
-  result = vkCreateSampler (vk_ctx->device,
+  VK_RET ( ctx,
+           vkCreateSampler (vk_ctx->device,
                             &info,
                             NULL,
-                            &unit_state->sampler);
-
-  if (result != VK_SUCCESS)
-    g_warning ("Cannot create sampler (%d): %s", result,
-               _cogl_vulkan_error_to_string (result));
+                            &unit_state->sampler) );
 }
 
 static CoglBool
@@ -818,11 +825,11 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
 static void
 _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
                                              CoglPipelineProgramState *program_state,
-                                             CoglContextVulkan *vk_ctx)
+                                             CoglContext *ctx)
 {
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   VkDescriptorSetLayoutCreateInfo info;
   CreateDescriptorSetLayout data;
-  VkResult result;
 
   data.bindings = g_new0 (VkDescriptorSetLayoutBinding,
                           cogl_pipeline_get_n_layers (pipeline) + 1);
@@ -846,12 +853,10 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
   info.bindingCount = ++data.n_bindings;
   info.pBindings = data.bindings;
 
-  result = vkCreateDescriptorSetLayout (vk_ctx->device, &info,
+  VK_RET ( ctx,
+           vkCreateDescriptorSetLayout (vk_ctx->device, &info,
                                         NULL,
-                                        &program_state->descriptor_set_layout);
-  if (result != VK_SUCCESS)
-    g_warning ("Cannot create descriptor set layout (%d): %s",
-               result, _cogl_vulkan_error_to_string (result));
+                                        &program_state->descriptor_set_layout) );
 }
 
 static CoglBool
@@ -864,17 +869,13 @@ static void
 _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                  unsigned long pipelines_difference)
 {
-   /* TODO: No way to get the context linked to a pipeline?? */
-  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
-
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglPipelineProgramState *program_state;
   CoglBool program_changed = FALSE;
   UpdateUniformsState state;
   CoglProgram *user_program;
   CoglPipelineCacheEntry *cache_entry = NULL;
-  VkResult result;
-
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   program_state = get_program_state (pipeline);
 
@@ -967,29 +968,22 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
       program_state->uniform_buffer =
         COGL_BUFFER (_cogl_uniform_buffer_new (ctx, block_size));
-      program_state->uniform_data =
-        _cogl_buffer_map (program_state->uniform_buffer,
-                          COGL_BUFFER_ACCESS_WRITE,
-                          COGL_BUFFER_MAP_HINT_DISCARD,
-                          NULL);
     }
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
     {
       _cogl_pipeline_create_descriptor_set_layout (pipeline,
                                                    program_state,
-                                                   vk_ctx);
+                                                   ctx);
 
-      result = vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
-          .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-          .setLayoutCount = 1,
-          .pSetLayouts = &program_state->descriptor_set_layout,
-        },
-        NULL,
-        &program_state->pipeline_layout);
-      if (result != VK_SUCCESS)
-        g_warning ("Cannot create pipeline layout (%d): %s",
-                   result, _cogl_vulkan_error_to_string (result));
+      VK_RET ( ctx,
+               vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
+                   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+                   .setLayoutCount = 1,
+                   .pSetLayouts = &program_state->descriptor_set_layout,
+                 },
+                 NULL,
+                 &program_state->pipeline_layout) );
 
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1038,23 +1032,18 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         }
       };
 
-      result = vkCreateDescriptorPool (vk_ctx->device, &create_info,
-                                       NULL, &program_state->descriptor_pool);
-      if (result != VK_SUCCESS)
-        g_warning ("Cannot create descriptor pool (%d): %s",
-                   result, _cogl_vulkan_error_to_string (result));
+      VK_RET ( ctx,
+               vkCreateDescriptorPool (vk_ctx->device, &create_info,
+                                       NULL, &program_state->descriptor_pool) );
 
-      result = vkAllocateDescriptorSets (vk_ctx->device, &(VkDescriptorSetAllocateInfo) {
-          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-          .descriptorPool = program_state->descriptor_pool,
-          .descriptorSetCount = 1,
-          .pSetLayouts = &program_state->descriptor_set_layout,
-        },
-        &program_state->descriptor_set);
-      if (result != VK_SUCCESS)
-        g_warning ("Cannot allocate descriptor set (%d): %s",
-                   result, _cogl_vulkan_error_to_string (result));
-
+      VK_RET ( ctx,
+               vkAllocateDescriptorSets (vk_ctx->device, &(VkDescriptorSetAllocateInfo) {
+                   .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                   .descriptorPool = program_state->descriptor_pool,
+                   .descriptorSetCount = 1,
+                   .pSetLayouts = &program_state->descriptor_set_layout,
+                 },
+                 &program_state->descriptor_set) );
     }
 
   state.unit = 0;
@@ -1198,9 +1187,10 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
           int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
           if (program_state->unit_state[unit_index].sampler != VK_NULL_HANDLE)
             {
-              vkDestroySampler (vk_ctx->device,
-                                program_state->unit_state[unit_index].sampler,
-                                NULL);
+              VK (ctx,
+                  vkDestroySampler (vk_ctx->device,
+                                    program_state->unit_state[unit_index].sampler,
+                                    NULL) );
               program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
             }
         }
@@ -1220,7 +1210,8 @@ static void
 _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_state,
                                           CoglFramebuffer *framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglBufferVulkan *vk_uniform_buffer = program_state->uniform_buffer->winsys;
   VkWriteDescriptorSet *write_set =
     &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets];
@@ -1243,14 +1234,17 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
 
       program_state->n_write_descriptor_sets++;
       program_state->uniforms_dirty = FALSE;
+
+      /* cogl_buffer_unmap (program_state->uniform_buffer); */
     }
 
   if (program_state->n_write_descriptor_sets > 0)
     {
-      vkUpdateDescriptorSets (vk_ctx->device,
-                              program_state->n_write_descriptor_sets,
-                              program_state->write_descriptor_sets,
-                              0, NULL);
+      VK ( ctx,
+           vkUpdateDescriptorSets (vk_ctx->device,
+                                   program_state->n_write_descriptor_sets,
+                                   program_state->write_descriptor_sets,
+                                   0, NULL) );
       program_state->n_write_descriptor_sets = 0;
     }
 }

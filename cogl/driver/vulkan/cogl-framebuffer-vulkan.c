@@ -50,7 +50,8 @@ static CoglBool
 _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
                                                 CoglError **error)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkImageCreateInfo image_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -88,61 +89,43 @@ _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
   };
   VkMemoryRequirements mem_reqs;
-  VkResult result;
 
-  result = vkCreateImage (vk_ctx->device, &image_info, NULL,
-                          &vk_fb->depth_image);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Cannot create depth image (%d): %s",
-                       result,
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
+  VK_RET_VAL_ERROR ( ctx,
+                     vkCreateImage (vk_ctx->device, &image_info, NULL,
+                                    &vk_fb->depth_image),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
-  vkGetImageMemoryRequirements (vk_ctx->device, vk_fb->depth_image, &mem_reqs);
+  VK ( ctx,
+       vkGetImageMemoryRequirements (vk_ctx->device,
+                                     vk_fb->depth_image, &mem_reqs) );
 
   mem_info.allocationSize = mem_reqs.size;
   mem_info.memoryTypeIndex =
         _cogl_vulkan_context_get_memory_heap (framebuffer->context,
                                               mem_reqs.memoryTypeBits);
-  result = vkAllocateMemory (vk_ctx->device, &mem_info, NULL,
-                             &vk_fb->depth_memory);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Cannot allocate depth image memory (%d): %s",
-                       result,
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
+  VK_RET_VAL_ERROR ( ctx,
+                     vkAllocateMemory (vk_ctx->device, &mem_info, NULL,
+                                       &vk_fb->depth_memory),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
-  result = vkBindImageMemory (vk_ctx->device, vk_fb->depth_image,
-                              vk_fb->depth_memory, 0);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Cannot bind depth image memory (%d): %s",
-                       result,
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
+  VK_RET_VAL_ERROR ( ctx,
+                     vkBindImageMemory (vk_ctx->device, vk_fb->depth_image,
+                                        vk_fb->depth_memory, 0),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   image_view_info.image = vk_fb->depth_image;
-  result = vkCreateImageView (vk_ctx->device, &image_view_info, NULL,
-                              &vk_fb->depth_image_view);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Cannot create depth image view : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
+  VK_RET_VAL_ERROR ( ctx,
+                     vkCreateImageView (vk_ctx->device, &image_view_info, NULL,
+                                        &vk_fb->depth_image_view),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   return TRUE;
 }
@@ -150,27 +133,30 @@ _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
 void
 _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   if (vk_fb->cmd_buffer)
-    vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                          1, &vk_fb->cmd_buffer);
+    VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                   1, &vk_fb->cmd_buffer) );
   if (vk_fb->render_pass != VK_NULL_HANDLE)
-    vkDestroyRenderPass (vk_ctx->device, vk_fb->render_pass, NULL);
+    VK ( ctx, vkDestroyRenderPass (vk_ctx->device, vk_fb->render_pass, NULL) );
   if (vk_fb->depth_image_view)
-    vkDestroyImageView (vk_ctx->device, vk_fb->depth_image_view, NULL);
+    VK ( ctx, vkDestroyImageView (vk_ctx->device, vk_fb->depth_image_view,
+                                  NULL) );
   if (vk_fb->depth_image)
-    vkDestroyImage (vk_ctx->device, vk_fb->depth_image, NULL);
+    VK ( ctx, vkDestroyImage (vk_ctx->device, vk_fb->depth_image, NULL) );
   if (vk_fb->depth_memory)
-    vkFreeMemory (vk_ctx->device, vk_fb->depth_memory, NULL);
+    VK ( ctx, vkFreeMemory (vk_ctx->device, vk_fb->depth_memory, NULL) );
 }
 
 CoglBool
 _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
                                CoglError **error)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkAttachmentDescription attachments_description[2] = {
     [0] = {
@@ -227,7 +213,6 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
     .dependencyCount = 0,
     .pDependencies = NULL,
   };
-  VkResult result;
 
   if (framebuffer->depth_writing_enabled)
     {
@@ -238,16 +223,12 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
       subpass_description.pDepthStencilAttachment = &depth_reference;
     }
 
-  result = vkCreateRenderPass (vk_ctx->device, &render_pass_info, NULL,
-                               &vk_fb->render_pass);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to create render pass : %s",
-                       _cogl_vulkan_error_to_string (result));
-      return FALSE;
-    }
+  VK_RET_VAL_ERROR ( ctx,
+                     vkCreateRenderPass (vk_ctx->device, &render_pass_info,
+                                         NULL, &vk_fb->render_pass),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   return TRUE;
 }
@@ -257,7 +238,8 @@ _cogl_framebuffer_vulkan_create_framebuffer (CoglFramebuffer *framebuffer,
                                              VkImageView vk_image_view,
                                              VkFramebuffer *vk_framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkImageView image_views[2] = {
     vk_image_view,
@@ -273,8 +255,8 @@ _cogl_framebuffer_vulkan_create_framebuffer (CoglFramebuffer *framebuffer,
     .renderPass = vk_fb->render_pass,
   };
 
-  return vkCreateFramebuffer (vk_ctx->device, &framebuffer_info, NULL,
-                              vk_framebuffer);
+  return VK (ctx, vkCreateFramebuffer (vk_ctx->device, &framebuffer_info, NULL,
+                                       vk_framebuffer) );
 }
 
 void
@@ -291,7 +273,8 @@ _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
 static void
 _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkClearValue clear_values[2];
   VkCommandBufferAllocateInfo buffer_allocate_info = {
@@ -315,28 +298,17 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
     },
     .pClearValues = clear_values,
   };
-  VkResult result;
   int n;
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
     return;
 
-  result = vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
-                                     &vk_fb->cmd_buffer);
-  if (result != VK_SUCCESS)
-    {
-      g_warning ("Failed to allocate command buffer : %s",
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
+  VK_RET ( ctx,
+           vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
+                                     &vk_fb->cmd_buffer) );
 
-  result = vkBeginCommandBuffer (vk_fb->cmd_buffer, &buffer_begin_info);
-  if (result != VK_SUCCESS)
-    {
-      g_warning ("Failed to begin command buffer : %s",
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
+  VK_RET ( ctx,
+           vkBeginCommandBuffer (vk_fb->cmd_buffer, &buffer_begin_info) );
 
   n = 0;
   memset (clear_values, 0, sizeof (clear_values));
@@ -354,13 +326,15 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
     }
   render_begin_info.clearValueCount = n;
 
-  vkCmdBeginRenderPass (vk_fb->cmd_buffer, &render_begin_info,
-                        VK_SUBPASS_CONTENTS_INLINE);
+  VK ( ctx,
+       vkCmdBeginRenderPass (vk_fb->cmd_buffer, &render_begin_info,
+                             VK_SUBPASS_CONTENTS_INLINE) );
 }
 
 static void
 _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
 {
+  CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkViewport vk_viewport;
 
@@ -393,13 +367,14 @@ _cogl_framebuffer_vulkan_flush_viewport_state (CoglFramebuffer *framebuffer)
              vk_viewport.width,
              vk_viewport.height);
 
-  vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport);
+  VK ( ctx, vkCmdSetViewport (vk_fb->cmd_buffer, 0, 1, &vk_viewport) );
 }
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
                                CoglFramebuffer *framebuffer)
 {
+  CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   int x0, y0, x1, y1;
   VkRect2D vk_rect;
@@ -413,7 +388,7 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
   vk_rect.extent.width = x1 - x0;
   vk_rect.extent.height = y1 - y0;
 
-  vkCmdSetScissor (vk_fb->cmd_buffer, 0, 1, &vk_rect);
+  VK ( ctx, vkCmdSetScissor (vk_fb->cmd_buffer, 0, 1, &vk_rect) );
 }
 
 void
@@ -421,7 +396,8 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                                       CoglFramebuffer *read_buffer,
                                       CoglFramebufferState state)
 {
-  CoglContextVulkan *vk_ctx = draw_buffer->context->winsys;
+  CoglContext *ctx = draw_buffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
   if (state & COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW)
@@ -437,21 +413,22 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE &&
       vk_fb->cmd_buffer_length > 0)
     {
-      vkCmdEndRenderPass (vk_fb->cmd_buffer);
-      vkEndCommandBuffer (vk_fb->cmd_buffer);
+      VK ( ctx, vkCmdEndRenderPass (vk_fb->cmd_buffer) );
+      VK ( ctx, vkEndCommandBuffer (vk_fb->cmd_buffer) );
 
-      vkQueueSubmit (vk_ctx->queue, 1,
-                     &(VkSubmitInfo) {
-                       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                       .commandBufferCount = 1,
-                       .pCommandBuffers = &vk_fb->cmd_buffer,
-                         }, /* vk_ctx->fence */VK_NULL_HANDLE);
+      VK ( ctx, vkQueueSubmit (vk_ctx->queue, 1,
+                               &(VkSubmitInfo) {
+                                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                 .commandBufferCount = 1,
+                                 .pCommandBuffers = &vk_fb->cmd_buffer,
+                               }, /* vk_ctx->fence */VK_NULL_HANDLE) );
 
-      vkQueueWaitIdle (vk_ctx->queue);
+      VK ( ctx, vkQueueWaitIdle (vk_ctx->queue) );
       /* vkWaitForFences (vk_ctx->device, 1, (VkFence[]) { vk_ctx->fence }, */
       /*                  VK_TRUE, INT64_MAX); */
 
-      vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool, 1, &vk_fb->cmd_buffer);
+      VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                      1, &vk_fb->cmd_buffer) );
       /* vkResetCommandPool (vk_ctx->device, vk_ctx->cmd_pool, 0); */
 
       vk_fb->cmd_buffer = VK_NULL_HANDLE;
@@ -512,10 +489,12 @@ _cogl_framebuffer_vulkan_query_bits (CoglFramebuffer *framebuffer,
 void
 _cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
 
-  vkWaitForFences (vk_ctx->device, 1, (VkFence[]) { vk_ctx->fence },
-                   VK_TRUE, INT64_MAX);
+  VK_RET ( ctx, vkWaitForFences (vk_ctx->device,
+                                 1, (VkFence[]) { vk_ctx->fence },
+                                 VK_TRUE, INT64_MAX) );
 }
 
 void
@@ -535,6 +514,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
                                           int n_attributes,
                                           CoglDrawFlags flags)
 {
+  CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   vk_fb->vertices_mode = mode;
@@ -546,7 +526,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
 
   _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
 
-  vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0);
+  VK ( ctx, vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0) );
   vk_fb->cmd_buffer_length++;
 }
 
@@ -576,9 +556,10 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                                   int n_attributes,
                                                   CoglDrawFlags flags)
 {
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglBuffer *indices_buffer = COGL_BUFFER (indices->buffer);
   CoglBufferVulkan *vk_buf = indices_buffer->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   vk_fb->vertices_mode = mode;
 
@@ -589,14 +570,14 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
 
   _cogl_framebuffer_vulkan_flush_viewport_state (framebuffer);
 
-  vkCmdBindIndexBuffer (vk_fb->cmd_buffer, vk_buf->buffer,
-                        indices->offset,
-                        _cogl_indices_type_to_vulkan_indices_type (indices->type));
+  VK ( ctx, vkCmdBindIndexBuffer (vk_fb->cmd_buffer, vk_buf->buffer,
+                                  indices->offset,
+                                  _cogl_indices_type_to_vulkan_indices_type (indices->type)) );
 
-  vkCmdDrawIndexed (vk_fb->cmd_buffer,
-                    n_vertices, 1,
-                    indices->offset, first_vertex,
-                    1 /* TODO: Figure out why 1... */);
+  VK ( ctx, vkCmdDrawIndexed (vk_fb->cmd_buffer,
+                              n_vertices, 1,
+                              indices->offset, first_vertex,
+                              1 /* TODO: Figure out why 1... */) );
   vk_fb->cmd_buffer_length++;
 }
 
@@ -617,17 +598,18 @@ void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 {
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (offscreen);
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOffscreenVulkan *vk_off = framebuffer->winsys;
 
   _cogl_framebuffer_vulkan_deinit (framebuffer);
 
   if (vk_off->framebuffer != VK_NULL_HANDLE)
-    vkDestroyFramebuffer (vk_ctx->device, vk_off->framebuffer, NULL);
+    VK (ctx, vkDestroyFramebuffer (vk_ctx->device, vk_off->framebuffer, NULL) );
   if (vk_off->image != VK_NULL_HANDLE)
-    vkDestroyImage (vk_ctx->device, vk_off->image, NULL);
+    VK (ctx, vkDestroyImage (vk_ctx->device, vk_off->image, NULL) );
   if (vk_off->image_view != VK_NULL_HANDLE)
-    vkDestroyImageView (vk_ctx->device, vk_off->image_view, NULL);
+    VK (ctx, vkDestroyImageView (vk_ctx->device, vk_off->image_view, NULL) );
 
   g_slice_free (CoglOffscreenVulkan, framebuffer->winsys);
 }
@@ -638,12 +620,11 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 {
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (offscreen);
   CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOffscreenVulkan *vk_off = g_slice_new0 (CoglOffscreenVulkan);
   CoglFramebufferVulkan *vk_fb = (CoglFramebufferVulkan *) vk_off;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   int level_width;
   int level_height;
-  VkResult result;
 
   framebuffer->winsys = vk_fb;
 
@@ -675,54 +656,45 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       _cogl_texture_associate_framebuffer (offscreen->depth_texture, framebuffer);
     }
 
-  result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
-      .components = {
-        .r = VK_COMPONENT_SWIZZLE_R,
-        .g = VK_COMPONENT_SWIZZLE_G,
-        .b = VK_COMPONENT_SWIZZLE_B,
-        .a = VK_COMPONENT_SWIZZLE_A,
-      },
-      .subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 0,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-      },
-    },
-    NULL,
-    &vk_off->image_view);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to create framebuffer image view : %s",
-                       _cogl_vulkan_error_to_string (result));
-      goto error;
-    }
+  VK_ERROR ( ctx,
+             vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
+                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                 .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
+                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                 .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
+                 .components = {
+                   .r = VK_COMPONENT_SWIZZLE_R,
+                   .g = VK_COMPONENT_SWIZZLE_G,
+                   .b = VK_COMPONENT_SWIZZLE_B,
+                   .a = VK_COMPONENT_SWIZZLE_A,
+                 },
+                 .subresourceRange = {
+                   .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                   .baseMipLevel = 0,
+                   .levelCount = 0,
+                   .baseArrayLayer = 0,
+                   .layerCount = 1,
+                 },
+               },
+               NULL,
+               &vk_off->image_view),
+             error, COGL_FRAMEBUFFER_ERROR,
+             COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
-  result = vkCreateFramebuffer (vk_ctx->device, &(VkFramebufferCreateInfo) {
-      .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-      .attachmentCount = 1,
-      .pAttachments = &vk_off->image_view,
-      .width = cogl_texture_get_width (offscreen->texture),
-      .height = cogl_texture_get_height (offscreen->texture),
-      .layers = 1
-    },
-    NULL,
-    &vk_off->framebuffer);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
-                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
-                       "Failed to create framebuffer : %s",
-                       _cogl_vulkan_error_to_string (result));
-      goto error;
-    }
+  VK_ERROR ( ctx,
+             vkCreateFramebuffer (vk_ctx->device, &(VkFramebufferCreateInfo) {
+                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                 .attachmentCount = 1,
+                 .pAttachments = &vk_off->image_view,
+                 .width = cogl_texture_get_width (offscreen->texture),
+                 .height = cogl_texture_get_height (offscreen->texture),
+                 .layers = 1
+               },
+               NULL,
+               &vk_off->framebuffer),
+             error,
+             COGL_FRAMEBUFFER_ERROR,
+             COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
     goto error;

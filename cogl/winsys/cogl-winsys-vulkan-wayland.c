@@ -113,9 +113,10 @@ _cogl_winsys_renderer_get_proc_address (CoglRenderer *renderer,
                                         const char *name,
                                         CoglBool in_core)
 {
-  CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
 
-  return vkGetInstanceProcAddr (vk_renderer->parent.instance, name);
+  return vk_renderer->vkGetInstanceProcAddr (vk_renderer->instance,
+                                             name);
 }
 
 static void
@@ -253,17 +254,18 @@ static CoglBool
 _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                CoglError **error)
 {
-  CoglRendererVulkanWayland *vk_renderer =
+  CoglRendererVulkanWayland *vk_renderer_wl =
     g_slice_new0 (CoglRendererVulkanWayland);
+  CoglRendererVulkan *vk_renderer =
+    (CoglRendererVulkan *) vk_renderer_wl;
   static const char *extensions[] = {
     VK_KHR_SURFACE_EXTENSION_NAME,
     VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
   };
 
-
   renderer->winsys = vk_renderer;
-  vk_renderer->wayland_display = wl_display_connect (NULL);
-   if (!vk_renderer->wayland_display)
+  vk_renderer_wl->wayland_display = wl_display_connect (NULL);
+   if (!vk_renderer_wl->wayland_display)
      {
        _cogl_set_error (error, COGL_WINSYS_ERROR,
                         COGL_WINSYS_ERROR_INIT,
@@ -271,19 +273,20 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
        goto error;
      }
 
-  vk_renderer->wayland_registry =
-    wl_display_get_registry (vk_renderer->wayland_display);
+  vk_renderer_wl->wayland_registry =
+    wl_display_get_registry (vk_renderer_wl->wayland_display);
 
-  wl_registry_add_listener (vk_renderer->wayland_registry,
+  wl_registry_add_listener (vk_renderer_wl->wayland_registry,
                             &registry_listener,
-                            vk_renderer);
+                            vk_renderer_wl);
 
   /*
    * Ensure that that we've received the messages setting up the
    * compostor and shell object.
    */
-  wl_display_roundtrip (vk_renderer->wayland_display);
-  if (!vk_renderer->wayland_compositor || !vk_renderer->wayland_shell)
+  wl_display_roundtrip (vk_renderer_wl->wayland_display);
+  if (!vk_renderer_wl->wayland_compositor ||
+      !vk_renderer_wl->wayland_shell)
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -292,11 +295,11 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
       goto error;
     }
 
-  vk_renderer->fd = wl_display_get_fd (vk_renderer->wayland_display);
+  vk_renderer_wl->fd = wl_display_get_fd (vk_renderer_wl->wayland_display);
 
   if (renderer->wayland_enable_event_dispatch)
     _cogl_poll_renderer_add_fd (renderer,
-                                vk_renderer->fd,
+                                vk_renderer_wl->fd,
                                 COGL_POLL_FD_EVENT_IN,
                                 prepare_wayland_display_events,
                                 dispatch_wayland_display_events,
@@ -308,16 +311,16 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                    error))
       goto error;
 
-  vk_renderer->get_wayland_presentation_support =
+  vk_renderer_wl->get_wayland_presentation_support =
     (PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR)
-    vkGetInstanceProcAddr(vk_renderer->parent.instance,
-                          "vkGetPhysicalDeviceWaylandPresentationSupportKHR");
-  vk_renderer->create_wayland_surface =
+    vk_renderer->vkGetInstanceProcAddr(vk_renderer->instance,
+                                       "vkGetPhysicalDeviceWaylandPresentationSupportKHR");
+  vk_renderer_wl->create_wayland_surface =
     (PFN_vkCreateWaylandSurfaceKHR)
-    vkGetInstanceProcAddr(vk_renderer->parent.instance,
-                          "vkCreateWaylandSurfaceKHR");
-  if (!vk_renderer->get_wayland_presentation_support ||
-      !vk_renderer->create_wayland_surface)
+    vk_renderer->vkGetInstanceProcAddr(vk_renderer->instance,
+                                       "vkCreateWaylandSurfaceKHR");
+  if (!vk_renderer_wl->get_wayland_presentation_support ||
+      !vk_renderer_wl->create_wayland_surface)
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -348,10 +351,10 @@ _cogl_winsys_display_setup (CoglDisplay *display,
 static CoglBool
 _cogl_winsys_context_init (CoglContext *context, CoglError **error)
 {
-  if (!_cogl_vulkan_context_init (context, error))
+  if (!_cogl_context_update_features (context, error))
     return FALSE;
 
-  if (!_cogl_context_update_features (context, error))
+  if (!_cogl_vulkan_context_init (context, error))
     return FALSE;
 
   context->feature_flags |= COGL_FEATURE_ONSCREEN_MULTIPLE;
@@ -390,7 +393,8 @@ free_frame_callback_data (FrameCallbackData *callback_data)
 static void
 _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
 {
-  CoglContextVulkan *vk_context = onscreen->_parent.context->winsys;
+  CoglContext *ctx = onscreen->_parent.context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   FrameCallbackData *frame_callback_data, *tmp;
@@ -402,11 +406,16 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
   for (i = 0; i < vk_onscreen->image_count; i++)
     {
       if (vk_onscreen->framebuffers[i] != VK_NULL_HANDLE)
-        vkDestroyFramebuffer (vk_context->device, vk_onscreen->framebuffers[i], NULL);
+        VK ( ctx,
+             vkDestroyFramebuffer (vk_ctx->device,
+                                   vk_onscreen->framebuffers[i], NULL) );
       if (vk_onscreen->image_views[i] != VK_NULL_HANDLE)
-        vkDestroyImageView (vk_context->device, vk_onscreen->image_views[i], NULL);
+        VK ( ctx,
+             vkDestroyImageView (vk_ctx->device,
+                                 vk_onscreen->image_views[i], NULL) );
       if (vk_onscreen->images[i] != VK_NULL_HANDLE)
-        vkDestroyImage (vk_context->device, vk_onscreen->images[i], NULL);
+        VK ( ctx,
+             vkDestroyImage (vk_ctx->device, vk_onscreen->images[i], NULL) );
     }
 
   _cogl_list_for_each_safe (frame_callback_data,
@@ -443,29 +452,30 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 {
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
   CoglFramebufferVulkan *vk_fb;
-  CoglContext *context = framebuffer->context;
-  CoglRenderer *renderer = context->display->renderer;
-  CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
-  CoglContextVulkan *vk_ctx = context->winsys;
-  CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglRenderer *renderer = ctx->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  CoglRendererVulkanWayland *vk_renderer_wl = renderer->winsys;
+  CoglOnscreenVulkanWayland *vk_onscreen_wl;
   CoglPixelFormat cogl_format = onscreen->_parent.internal_format;
   VkFormat vk_format =
     _cogl_pixel_format_to_vulkan_format (cogl_format, NULL);
   VkResult result;
   uint32_t i;
 
-  vk_onscreen = g_slice_new0 (CoglOnscreenVulkanWayland);
-  framebuffer->winsys = onscreen->winsys = vk_onscreen;
+  vk_onscreen_wl = g_slice_new0 (CoglOnscreenVulkanWayland);
+  framebuffer->winsys = onscreen->winsys = vk_onscreen_wl;
 
-  _cogl_list_init (&vk_onscreen->frame_callbacks);
+  _cogl_list_init (&vk_onscreen_wl->frame_callbacks);
 
   if (onscreen->foreign_surface)
-    vk_onscreen->wayland_surface = onscreen->foreign_surface;
+    vk_onscreen_wl->wayland_surface = onscreen->foreign_surface;
   else
-    vk_onscreen->wayland_surface =
-      wl_compositor_create_surface (vk_renderer->wayland_compositor);
+    vk_onscreen_wl->wayland_surface =
+      wl_compositor_create_surface (vk_renderer_wl->wayland_compositor);
 
-  if (!vk_onscreen->wayland_surface)
+  if (!vk_onscreen_wl->wayland_surface)
     {
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                        COGL_WINSYS_ERROR_CREATE_ONSCREEN,
@@ -474,13 +484,13 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
     }
 
   if (!onscreen->foreign_surface)
-    vk_onscreen->wayland_shell_surface =
-      wl_shell_get_shell_surface (vk_renderer->wayland_shell,
-                                  vk_onscreen->wayland_surface);
+    vk_onscreen_wl->wayland_shell_surface =
+      wl_shell_get_shell_surface (vk_renderer_wl->wayland_shell,
+                                  vk_onscreen_wl->wayland_surface);
 
-  if (!vk_renderer->get_wayland_presentation_support (vk_ctx->physical_device,
-                                                      0,
-                                                      vk_renderer->wayland_display))
+  if (!vk_renderer_wl->get_wayland_presentation_support (vk_renderer->physical_device,
+                                                         0,
+                                                         vk_renderer_wl->wayland_display))
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -489,13 +499,13 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  result = vk_renderer->create_wayland_surface (vk_renderer->parent.instance, &(VkWaylandSurfaceCreateInfoKHR) {
+  result = vk_renderer_wl->create_wayland_surface (vk_renderer->instance, &(VkWaylandSurfaceCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-      .display = vk_renderer->wayland_display,
-      .surface = vk_onscreen->wayland_surface,
+      .display = vk_renderer_wl->wayland_display,
+      .surface = vk_onscreen_wl->wayland_surface,
     },
     NULL,
-    &vk_onscreen->wsi_surface);
+    &vk_onscreen_wl->wsi_surface);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error,
@@ -507,87 +517,84 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
     }
 
   /* TODO: GetPhysicalDeviceSurfaceFormatsKHR() */
-  result = vkCreateSwapchainKHR (vk_ctx->device, &(VkSwapchainCreateInfoKHR) {
-      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      .surface = vk_onscreen->wsi_surface,
-      .minImageCount = 2,
-      .imageFormat = vk_format,
-      .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-      .imageExtent = { framebuffer->width, framebuffer->height },
-      .imageArrayLayers = 1,
-      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = (uint32_t[]) { 0 },
-      .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-      .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
-      .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
-    },
-    NULL,
-    &vk_onscreen->swap_chain);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error,
-                       COGL_WINSYS_ERROR,
-                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                       "Cannot create Vulkan Swapchain");
-      goto error;
-    }
+  VK_ERROR ( ctx,
+             vkCreateSwapchainKHR (vk_ctx->device, &(VkSwapchainCreateInfoKHR) {
+                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+                 .surface = vk_onscreen_wl->wsi_surface,
+                 .minImageCount = 2,
+                 .imageFormat = vk_format,
+                 .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+                 .imageExtent = { framebuffer->width, framebuffer->height },
+                 .imageArrayLayers = 1,
+                 .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                 .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                 .queueFamilyIndexCount = 1,
+                 .pQueueFamilyIndices = (uint32_t[]) { 0 },
+                 .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+                 .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+                 .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
+               },
+               NULL,
+               &vk_onscreen_wl->swap_chain),
+             error,
+             COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-  vkGetSwapchainImagesKHR (vk_ctx->device, vk_onscreen->swap_chain,
-                           &vk_onscreen->image_count, NULL);
-  g_assert (vk_onscreen->image_count <= MAX_SWAP_CHAIN_LENGTH);
+  VK_ERROR ( ctx,
+             vkGetSwapchainImagesKHR (vk_ctx->device,
+                                      vk_onscreen_wl->swap_chain,
+                                      &vk_onscreen_wl->image_count,
+                                      NULL),
+             error,
+             COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+  g_assert (vk_onscreen_wl->image_count <= MAX_SWAP_CHAIN_LENGTH);
 
   COGL_NOTE (VULKAN,
-             "Got swapchain with %i image(s)", vk_onscreen->image_count);
+             "Got swapchain with %i image(s)", vk_onscreen_wl->image_count);
 
-  vkGetSwapchainImagesKHR (vk_ctx->device,
-                           vk_onscreen->swap_chain,
-                           &vk_onscreen->image_count,
-                           vk_onscreen->images);
+  VK_ERROR ( ctx,
+             vkGetSwapchainImagesKHR (vk_ctx->device,
+                                      vk_onscreen_wl->swap_chain,
+                                      &vk_onscreen_wl->image_count,
+                                      vk_onscreen_wl->images),
+             error,
+             COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
   if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
     goto error;
 
   vk_fb = framebuffer->winsys;
 
-  for (i = 0; i < vk_onscreen->image_count; i++)
+  for (i = 0; i < vk_onscreen_wl->image_count; i++)
     {
-      result = vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = vk_onscreen->images[i],
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = vk_format,
-            .components = {
-            .r = VK_COMPONENT_SWIZZLE_R,
-            .g = VK_COMPONENT_SWIZZLE_G,
-            .b = VK_COMPONENT_SWIZZLE_B,
-            .a = VK_COMPONENT_SWIZZLE_A,
-          },
-            .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-          },
-        },
-        NULL,
-        &vk_onscreen->image_views[i]);
-      if (result != VK_SUCCESS)
-        {
-          _cogl_set_error (error,
-                           COGL_WINSYS_ERROR,
-                           COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                           "Cannot create image view : %s",
-                           _cogl_vulkan_error_to_string (result));
-          goto error;
-        }
+      VK_ERROR ( ctx,
+                 vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
+                     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                     .image = vk_onscreen_wl->images[i],
+                     .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                     .format = vk_format,
+                     .components = {
+                       .r = VK_COMPONENT_SWIZZLE_R,
+                       .g = VK_COMPONENT_SWIZZLE_G,
+                       .b = VK_COMPONENT_SWIZZLE_B,
+                       .a = VK_COMPONENT_SWIZZLE_A,
+                     },
+                     .subresourceRange = {
+                       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                       .baseMipLevel = 0,
+                       .levelCount = 0,
+                       .baseArrayLayer = 0,
+                       .layerCount = 1,
+                     },
+                   },
+                   NULL,
+                   &vk_onscreen_wl->image_views[i]),
+                 error,
+                 COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
       result =
         _cogl_framebuffer_vulkan_create_framebuffer (framebuffer,
-                                                     vk_onscreen->image_views[i],
-                                                     &vk_onscreen->framebuffers[i]);
+                                                     vk_onscreen_wl->image_views[i],
+                                                     &vk_onscreen_wl->framebuffers[i]);
       if (result != VK_SUCCESS)
         {
           _cogl_set_error (error,
@@ -599,21 +606,16 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
         }
     }
 
-  result = vkAcquireNextImageKHR (vk_ctx->device, vk_onscreen->swap_chain, 0,
-                                  VK_NULL_HANDLE, VK_NULL_HANDLE,
-                                  &vk_onscreen->image_index);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error,
-                       COGL_WINSYS_ERROR,
-                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                       "Cannot acquire first image : %s",
-                       _cogl_vulkan_error_to_string (result));
-      goto error;
-    }
+  VK_ERROR ( ctx,
+             vkAcquireNextImageKHR (vk_ctx->device,
+                                    vk_onscreen_wl->swap_chain, 0,
+                                    VK_NULL_HANDLE, VK_NULL_HANDLE,
+                                    &vk_onscreen_wl->image_index),
+             error,
+             COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
   _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
-                                               vk_onscreen->framebuffers[vk_onscreen->image_index]);
+                                               vk_onscreen_wl->framebuffers[vk_onscreen_wl->image_index]);
 
   return TRUE;
 
@@ -669,7 +671,8 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                                 const int *rectangles,
                                                 int n_rectangles)
 {
-  CoglContextVulkan *vk_ctx = onscreen->_parent.context->winsys;
+  CoglContext *ctx = onscreen->_parent.context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
   FrameCallbackData *frame_callback_data = g_slice_new (FrameCallbackData);
   VkResult result;
@@ -700,30 +703,20 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                  COGL_FRAMEBUFFER (onscreen),
                                  COGL_FRAMEBUFFER_STATE_BIND);
 
-  result = vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
-      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .swapchainCount = 1,
-      .pSwapchains = (VkSwapchainKHR[]) { vk_onscreen->swap_chain, },
-      .pImageIndices = (uint32_t[]) { vk_onscreen->image_index, },
-      .pResults = &result,
-    });
-  if (result != VK_SUCCESS)
-    {
-      g_warning ("Could not present wayland frame : %s",
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
+  VK_RET ( ctx,
+           vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
+               .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+               .swapchainCount = 1,
+               .pSwapchains = (VkSwapchainKHR[]) { vk_onscreen->swap_chain, },
+               .pImageIndices = (uint32_t[]) { vk_onscreen->image_index, },
+               .pResults = &result,
+             }) );
 
-  result = vkAcquireNextImageKHR (vk_ctx->device,
+  VK_RET ( ctx,
+           vkAcquireNextImageKHR (vk_ctx->device,
                                   vk_onscreen->swap_chain, 0,
                                   VK_NULL_HANDLE, VK_NULL_HANDLE,
-                                  &vk_onscreen->image_index);
-  if (result != VK_SUCCESS)
-    {
-      g_warning ("Cannot acquire first image : %s",
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
+                                  &vk_onscreen->image_index) );
 
   _cogl_framebuffer_vulkan_update_framebuffer (COGL_FRAMEBUFFER (onscreen),
                                                vk_onscreen->framebuffers[vk_onscreen->image_index]);

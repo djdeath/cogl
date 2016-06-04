@@ -853,7 +853,7 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
                           [])
 
         COGL_VULKAN_LIBNAME="libvulkan.so"
-        COGL_EXTRA_LDFLAGS="$COGL_EXTRA_LDFLAGS -lvulkan -lstdc++"
+        COGL_EXTRA_LDFLAGS="$COGL_EXTRA_LDFLAGS -lstdc++"
       ])
 
 AM_CONDITIONAL([COGL_DRIVER_GL_SUPPORTED], [test "x$enable_gl" = "xyes"])
@@ -887,6 +887,7 @@ AM_CONDITIONAL(HAVE_COGL_DEFAULT_DRIVER,
 
 
 AC_SUBST([COGL_GL_LIBNAME])
+AC_SUBST([COGL_VULKAN_LIBNAME])
 AC_SUBST([HAVE_GL])
 AC_SUBST([COGL_GLES1_LIBNAME])
 AC_SUBST([HAVE_GLES1])

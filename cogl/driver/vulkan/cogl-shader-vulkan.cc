@@ -38,6 +38,7 @@ extern "C" {
 #include "cogl-debug.h"
 #include "cogl-driver-vulkan-private.h"
 #include "cogl-shader-vulkan-private.h"
+#include "cogl-util-vulkan-private.h"
 
 }
 
@@ -262,7 +263,9 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
     g_hash_table_unref (shader->uniforms[stage]);
 
     if (shader->modules[stage] != VK_NULL_HANDLE)
-      vkDestroyShaderModule (vk_ctx->device, shader->modules[stage], NULL);
+      VK ( shader->context,
+           vkDestroyShaderModule (vk_ctx->device,
+                                  shader->modules[stage], NULL) );
   }
 
   if (shader->program)
@@ -534,7 +537,9 @@ _cogl_shader_vulkan_build_shader_module (CoglShaderVulkan *shader,
   info.pCode = &spirv[0];
 
   VkShaderModule module;
-  vkCreateShaderModule (vk_ctx->device, &info, NULL, &module);
+  VK_RET_VAL ( shader->context,
+               vkCreateShaderModule (vk_ctx->device, &info, NULL, &module),
+               VK_NULL_HANDLE );
 
   return module;
 }

@@ -36,6 +36,7 @@ AM_CPPFLAGS += \
 	-DCOGL_GL_LIBNAME=\"$(COGL_GL_LIBNAME)\" \
 	-DCOGL_GLES1_LIBNAME=\"$(COGL_GLES1_LIBNAME)\" \
 	-DCOGL_GLES2_LIBNAME=\"$(COGL_GLES2_LIBNAME)\" \
+	-DCOGL_VULKAN_LIBNAME=\"$(COGL_VULKAN_LIBNAME)\" \
 	-DCOGL_LOCALEDIR=\""$(localedir)"\" \
 	$(NULL)
 
@@ -317,6 +318,7 @@ libspirv_private_la_CPPFLAGS = \
 	-DCOGL_GL_LIBNAME=\"$(COGL_GL_LIBNAME)\" \
 	-DCOGL_GLES1_LIBNAME=\"$(COGL_GLES1_LIBNAME)\" \
 	-DCOGL_GLES2_LIBNAME=\"$(COGL_GLES2_LIBNAME)\" \
+	-DCOGL_VULKAN_LIBNAME=\"$(COGL_VULKAN_LIBNAME)\" \
 	-DCOGL_LOCALEDIR=\""$(localedir)"\" \
 	\
 	-D_GLIBCXX_USE_CXX11_ABI=0 \
@@ -540,6 +542,8 @@ cogl_sources_c = \
 	gl-prototypes/cogl-in-gles2-core-functions.h	\
 	gl-prototypes/cogl-fixed-functions.h	\
 	gl-prototypes/cogl-glsl-functions.h	\
+	vulkan-prototypes/cogl-all-vulkan-functions.h	\
+	vulkan-prototypes/cogl-core-vulkan-functions.h	\
 	cogl-memory-stack-private.h		\
 	cogl-memory-stack.c			\
 	cogl-magazine-private.h		\

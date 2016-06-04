@@ -80,7 +80,8 @@ get_vk_pipeline (CoglPipeline *pipeline)
 static void
 _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
 {
-  CoglContextVulkan *vk_ctx = _cogl_context_get_default ()->winsys;
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
 
   if (!vk_pipeline)
@@ -88,7 +89,8 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
 
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     {
-      vkDestroyPipeline (vk_ctx->device, vk_pipeline->pipeline, NULL);
+      VK (ctx, vkDestroyPipeline (vk_ctx->device, vk_pipeline->pipeline,
+                                  NULL) );
       vk_pipeline->pipeline = VK_NULL_HANDLE;
     }
 
@@ -343,9 +345,9 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
                                        CoglPipelineVulkan *vk_pipeline,
                                        CoglFramebuffer *framebuffer)
 {
-  CoglContextVulkan *vk_ctx = framebuffer->context->winsys;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkResult result;
 
   VkPipelineColorBlendStateCreateInfo vk_blend_state;
   VkPipelineColorBlendAttachmentState vk_blend_attachment_state;
@@ -357,6 +359,15 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   VkPipelineViewportStateCreateInfo vk_viewport_state;
   VkViewport vk_viewport;
   VkRect2D vk_scissor;
+
+  VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
+
+  VkPipelineMultisampleStateCreateInfo multisample_state;
+
+  VkPipelineDynamicStateCreateInfo dynamic_state;
+  VkDynamicState dynamic_states;
+
+  VkGraphicsPipelineCreateInfo pipeline_state;
 
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
@@ -473,48 +484,64 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     vk_scissor.extent.height = framebuffer->height;
   }
 
-  /* TODO: Break this down. */
-  result =
-    vkCreateGraphicsPipelines (vk_ctx->device,
-                               (VkPipelineCache) { VK_NULL_HANDLE },
-                               1,
-                               &(VkGraphicsPipelineCreateInfo) {
-                                 .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-                                 .stageCount = 2,
-                                 .pStages = _cogl_pipeline_progend_get_vulkan_stage_info (pipeline),
-                                 .pVertexInputState = vk_pipeline->vertex_inputs,
-                                 .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                                   .topology = _cogl_vertices_mode_to_vulkan_primitive_topology (vk_pipeline->vertices_mode),
-                                   .primitiveRestartEnable = VK_FALSE,
-                                 },
-                                 .pViewportState = &vk_viewport_state,
-                                 .pRasterizationState = &vk_raster_state,
-                                 .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-                                   .rasterizationSamples = 1,
-                                 },
-                                 .pDepthStencilState = &vk_depth_state,
-                                 .pColorBlendState = &vk_blend_state,
-                                 .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
-                                   .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-                                   .dynamicStateCount = 1,
-                                   .pDynamicStates = (VkDynamicState []) {
-                                     VK_DYNAMIC_STATE_VIEWPORT
-                                   },
-                                 },
-                                 .flags = 0,
-                                 .layout = _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline),
-                                 .renderPass = vk_fb->render_pass,
-                                 .subpass = 0,
-                                 .basePipelineHandle = NULL,
-                                 .basePipelineIndex = -1,
-                               },
-                               NULL,
-                               &vk_pipeline->pipeline);
-  if (result != VK_SUCCESS)
-    g_warning ("%s: Cannot create pipeline (%d) : %s", G_STRLOC, result,
-               _cogl_vulkan_error_to_string (result));
+  /* Input assembly */
+  {
+    memset (&input_assembly_state, 0, sizeof (input_assembly_state));
+
+    input_assembly_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_state.topology =
+      _cogl_vertices_mode_to_vulkan_primitive_topology (vk_pipeline->vertices_mode);
+    input_assembly_state.primitiveRestartEnable = VK_FALSE;
+  }
+
+  /* Multisampling */
+  {
+    memset (&multisample_state, 0, sizeof (multisample_state));
+
+    multisample_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample_state.rasterizationSamples = 1;
+  }
+
+  /* Dynamic */
+  {
+    memset (&dynamic_state, 0, sizeof (dynamic_state));
+
+    dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state.dynamicStateCount = 1;
+    dynamic_state.pDynamicStates = &dynamic_states;
+    /* TODO: add scissor */
+    dynamic_states = VK_DYNAMIC_STATE_VIEWPORT;
+  }
+
+  memset (&pipeline_state, 0, sizeof (pipeline_state));
+  pipeline_state.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipeline_state.stageCount = 2;
+  pipeline_state.pStages =
+    _cogl_pipeline_progend_get_vulkan_stage_info (pipeline);
+  pipeline_state.pVertexInputState = vk_pipeline->vertex_inputs;
+  pipeline_state.pInputAssemblyState = &input_assembly_state;
+  pipeline_state.pViewportState = &vk_viewport_state;
+  pipeline_state.pRasterizationState = &vk_raster_state;
+  pipeline_state.pMultisampleState = &multisample_state;
+  pipeline_state.pDepthStencilState = &vk_depth_state;
+  pipeline_state.pColorBlendState = &vk_blend_state;
+  pipeline_state.pDynamicState = &dynamic_state;
+  pipeline_state.flags = 0;
+  pipeline_state.layout =
+    _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline);
+  pipeline_state.renderPass = vk_fb->render_pass;
+  pipeline_state.subpass = 0;
+  pipeline_state.basePipelineHandle = NULL;
+  pipeline_state.basePipelineIndex = -1;
+
+  VK_RET ( ctx,
+           vkCreateGraphicsPipelines (vk_ctx->device,
+                                      (VkPipelineCache) { VK_NULL_HANDLE },
+                                      1, &pipeline_state,
+                                      NULL,
+                                      &vk_pipeline->pipeline) );
 }
 
 void
@@ -523,6 +550,7 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
                                    CoglAttribute **attributes,
                                    int n_attributes)
 {
+  CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
   int i, n_layers = cogl_pipeline_get_n_layers (pipeline);
@@ -613,21 +641,22 @@ done:
   if (progend->pre_paint)
     progend->pre_paint (pipeline, framebuffer);
 
-  vkCmdBindPipeline (vk_fb->cmd_buffer,
-                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                     vk_pipeline->pipeline);
+  VK ( ctx, vkCmdBindPipeline (vk_fb->cmd_buffer,
+                               VK_PIPELINE_BIND_POINT_GRAPHICS,
+                               vk_pipeline->pipeline) );
 
   pipeline_layout = _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline);
   descriptor_set = _cogl_pipeline_progend_get_vulkan_descriptor_set (pipeline);
-  vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
-                           VK_PIPELINE_BIND_POINT_GRAPHICS,
-                           pipeline_layout,
-                           0, 1,
-                           &descriptor_set, 0, NULL);
+  VK ( ctx, vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
+                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                     pipeline_layout,
+                                     0, 1,
+                                     &descriptor_set, 0, NULL) );
 
-  vkCmdBindVertexBuffers (vk_fb->cmd_buffer, 0, vk_pipeline->n_vertex_inputs,
-                          vk_pipeline->attribute_buffers,
-                          vk_pipeline->attribute_offsets);
+  VK ( ctx, vkCmdBindVertexBuffers (vk_fb->cmd_buffer,
+                                    0, vk_pipeline->n_vertex_inputs,
+                                    vk_pipeline->attribute_buffers,
+                                    vk_pipeline->attribute_offsets) );
 
   COGL_TIMER_STOP (_cogl_uprof_context, pipeline_flush_timer);
 }

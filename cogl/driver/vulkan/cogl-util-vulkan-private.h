@@ -36,6 +36,60 @@
 #include "cogl-gl-header.h"
 #include "cogl-pipeline-private.h"
 
+#define VK(ctx, x) (ctx)->x
+
+#define VK_RET(ctx, x)                    G_STMT_START {  \
+    VkResult __err;                                       \
+    __err = (ctx)->x;                                     \
+    while (__err != VK_SUCCESS)                           \
+      {                                                   \
+        g_warning ("%s: VK error (%d): %s\n",             \
+                   G_STRLOC,                              \
+                   __err,                                 \
+                   _cogl_vulkan_error_to_string (__err)); \
+        return;                                           \
+      }                                   } G_STMT_END
+
+#define VK_RET_VAL(ctx, x, val)          G_STMT_START {   \
+    VkResult __err;                                       \
+    __err = (ctx)->x;                                     \
+    while (__err != VK_SUCCESS)                           \
+      {                                                   \
+        g_warning ("%s: VK error (%d): %s\n",             \
+                   G_STRLOC,                              \
+                   __err,                                 \
+                   _cogl_vulkan_error_to_string (__err)); \
+        return val;                                       \
+      }                                   } G_STMT_END
+
+#define VK_RET_VAL_ERROR(ctx, x, val, err, dom, e) G_STMT_START {        \
+    VkResult __err;                                             \
+    __err = (ctx)->x;                                           \
+    while (__err != VK_SUCCESS)                                 \
+      {                                                         \
+        _cogl_set_error (error, dom, e,                         \
+                         "%s: VK error (%d): %s\n",             \
+                         G_STRLOC,                              \
+                         __err,                                 \
+                         _cogl_vulkan_error_to_string (__err)); \
+        return val;                                             \
+      }                                   } G_STMT_END
+
+
+#define VK_ERROR(ctx, x, err, dom, e) G_STMT_START {            \
+    VkResult __err;                                             \
+    __err = (ctx)->x;                                           \
+    while (__err != VK_SUCCESS)                                 \
+      {                                                         \
+        _cogl_set_error (error, dom, e,                         \
+                         "%s: VK error (%d): %s\n",             \
+                         G_STRLOC,                              \
+                         __err,                                 \
+                         _cogl_vulkan_error_to_string (__err)); \
+        goto error;                                             \
+      }                                   } G_STMT_END
+
+
 #define VK_TODO() do {                                                  \
     g_warning("Unimplemented function %s : %s", G_STRFUNC, G_STRLOC);   \
   } while(0)
