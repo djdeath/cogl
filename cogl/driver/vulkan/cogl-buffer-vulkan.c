@@ -82,6 +82,9 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
        vkGetBufferMemoryRequirements (vk_ctx->device,
                                       vk_buffer->buffer, &mem_reqs) );
 
+  vk_buffer->memory_need_flush =
+    (mem_reqs.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
+
   VK_RET( ctx,
           vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
               .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -147,10 +150,6 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
 
   buffer->flags |= COGL_BUFFER_FLAG_MAPPED;
 
-  vk_buffer->memory_need_flush = (access & COGL_BUFFER_ACCESS_WRITE);
-  vk_buffer->memory_map_offset = offset;
-  vk_buffer->memory_map_size = size;
-
   return data;
 }
 
@@ -166,18 +165,13 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
     {
       vk_buffer->memory_need_flush = FALSE;
 
-      result = vkFlushMappedMemoryRanges (vk_ctx->device, 1, &(VkMappedMemoryRange) {
-          .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-          .memory = vk_buffer->memory,
-          .offset = vk_buffer->memory_map_offset,
-          .size = vk_buffer->memory_map_size,
-        });
-      if (result != VK_SUCCESS)
-        {
-          g_warning ("%s: Cannot flush memory (%d): %s", G_STRLOC, result,
-                     _cogl_vulkan_error_to_string (result));
-          return;
-        }
+      VK_RET ( ctx,
+               vkFlushMappedMemoryRanges (vk_ctx->device, 1, &(VkMappedMemoryRange) {
+                   .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                   .memory = vk_buffer->memory,
+                   .offset = 0,
+                   .size = buffer->size,
+                 }) );
     }
 
   VK (ctx, vkUnmapMemory (vk_ctx->device, vk_buffer->memory) );
@@ -205,10 +199,12 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
       return FALSE;
     }
 
-  if (!_cogl_buffer_vulkan_map_range (buffer, offset, size,
-                                      COGL_BUFFER_ACCESS_WRITE,
-                                      COGL_BUFFER_MAP_HINT_DISCARD_RANGE,
-                                      error))
+  data_map =
+    _cogl_buffer_vulkan_map_range (buffer, offset, size,
+                                   COGL_BUFFER_ACCESS_WRITE,
+                                   COGL_BUFFER_MAP_HINT_DISCARD_RANGE,
+                                   error);
+  if (!data_map)
     return FALSE;
 
   memcpy (data_map, data, size);
