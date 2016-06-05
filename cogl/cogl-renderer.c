@@ -383,6 +383,46 @@ cogl_xlib_renderer_set_event_retrieval_enabled (CoglRenderer *renderer,
 }
 #endif /* COGL_HAS_XLIB_SUPPORT */
 
+#ifdef COGL_HAS_WAYLAND_SUPPORT
+
+void
+cogl_wayland_renderer_set_foreign_display (CoglRenderer *renderer,
+                                           struct wl_display *display)
+{
+  _COGL_RETURN_IF_FAIL (cogl_is_renderer (renderer));
+
+  /* NB: Renderers are considered immutable once connected */
+  _COGL_RETURN_IF_FAIL (!renderer->connected);
+
+  renderer->foreign_wayland_display = display;
+}
+
+void
+cogl_wayland_renderer_set_event_dispatch_enabled (CoglRenderer *renderer,
+                                                  CoglBool enable)
+{
+  _COGL_RETURN_IF_FAIL (cogl_is_renderer (renderer));
+  /* NB: Renderers are considered immutable once connected */
+  _COGL_RETURN_IF_FAIL (!renderer->connected);
+
+  renderer->wayland_enable_event_dispatch = enable;
+}
+
+struct wl_display *
+cogl_wayland_renderer_get_display (CoglRenderer *renderer)
+{
+  _COGL_RETURN_VAL_IF_FAIL (cogl_is_renderer (renderer), NULL);
+
+  if (renderer->foreign_wayland_display)
+    return renderer->foreign_wayland_display;
+  else if (renderer->connected)
+    return renderer->wayland_display;
+  else
+    return NULL;
+}
+
+#endif /* COGL_HAS_WAYLAND_SUPPORT */
+
 CoglBool
 cogl_renderer_check_onscreen_template (CoglRenderer *renderer,
                                        CoglOnscreenTemplate *onscreen_template,
