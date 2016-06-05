@@ -26,8 +26,6 @@
  * SOFTWARE.
  *
  *
- * Authors:
- *   Neil Roberts <neil@linux.intel.com>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -63,9 +61,7 @@ typedef struct _CoglRendererVulkanWayland
     get_wayland_presentation_support;
   PFN_vkCreateWaylandSurfaceKHR create_wayland_surface;
 
-  struct wl_display *wayland_display;
   struct wl_compositor *wayland_compositor;
-  struct wl_shell *wayland_shell;
   struct wl_registry *wayland_registry;
   int fd;
 } CoglRendererVulkanWayland;
@@ -82,9 +78,6 @@ typedef struct _CoglOnscreenVulkanWayland
   VkImage images[MAX_SWAP_CHAIN_LENGTH];
   VkImageView image_views[MAX_SWAP_CHAIN_LENGTH];
   VkFramebuffer framebuffers[MAX_SWAP_CHAIN_LENGTH];
-
-  struct wl_surface *wayland_surface;
-  struct wl_shell_surface *wayland_shell_surface;
 
   /* Resizing a wayland framebuffer doesn't take affect
    * until the next swap buffers request, so we have to
@@ -115,13 +108,14 @@ registry_handle_global_cb (void *data,
                            const char *interface,
                            uint32_t version)
 {
-  CoglRendererVulkanWayland *vk_renderer = data;
+  CoglRenderer *renderer = data;
+  CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
 
   if (strcmp (interface, "wl_compositor") == 0)
     vk_renderer->wayland_compositor =
       wl_registry_bind (registry, id, &wl_compositor_interface, 1);
   else if (strcmp(interface, "wl_shell") == 0)
-    vk_renderer->wayland_shell =
+    renderer->wayland_shell =
       wl_registry_bind (registry, id, &wl_shell_interface, 1);
 }
 
@@ -145,7 +139,7 @@ prepare_wayland_display_events (void *user_data)
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
   int flush_ret;
 
-  flush_ret = wl_display_flush (vk_renderer->wayland_display);
+  flush_ret = wl_display_flush (renderer->wayland_display);
 
   if (flush_ret == -1)
     {
@@ -176,7 +170,7 @@ prepare_wayland_display_events (void *user_data)
    * seem to provide any way to query whether the event queue is empty
    * and we would need to do that in order to force the main loop to
    * wake up to call it from dispatch. */
-  wl_display_dispatch_pending (vk_renderer->wayland_display);
+  wl_display_dispatch_pending (renderer->wayland_display);
 
   return -1;
 }
@@ -189,7 +183,7 @@ dispatch_wayland_display_events (void *user_data, int revents)
 
   if ((revents & COGL_POLL_FD_EVENT_IN))
     {
-      if (wl_display_dispatch (vk_renderer->wayland_display) == -1 &&
+      if (wl_display_dispatch (renderer->wayland_display) == -1 &&
           errno != EAGAIN &&
           errno != EINTR)
         goto socket_error;
@@ -197,7 +191,7 @@ dispatch_wayland_display_events (void *user_data, int revents)
 
   if ((revents & COGL_POLL_FD_EVENT_OUT))
     {
-      int ret = wl_display_flush (vk_renderer->wayland_display);
+      int ret = wl_display_flush (renderer->wayland_display);
 
       if (ret == -1)
         {
@@ -232,8 +226,8 @@ _cogl_winsys_renderer_disconnect (CoglRenderer *renderer)
 
   _cogl_vulkan_renderer_deinit (renderer);
 
-  if (vk_renderer->wayland_display)
-    wl_display_disconnect (vk_renderer->wayland_display);
+  if (renderer->wayland_display)
+    wl_display_disconnect (renderer->wayland_display);
 
   g_slice_free (CoglRendererVulkanWayland, renderer->winsys);
   renderer->winsys = NULL;
@@ -253,8 +247,8 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
   };
 
   renderer->winsys = vk_renderer;
-  vk_renderer_wl->wayland_display = wl_display_connect (NULL);
-   if (!vk_renderer_wl->wayland_display)
+  renderer->wayland_display = wl_display_connect (NULL);
+   if (!renderer->wayland_display)
      {
        _cogl_set_error (error, COGL_WINSYS_ERROR,
                         COGL_WINSYS_ERROR_INIT,
@@ -263,19 +257,19 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
      }
 
   vk_renderer_wl->wayland_registry =
-    wl_display_get_registry (vk_renderer_wl->wayland_display);
+    wl_display_get_registry (renderer->wayland_display);
 
   wl_registry_add_listener (vk_renderer_wl->wayland_registry,
                             &registry_listener,
-                            vk_renderer_wl);
+                            renderer);
 
   /*
    * Ensure that that we've received the messages setting up the
    * compostor and shell object.
    */
-  wl_display_roundtrip (vk_renderer_wl->wayland_display);
+  wl_display_roundtrip (renderer->wayland_display);
   if (!vk_renderer_wl->wayland_compositor ||
-      !vk_renderer_wl->wayland_shell)
+      !renderer->wayland_shell)
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -284,7 +278,7 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
       goto error;
     }
 
-  vk_renderer_wl->fd = wl_display_get_fd (vk_renderer_wl->wayland_display);
+  vk_renderer_wl->fd = wl_display_get_fd (renderer->wayland_display);
 
   if (renderer->wayland_enable_event_dispatch)
     _cogl_poll_renderer_add_fd (renderer,
@@ -409,21 +403,21 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
                             link)
     free_frame_callback_data (frame_callback_data);
 
-  if (!onscreen->foreign_surface)
+  if (!onscreen->foreign_wayland_surface)
     {
       /* NB: The wayland protocol docs explicitly state that
        * "wl_shell_surface_destroy() must be called before destroying
        * the wl_surface object." ... */
-      if (vk_onscreen->wayland_shell_surface)
+      if (onscreen->wayland_shell_surface)
         {
-          wl_shell_surface_destroy (vk_onscreen->wayland_shell_surface);
-          vk_onscreen->wayland_shell_surface = NULL;
+          wl_shell_surface_destroy (onscreen->wayland_shell_surface);
+          onscreen->wayland_shell_surface = NULL;
         }
 
-      if (vk_onscreen->wayland_surface)
+      if (onscreen->wayland_surface)
         {
-          wl_surface_destroy (vk_onscreen->wayland_surface);
-          vk_onscreen->wayland_surface = NULL;
+          wl_surface_destroy (onscreen->wayland_surface);
+          onscreen->wayland_surface = NULL;
         }
     }
 
@@ -454,13 +448,13 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   _cogl_list_init (&vk_onscreen_wl->frame_callbacks);
 
-  if (onscreen->foreign_surface)
-    vk_onscreen_wl->wayland_surface = onscreen->foreign_surface;
+  if (onscreen->foreign_wayland_surface)
+    onscreen->wayland_surface = onscreen->foreign_wayland_surface;
   else
-    vk_onscreen_wl->wayland_surface =
+    onscreen->wayland_surface =
       wl_compositor_create_surface (vk_renderer_wl->wayland_compositor);
 
-  if (!vk_onscreen_wl->wayland_surface)
+  if (!onscreen->wayland_surface)
     {
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                        COGL_WINSYS_ERROR_CREATE_ONSCREEN,
@@ -468,14 +462,14 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  if (!onscreen->foreign_surface)
-    vk_onscreen_wl->wayland_shell_surface =
-      wl_shell_get_shell_surface (vk_renderer_wl->wayland_shell,
-                                  vk_onscreen_wl->wayland_surface);
+  if (!onscreen->foreign_wayland_surface)
+    onscreen->wayland_shell_surface =
+      wl_shell_get_shell_surface (renderer->wayland_shell,
+                                  onscreen->wayland_surface);
 
   if (!vk_renderer_wl->get_wayland_presentation_support (vk_renderer->physical_device,
                                                          0,
-                                                         vk_renderer_wl->wayland_display))
+                                                         renderer->wayland_display))
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -486,8 +480,8 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   result = vk_renderer_wl->create_wayland_surface (vk_renderer->instance, &(VkWaylandSurfaceCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-      .display = vk_renderer_wl->wayland_display,
-      .surface = vk_onscreen_wl->wayland_surface,
+      .display = renderer->wayland_display,
+      .surface = onscreen->wayland_surface,
     },
     NULL,
     &vk_onscreen_wl->wsi_surface);
@@ -676,7 +670,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
   frame_callback_data->onscreen = onscreen;
 
   frame_callback_data->callback =
-    wl_surface_frame (vk_onscreen->wayland_surface);
+    wl_surface_frame (onscreen->wayland_surface);
   wl_callback_add_listener (frame_callback_data->callback,
                             &frame_listener,
                             frame_callback_data);
@@ -684,9 +678,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
   _cogl_list_insert (&vk_onscreen->frame_callbacks,
                      &frame_callback_data->link);
 
-  _cogl_framebuffer_flush_state (COGL_FRAMEBUFFER (onscreen),
-                                 COGL_FRAMEBUFFER (onscreen),
-                                 COGL_FRAMEBUFFER_STATE_BIND);
+  _cogl_framebuffer_vulkan_end (COGL_FRAMEBUFFER (onscreen));
 
   VK_RET ( ctx,
            vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {
@@ -725,10 +717,10 @@ _cogl_winsys_onscreen_set_visibility (CoglOnscreen *onscreen,
    * then we won't have the shell surface and we'll just let the
    * application deal with setting the surface type. */
   if (visibility &&
-      vk_onscreen->wayland_shell_surface &&
+      onscreen->wayland_shell_surface &&
       !vk_onscreen->shell_surface_type_set)
     {
-      wl_shell_surface_set_toplevel (vk_onscreen->wayland_shell_surface);
+      wl_shell_surface_set_toplevel (onscreen->wayland_shell_surface);
       vk_onscreen->shell_surface_type_set = TRUE;
       _cogl_onscreen_queue_full_dirty (onscreen);
     }
