@@ -473,8 +473,8 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
   memset (clear_attachments, 0, sizeof (clear_attachments));
   if (buffers & COGL_BUFFER_BIT_COLOR)
     {
-      clear_attachments[count].aspectMask |= VK_IMAGE_ASPECT_COLOR_BIT;
-      clear_attachments[count].colorAttachment = 1;
+      clear_attachments[count].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      clear_attachments[count].colorAttachment = 0;
       clear_attachments[count].clearValue.color.float32[0] = red;
       clear_attachments[count].clearValue.color.float32[1] = green;
       clear_attachments[count].clearValue.color.float32[2] = blue;
@@ -483,7 +483,7 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
     }
   if (buffers & COGL_BUFFER_BIT_DEPTH)
     {
-      clear_attachments[count].aspectMask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+      clear_attachments[count].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
       clear_attachments[count].clearValue.depthStencil.depth = 1.0;
       clear_attachments[count].clearValue.depthStencil.stencil = 0;
       count++;
