@@ -227,7 +227,12 @@ _cogl_winsys_renderer_disconnect (CoglRenderer *renderer)
   _cogl_vulkan_renderer_deinit (renderer);
 
   if (renderer->wayland_display)
-    wl_display_disconnect (renderer->wayland_display);
+    {
+      _cogl_poll_renderer_remove_fd (renderer, vk_renderer->fd);
+
+      if (renderer->foreign_wayland_display)
+        wl_display_disconnect (renderer->wayland_display);
+    }
 
   g_slice_free (CoglRendererVulkanWayland, renderer->winsys);
   renderer->winsys = NULL;
@@ -247,14 +252,22 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
   };
 
   renderer->winsys = vk_renderer;
-  renderer->wayland_display = wl_display_connect (NULL);
-   if (!renderer->wayland_display)
-     {
-       _cogl_set_error (error, COGL_WINSYS_ERROR,
-                        COGL_WINSYS_ERROR_INIT,
-                        "Failed to connect wayland display");
-       goto error;
-     }
+
+  if (renderer->foreign_wayland_display)
+    {
+      renderer->wayland_display = renderer->foreign_wayland_display;
+    }
+  else
+    {
+      renderer->wayland_display = wl_display_connect (NULL);
+      if (!renderer->wayland_display)
+        {
+          _cogl_set_error (error, COGL_WINSYS_ERROR,
+                           COGL_WINSYS_ERROR_INIT,
+                           "Failed to connect wayland display");
+          goto error;
+        }
+    }
 
   vk_renderer_wl->wayland_registry =
     wl_display_get_registry (renderer->wayland_display);
