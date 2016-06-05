@@ -121,6 +121,16 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
   CoglRendererVulkan *vk_renderer = renderer->winsys;
   VkPhysicalDevice *devices;
   VkPhysicalDeviceProperties device_properties;
+  VkInstanceCreateInfo instance_info = {
+    .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+    .pApplicationInfo = &(VkApplicationInfo) {
+      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+      .pApplicationName = "Cogl",
+      .apiVersion = VK_MAKE_VERSION(1, 0, 2),
+    },
+    .enabledExtensionCount = n_extensions,
+    .ppEnabledExtensionNames = extensions,
+  };
   VkResult result;
   uint32_t i, device_count;
 
@@ -141,35 +151,35 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
                         (gpointer *) &vk_renderer->vkEnumeratePhysicalDevices) ||
       !g_module_symbol (renderer->libgl_module,
                         "vkGetPhysicalDeviceProperties",
-                        (gpointer *) &vk_renderer->vkGetPhysicalDeviceProperties))
+                        (gpointer *) &vk_renderer->vkGetPhysicalDeviceProperties) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkGetPhysicalDeviceMemoryProperties",
+                        (gpointer *) &vk_renderer->vkGetPhysicalDeviceMemoryProperties) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkCreateDevice",
+                        (gpointer *) &vk_renderer->vkCreateDevice) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkDestroyDevice",
+                        (gpointer *) &vk_renderer->vkDestroyDevice) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkGetDeviceProcAddr",
+                        (gpointer *) &vk_renderer->vkGetDeviceProcAddr))
     {
       _cogl_set_error (error, COGL_DRIVER_ERROR,
                        COGL_DRIVER_ERROR_INTERNAL,
-                       "Cannot find vulkan symbols : %s",
-                       _cogl_vulkan_error_to_string (result));
-
-      return FALSE;
+                       "Cannot find vulkan instance symbols");
+      goto error;
     }
 
-  result = vk_renderer->vkCreateInstance (&(VkInstanceCreateInfo) {
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pApplicationInfo = &(VkApplicationInfo) {
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "Cogl",
-        .apiVersion = VK_MAKE_VERSION(1, 0, 2),
-      },
-      .enabledExtensionCount = n_extensions,
-      .ppEnabledExtensionNames = extensions,
-    },
-    NULL,
-    &vk_renderer->instance);
+  result = vk_renderer->vkCreateInstance (&instance_info, NULL,
+                                          &vk_renderer->instance);
   if (result != VK_SUCCESS)
     {
       _cogl_set_error (error, COGL_DRIVER_ERROR,
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot create vulkan instance : %s",
                        _cogl_vulkan_error_to_string (result));
-      return FALSE;
+      goto error;
     }
 
   result = vk_renderer->vkEnumeratePhysicalDevices (vk_renderer->instance,
@@ -181,7 +191,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot list vulkan physical devices : %s",
                        _cogl_vulkan_error_to_string (result));
-      return FALSE;
+      goto error;
     }
 
   if (device_count < 1)
@@ -189,7 +199,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
       _cogl_set_error (error, COGL_DRIVER_ERROR,
                        COGL_DRIVER_ERROR_INTERNAL,
                        "No physical device found");
-      return FALSE;
+      goto error;
     }
 
   devices = g_alloca (sizeof (VkPhysicalDevice) * device_count);
@@ -203,7 +213,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
                        COGL_DRIVER_ERROR_INTERNAL,
                        "Cannot list vulkan physical devices : %s",
                        _cogl_vulkan_error_to_string (result));
-      return FALSE;
+      goto error;
     }
 
   if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_VULKAN)))
@@ -220,14 +230,45 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
   vk_renderer->vkGetPhysicalDeviceProperties (vk_renderer->physical_device,
                                               &vk_renderer->physical_device_properties);
 
+  vk_renderer->vkGetPhysicalDeviceMemoryProperties (vk_renderer->physical_device,
+                                                    &vk_renderer->physical_device_memory_properties);
+
+
+  result = vk_renderer->vkCreateDevice(vk_renderer->physical_device, &(VkDeviceCreateInfo) {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .queueCreateInfoCount = 1,
+      .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .queueFamilyIndex = 0,
+        .queueCount = 1,
+      }
+    },
+    NULL,
+    &vk_renderer->device);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_DRIVER_ERROR,
+                       COGL_DRIVER_ERROR_INTERNAL,
+                       "Cannot create device for physical device `%s'",
+                       vk_renderer->physical_device_properties.deviceName);
+      goto error;
+    }
+
   return TRUE;
+
+ error:
+  _cogl_vulkan_renderer_deinit (renderer);
+
+  return FALSE;
 }
 
 void
-_cogl_renderer_vulkan_deinit (CoglRenderer *renderer)
+_cogl_vulkan_renderer_deinit (CoglRenderer *renderer)
 {
   CoglRendererVulkan *vk_renderer = renderer->winsys;
 
+  if (vk_renderer->device != VK_NULL_HANDLE)
+    vk_renderer->vkDestroyDevice (vk_renderer->device, NULL);
   if (vk_renderer->instance != VK_NULL_HANDLE)
     vk_renderer->vkDestroyInstance (vk_renderer->instance, NULL);
 }
@@ -244,25 +285,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   context->glsl_version_to_use = 420;
 
-  vk_renderer->vkGetPhysicalDeviceProperties (vk_renderer->physical_device,
-                                              &vk_ctx->physical_device_properties);
-  VK ( context,
-       vkGetPhysicalDeviceMemoryProperties (vk_renderer->physical_device,
-                                            &vk_ctx->physical_device_memory_properties) );
-
-  VK_ERROR ( context,
-             vkCreateDevice(vk_renderer->physical_device, &(VkDeviceCreateInfo) {
-                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                 .queueCreateInfoCount = 1,
-                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
-                   .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                   .queueFamilyIndex = 0,
-                   .queueCount = 1,
-                 }
-               },
-               NULL,
-               &vk_ctx->device),
-             error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+  vk_ctx->device = vk_renderer->device;
 
   VK_ERROR ( context,
              vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
@@ -304,9 +327,6 @@ _cogl_vulkan_context_deinit (CoglContext *context)
   if (vk_ctx->fence != VK_NULL_HANDLE)
     VK ( context,
          vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL) );
-  if (vk_ctx->device != VK_NULL_HANDLE)
-    VK ( context,
-         vkDestroyDevice (vk_ctx->device, NULL) );
 
   g_slice_free (CoglContextVulkan, vk_ctx);
 }
@@ -314,13 +334,16 @@ _cogl_vulkan_context_deinit (CoglContext *context)
 uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
                                                VkMemoryPropertyFlags flags)
 {
-  CoglContextVulkan *vk_ctx = context->winsys;
+  CoglRenderer *renderer = context->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
   uint32_t i;
 
-  for (i = 0; i < vk_ctx->physical_device_memory_properties.memoryTypeCount; i++)
+  for (i = 0;
+       i < vk_renderer->physical_device_memory_properties.memoryTypeCount;
+       i++)
     {
       const VkMemoryType *mem_type =
-        &vk_ctx->physical_device_memory_properties.memoryTypes[i];
+        &vk_renderer->physical_device_memory_properties.memoryTypes[i];
 
       if ((mem_type->propertyFlags & flags) == flags)
         return mem_type->heapIndex;
@@ -330,6 +353,22 @@ uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
              flags);
 
   return 0;
+}
+
+CoglFuncPtr
+_cogl_vulkan_renderer_get_proc_address (CoglRenderer *renderer,
+                                        const char *name,
+                                        CoglBool in_core)
+{
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+
+  CoglFuncPtr ret = vk_renderer->vkGetDeviceProcAddr (vk_renderer->device,
+                                                      name);
+
+  if (strcmp (name, "vkCreateSampler") == 0)
+    g_message ("Yo! vkCreateSampler=%p", ret);
+
+  return ret;
 }
 
 const CoglDriverVtable

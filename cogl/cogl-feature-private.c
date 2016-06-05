@@ -261,7 +261,6 @@ _cogl_feature_vulkan_check (CoglRenderer *renderer,
                                               data->functions[func_num].name,
                                               TRUE);
 
-      g_message ("%s -> %p", data->functions[func_num].name, func);
       if (func == NULL)
         goto error;
 

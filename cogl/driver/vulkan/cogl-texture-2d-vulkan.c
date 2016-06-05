@@ -34,12 +34,12 @@
 
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
+#include "cogl-error-private.h"
 #include "cogl-private.h"
+#include "cogl-renderer-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-texture-2d-private.h"
-#include "cogl-pipeline-opengl-private.h"
-#include "cogl-error-private.h"
 #include "cogl-util-vulkan-private.h"
 
 VkImage
@@ -81,14 +81,15 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
                                     int height,
                                     CoglPixelFormat internal_format)
 {
-  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglRenderer *renderer = ctx->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
 
   if (_cogl_pixel_format_to_vulkan_format_for_sampling (internal_format,
                                                         NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
-  if (width >= vk_ctx->physical_device_properties.limits.maxFramebufferWidth ||
-      height >= vk_ctx->physical_device_properties.limits.maxFramebufferHeight)
+  if (width >= vk_renderer->physical_device_properties.limits.maxFramebufferWidth ||
+      height >= vk_renderer->physical_device_properties.limits.maxFramebufferHeight)
     return FALSE;
 
   return TRUE;

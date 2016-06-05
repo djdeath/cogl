@@ -108,17 +108,6 @@ typedef struct
   CoglOnscreen *onscreen;
 } FrameCallbackData;
 
-static CoglFuncPtr
-_cogl_winsys_renderer_get_proc_address (CoglRenderer *renderer,
-                                        const char *name,
-                                        CoglBool in_core)
-{
-  CoglRendererVulkan *vk_renderer = renderer->winsys;
-
-  return vk_renderer->vkGetInstanceProcAddr (vk_renderer->instance,
-                                             name);
-}
-
 static void
 registry_handle_global_cb (void *data,
                            struct wl_registry *registry,
@@ -241,7 +230,7 @@ _cogl_winsys_renderer_disconnect (CoglRenderer *renderer)
 {
   CoglRendererVulkanWayland *vk_renderer = renderer->winsys;
 
-  _cogl_renderer_vulkan_deinit (renderer);
+  _cogl_vulkan_renderer_deinit (renderer);
 
   if (vk_renderer->wayland_display)
     wl_display_disconnect (vk_renderer->wayland_display);
@@ -311,16 +300,12 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                    error))
       goto error;
 
-  vk_renderer_wl->get_wayland_presentation_support =
-    (PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR)
-    vk_renderer->vkGetInstanceProcAddr(vk_renderer->instance,
-                                       "vkGetPhysicalDeviceWaylandPresentationSupportKHR");
-  vk_renderer_wl->create_wayland_surface =
-    (PFN_vkCreateWaylandSurfaceKHR)
-    vk_renderer->vkGetInstanceProcAddr(vk_renderer->instance,
-                                       "vkCreateWaylandSurfaceKHR");
-  if (!vk_renderer_wl->get_wayland_presentation_support ||
-      !vk_renderer_wl->create_wayland_surface)
+  if (!g_module_symbol (renderer->libgl_module,
+                        "vkGetPhysicalDeviceWaylandPresentationSupportKHR",
+                        (gpointer *) &vk_renderer_wl->get_wayland_presentation_support) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkCreateWaylandSurfaceKHR",
+                        (gpointer *) &vk_renderer_wl->create_wayland_surface))
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -769,7 +754,7 @@ _cogl_winsys_vulkan_wayland_get_vtable (void)
       vtable.name = "VULKAN_WAYLAND";
       vtable.constraints = COGL_RENDERER_CONSTRAINT_USES_VULKAN;
 
-      vtable.renderer_get_proc_address = _cogl_winsys_renderer_get_proc_address;
+      vtable.renderer_get_proc_address = _cogl_vulkan_renderer_get_proc_address;
       vtable.renderer_connect = _cogl_winsys_renderer_connect;
       vtable.renderer_disconnect = _cogl_winsys_renderer_disconnect;
       vtable.display_setup = _cogl_winsys_display_setup;

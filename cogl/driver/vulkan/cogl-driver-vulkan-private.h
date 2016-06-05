@@ -38,24 +38,30 @@
 typedef struct _CoglRendererVulkan
 {
   VkInstance instance;
+  VkDevice device;
   VkPhysicalDevice physical_device;
   VkPhysicalDeviceProperties physical_device_properties;
+  VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
 
   PFN_vkCreateInstance vkCreateInstance;
   PFN_vkDestroyInstance vkDestroyInstance;
   PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
   PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
   PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
+  PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
+  PFN_vkCreateDevice vkCreateDevice;
+  PFN_vkDestroyDevice vkDestroyDevice;
+  PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
 } CoglRendererVulkan;
 
 typedef struct _CoglContextVulkan
 {
-  VkPhysicalDeviceProperties physical_device_properties;
-  VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-  VkDevice device;
   VkQueue queue;
   VkFence fence;
   VkCommandPool cmd_pool;
+
+  /* Not owned, this is a copy from CoglRendererVulkan. */
+  VkDevice device;
 } CoglContextVulkan;
 
 CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
@@ -63,7 +69,7 @@ CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
                                      int n_extensions,
                                      CoglError **error);
 
-void _cogl_renderer_vulkan_deinit (CoglRenderer *renderer);
+void _cogl_vulkan_renderer_deinit (CoglRenderer *renderer);
 
 CoglBool _cogl_vulkan_context_init (CoglContext *context, CoglError **error);
 
@@ -71,5 +77,10 @@ void _cogl_vulkan_context_deinit (CoglContext *context);
 
 uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
                                                VkMemoryPropertyFlags flags);
+
+CoglFuncPtr
+_cogl_vulkan_renderer_get_proc_address (CoglRenderer *renderer,
+                                        const char *name,
+                                        CoglBool in_core);
 
 #endif /* _COGL_DRIVER_VULKAN_PRIVATE_H_ */
