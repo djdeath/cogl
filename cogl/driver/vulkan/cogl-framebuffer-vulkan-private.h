@@ -153,4 +153,8 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen);
 
+void
+_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer);
+
+
 #endif /* __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__ */

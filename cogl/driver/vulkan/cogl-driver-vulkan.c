@@ -362,13 +362,7 @@ _cogl_vulkan_renderer_get_proc_address (CoglRenderer *renderer,
 {
   CoglRendererVulkan *vk_renderer = renderer->winsys;
 
-  CoglFuncPtr ret = vk_renderer->vkGetDeviceProcAddr (vk_renderer->device,
-                                                      name);
-
-  if (strcmp (name, "vkCreateSampler") == 0)
-    g_message ("Yo! vkCreateSampler=%p", ret);
-
-  return ret;
+  return vk_renderer->vkGetDeviceProcAddr (vk_renderer->device, name);
 }
 
 const CoglDriverVtable

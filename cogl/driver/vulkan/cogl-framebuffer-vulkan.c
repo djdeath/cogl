@@ -276,7 +276,7 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkClearValue clear_values[2];
+  VkClearValue clear_values;
   VkCommandBufferAllocateInfo buffer_allocate_info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
     .commandPool = vk_ctx->cmd_pool,
@@ -296,9 +296,9 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
       { cogl_framebuffer_get_width (framebuffer),
         cogl_framebuffer_get_height (framebuffer) },
     },
-    .pClearValues = clear_values,
+    .pClearValues = &clear_values,
+    .clearValueCount = 0,
   };
-  int n;
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
     return;
@@ -309,22 +309,6 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 
   VK_RET ( ctx,
            vkBeginCommandBuffer (vk_fb->cmd_buffer, &buffer_begin_info) );
-
-  n = 0;
-  memset (clear_values, 0, sizeof (clear_values));
-  if (vk_fb->clear_mask & COGL_BUFFER_BIT_COLOR)
-    {
-      memcpy (clear_values[n].color.float32, vk_fb->clear_color,
-              sizeof (clear_values[n].color.float32));
-      n++;
-    }
-  if (vk_fb->clear_mask & COGL_BUFFER_BIT_DEPTH)
-    {
-      clear_values[n].depthStencil.depth = 1.0;
-      clear_values[n].depthStencil.stencil = 0;
-      n++;
-    }
-  render_begin_info.clearValueCount = n;
 
   VK ( ctx,
        vkCmdBeginRenderPass (vk_fb->cmd_buffer, &render_begin_info,
@@ -392,22 +376,11 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
 }
 
 void
-_cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
-                                      CoglFramebuffer *read_buffer,
-                                      CoglFramebufferState state)
+_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer)
 {
-  CoglContext *ctx = draw_buffer->context;
+  CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
-
-  if (state & COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW)
-    _cogl_context_set_current_modelview_entry (draw_buffer->context,
-                                               _cogl_framebuffer_get_modelview_entry (draw_buffer));
-
-  if (state & COGL_FRAMEBUFFER_STATE_INDEX_PROJECTION)
-    _cogl_context_set_current_projection_entry (draw_buffer->context,
-                                                _cogl_framebuffer_get_projection_entry (draw_buffer));
-
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   /* We only want to flush if commands have been emitted. */
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE &&
@@ -436,6 +409,24 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
     }
 }
 
+void
+_cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
+                                      CoglFramebuffer *read_buffer,
+                                      CoglFramebufferState state)
+{
+  CoglContext *ctx = draw_buffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
+
+  if (state & COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW)
+    _cogl_context_set_current_modelview_entry (draw_buffer->context,
+                                               _cogl_framebuffer_get_modelview_entry (draw_buffer));
+
+  if (state & COGL_FRAMEBUFFER_STATE_INDEX_PROJECTION)
+    _cogl_context_set_current_projection_entry (draw_buffer->context,
+                                                _cogl_framebuffer_get_projection_entry (draw_buffer));
+}
+
 static CoglTexture *
 create_depth_texture (CoglContext *ctx,
                       int width,
@@ -458,15 +449,49 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 float blue,
                                 float alpha)
 {
+  CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-
-  vk_fb->clear_mask = buffers;
-  vk_fb->clear_color[0] = red;
-  vk_fb->clear_color[1] = green;
-  vk_fb->clear_color[2] = blue;
-  vk_fb->clear_color[3] = alpha;
+  VkClearAttachment clear_attachments[2];
+  VkClearRect rect = {
+    .rect = {
+      .offset = {
+        .x = 0,
+        .y = 0,
+      },
+      .extent = {
+        .width = framebuffer->width,
+        .height = framebuffer->height,
+      },
+    },
+    .baseArrayLayer = 0,
+    .layerCount = 1,
+  };
+  uint32_t count = 0;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  memset (clear_attachments, 0, sizeof (clear_attachments));
+  if (buffers & COGL_BUFFER_BIT_COLOR)
+    {
+      clear_attachments[count].aspectMask |= VK_IMAGE_ASPECT_COLOR_BIT;
+      clear_attachments[count].colorAttachment = 1;
+      clear_attachments[count].clearValue.color.float32[0] = red;
+      clear_attachments[count].clearValue.color.float32[1] = green;
+      clear_attachments[count].clearValue.color.float32[2] = blue;
+      clear_attachments[count].clearValue.color.float32[3] = alpha;
+      count++;
+    }
+  if (buffers & COGL_BUFFER_BIT_DEPTH)
+    {
+      clear_attachments[count].aspectMask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+      clear_attachments[count].clearValue.depthStencil.depth = 1.0;
+      clear_attachments[count].clearValue.depthStencil.stencil = 0;
+      count++;
+    }
+
+  VK ( ctx, vkCmdClearAttachments (vk_fb->cmd_buffer,
+                                   count, clear_attachments,
+                                   1, &rect) );
 }
 
 void
@@ -501,7 +526,6 @@ void
 _cogl_framebuffer_vulkan_discard_buffers (CoglFramebuffer *framebuffer,
                                           unsigned long buffers)
 {
-  VK_TODO();
 }
 
 void
