@@ -384,6 +384,15 @@ _cogl_pipeline_fragend_vulkan_start (CoglPipeline *pipeline,
       shader_state->unit_state[i].sampled = FALSE;
       shader_state->unit_state[i].combine_constant_used = FALSE;
     }
+
+  if (!cogl_pipeline_get_per_vertex_point_size (pipeline))
+    {
+      if (cogl_pipeline_get_point_size (pipeline) > 0.0f)
+        {
+          g_string_append (shader_state->block,
+                           "uniform float cogl_point_size_in;\n");
+        }
+    }
 }
 
 static void

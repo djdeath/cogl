@@ -111,6 +111,8 @@
 #define _COGL_FRAGMENT_VULKAN_SHADER_BOILERPLATE        \
   "#define cogl_color_in _cogl_color\n"                 \
   "#define cogl_tex_coord_in _cogl_tex_coord\n"         \
+  "#define cogl_point_coord gl_PointCoord\n"            \
+  "\n"                                                  \
   "in vec4 cogl_color_in;\n"                            \
   "\n"                                                  \
   "out vec4 cogl_color_out;\n"                          \
