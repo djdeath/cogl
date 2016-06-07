@@ -151,12 +151,34 @@ allocate_with_size (CoglTexture2D *tex_2d,
                          .arrayLayers = 1,
                          .samples = VK_SAMPLE_COUNT_1_BIT,
                          .tiling = VK_IMAGE_TILING_OPTIMAL,
-                         .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+                         .usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
+                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
                          .flags = 0,
                          .initialLayout = tex_2d->vk_image_layout,
                        },
                        NULL,
                        &tex_2d->vk_image),
+                     FALSE, error,
+                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK ( ctx, vkGetImageMemoryRequirements (vk_ctx->device,
+                                          tex_2d->vk_image,
+                                          &requirements) );
+  VK_RET_VAL_ERROR ( ctx,
+                     vkAllocateMemory (vk_ctx->device,
+                                       &(VkMemoryAllocateInfo) {
+                                         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                                         .allocationSize = requirements.size,
+                                         .memoryTypeIndex = 0
+                                       },
+                                       NULL,
+                                       &tex_2d->vk_memory),
+                     FALSE, error,
+                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_RET_VAL_ERROR ( ctx,
+                     vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
+                                       tex_2d->vk_memory, 0),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
@@ -185,27 +207,6 @@ allocate_with_size (CoglTexture2D *tex_2d,
                        &tex_2d->vk_image_view),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER);
-
-  VK ( ctx, vkGetImageMemoryRequirements (vk_ctx->device,
-                                          tex_2d->vk_image,
-                                          &requirements) );
-  VK_RET_VAL_ERROR ( ctx,
-                     vkAllocateMemory (vk_ctx->device,
-                                       &(VkMemoryAllocateInfo) {
-                                         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                         .allocationSize = requirements.size,
-                                         .memoryTypeIndex = 0
-                                       },
-                                       NULL,
-                                       &tex_2d->vk_memory),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
-
-  VK_RET_VAL_ERROR ( ctx,
-                     vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
-                                       tex_2d->vk_memory, 0),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
   tex_2d->internal_format = internal_format;
 

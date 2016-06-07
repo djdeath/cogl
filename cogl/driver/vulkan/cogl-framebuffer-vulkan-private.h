@@ -64,10 +64,7 @@ typedef struct _CoglOffscreenVulkan
 {
   CoglFramebufferVulkan parent;
 
-  VkImageView image_view;
-  VkImage image;
   VkFramebuffer framebuffer;
-  VkDeviceMemory memory;
 } CoglOffscreenVulkan;
 
 CoglBool

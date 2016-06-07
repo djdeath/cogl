@@ -614,6 +614,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                   CoglError **error)
 {
   VK_TODO();
+  /* vkCmdCopyImageToBuffer */
   return FALSE;
 }
 
@@ -630,10 +631,6 @@ _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
 
   if (vk_off->framebuffer != VK_NULL_HANDLE)
     VK (ctx, vkDestroyFramebuffer (vk_ctx->device, vk_off->framebuffer, NULL) );
-  if (vk_off->image != VK_NULL_HANDLE)
-    VK (ctx, vkDestroyImage (vk_ctx->device, vk_off->image, NULL) );
-  if (vk_off->image_view != VK_NULL_HANDLE)
-    VK (ctx, vkDestroyImageView (vk_ctx->device, vk_off->image_view, NULL) );
 
   g_slice_free (CoglOffscreenVulkan, framebuffer->winsys);
 }
@@ -647,81 +644,113 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOffscreenVulkan *vk_off = g_slice_new0 (CoglOffscreenVulkan);
   CoglFramebufferVulkan *vk_fb = (CoglFramebufferVulkan *) vk_off;
-  int level_width;
-  int level_height;
+
+  /* VkAttachmentDescription attachments_description[2] = { */
+  /*   [0] = { */
+  /*     .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)), */
+  /*     .samples = VK_SAMPLE_COUNT_1_BIT, */
+  /*     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, */
+  /*     .storeOp = VK_ATTACHMENT_STORE_OP_STORE, */
+  /*     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, */
+  /*     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE, */
+  /*     .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, */
+  /*     .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, */
+  /*   }, */
+  /*   [1] = { */
+  /*     .format = VK_FORMAT_D16_UNORM, */
+  /*     .samples = VK_SAMPLE_COUNT_1_BIT, */
+  /*     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, */
+  /*     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE, */
+  /*     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, */
+  /*     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE, */
+  /*     .initialLayout = */
+  /*     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, */
+  /*     .finalLayout = */
+  /*     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, */
+  /*   }, */
+  /* }; */
+  /* VkAttachmentReference color_reference = { */
+  /*   .attachment = 0, */
+  /*   .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, */
+  /* }; */
+  /* VkAttachmentReference depth_reference = { */
+  /*   .attachment = 1, */
+  /*   .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, */
+  /* }; */
+  /* VkSubpassDescription subpass_description = { */
+  /*   .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS, */
+  /*   .flags = 0, */
+  /*   .inputAttachmentCount = 0, */
+  /*   .pInputAttachments = NULL, */
+  /*   .colorAttachmentCount = 1, */
+  /*   .pColorAttachments = &color_reference, */
+  /*   .pResolveAttachments = NULL, */
+  /*   .pDepthStencilAttachment = NULL, */
+  /*   .preserveAttachmentCount = 0, */
+  /*   .pPreserveAttachments = NULL, */
+  /* }; */
+  /* VkRenderPassCreateInfo render_pass_info = { */
+  /*   .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, */
+  /*   .pNext = NULL, */
+  /*   .attachmentCount = framebuffer->depth_writing_enabled ? 2 : 1, */
+  /*   .pAttachments = attachments_description, */
+  /*   .subpassCount = 1, */
+  /*   .pSubpasses = &subpass_description, */
+  /*   .dependencyCount = 0, */
+  /*   .pDependencies = NULL, */
+  /* }; */
+  VkResult result;
+  /* int level_width; */
+  /* int level_height; */
 
   framebuffer->winsys = vk_fb;
 
-  _COGL_RETURN_VAL_IF_FAIL (offscreen->texture_level <
-                            _cogl_texture_get_n_levels (offscreen->texture),
-                            FALSE);
+  /* _COGL_RETURN_VAL_IF_FAIL (offscreen->texture_level < */
+  /*                           _cogl_texture_get_n_levels (offscreen->texture), */
+  /*                           FALSE); */
 
-  _cogl_texture_get_level_size (offscreen->texture,
-                                offscreen->texture_level,
-                                &level_width,
-                                &level_height,
-                                NULL);
+  /* _cogl_texture_get_level_size (offscreen->texture, */
+  /*                               offscreen->texture_level, */
+  /*                               &level_width, */
+  /*                               &level_height, */
+  /*                               NULL); */
 
-  if (framebuffer->config.depth_texture_enabled &&
-      offscreen->depth_texture == NULL)
-    {
-      offscreen->depth_texture =
-        create_depth_texture (ctx,
-                              level_width,
-                              level_height);
+  /* if (framebuffer->depth_writing_enabled) */
+  /*   { */
+  /*     /\* TODO: deal with this case *\/ */
+  /*     g_assert (offscreen->depth_texture == NULL); */
 
-      if (!cogl_texture_allocate (offscreen->depth_texture, error))
-        {
-          cogl_object_unref (offscreen->depth_texture);
-          offscreen->depth_texture = NULL;
-          return FALSE;
-        }
+  /*     vk_fb->depth_format = VK_FORMAT_D16_UNORM; */
+  /*     if (!_cogl_framebuffer_vulkan_allocate_depth_buffer (framebuffer, error)) */
+  /*       return FALSE; */
 
-      _cogl_texture_associate_framebuffer (offscreen->depth_texture, framebuffer);
-    }
+  /*     subpass_description.pDepthStencilAttachment = &depth_reference; */
+  /*   } */
 
-  VK_ERROR ( ctx,
-             vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                 .image = _cogl_texture_2d_get_vulkan_image (COGL_TEXTURE_2D (offscreen->texture)),
-                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                 .format = _cogl_texture_2d_get_vulkan_format (COGL_TEXTURE_2D (offscreen->texture)),
-                 .components = {
-                   .r = VK_COMPONENT_SWIZZLE_R,
-                   .g = VK_COMPONENT_SWIZZLE_G,
-                   .b = VK_COMPONENT_SWIZZLE_B,
-                   .a = VK_COMPONENT_SWIZZLE_A,
-                 },
-                 .subresourceRange = {
-                   .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                   .baseMipLevel = 0,
-                   .levelCount = 0,
-                   .baseArrayLayer = 0,
-                   .layerCount = 1,
-                 },
-               },
-               NULL,
-               &vk_off->image_view),
-             error, COGL_FRAMEBUFFER_ERROR,
-             COGL_FRAMEBUFFER_ERROR_ALLOCATE );
-
-  VK_ERROR ( ctx,
-             vkCreateFramebuffer (vk_ctx->device, &(VkFramebufferCreateInfo) {
-                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                 .attachmentCount = 1,
-                 .pAttachments = &vk_off->image_view,
-                 .width = cogl_texture_get_width (offscreen->texture),
-                 .height = cogl_texture_get_height (offscreen->texture),
-                 .layers = 1
-               },
-               NULL,
-               &vk_off->framebuffer),
-             error,
-             COGL_FRAMEBUFFER_ERROR,
-             COGL_FRAMEBUFFER_ERROR_ALLOCATE );
+  /* VK_RET_VAL_ERROR ( ctx, */
+  /*                    vkCreateRenderPass (vk_ctx->device, &render_pass_info, */
+  /*                                        NULL, &vk_fb->render_pass), */
+  /*                    FALSE, */
+  /*                    error, COGL_FRAMEBUFFER_ERROR, */
+  /*                    COGL_FRAMEBUFFER_ERROR_ALLOCATE ); */
 
   if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
-    goto error;
+    return FALSE;
+
+  result =
+    _cogl_framebuffer_vulkan_create_framebuffer (framebuffer,
+                                                 _cogl_texture_2d_get_vulkan_image_view (COGL_TEXTURE_2D (offscreen->texture)),
+                                                 &vk_off->framebuffer);
+  if (result != VK_SUCCESS)
+    {
+      _cogl_set_error (error, COGL_FRAMEBUFFER_ERROR,
+                       COGL_FRAMEBUFFER_ERROR_ALLOCATE,
+                       "%s: VK error (%d): %s\n",
+                       G_STRLOC,
+                       result,
+                       _cogl_vulkan_error_to_string (result));
+      goto error;
+    }
 
   _cogl_framebuffer_vulkan_update_framebuffer (framebuffer, vk_off->framebuffer);
 
