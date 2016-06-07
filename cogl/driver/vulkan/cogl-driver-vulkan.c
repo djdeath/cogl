@@ -361,9 +361,11 @@ _cogl_vulkan_renderer_get_proc_address (CoglRenderer *renderer,
                                         const char *name,
                                         CoglBool in_core)
 {
-  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  CoglFuncPtr ptr;
 
-  return vk_renderer->vkGetDeviceProcAddr (vk_renderer->device, name);
+  g_module_symbol (renderer->libgl_module, name, (gpointer *) &ptr);
+
+  return ptr;
 }
 
 const CoglDriverVtable
