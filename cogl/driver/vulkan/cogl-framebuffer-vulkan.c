@@ -276,7 +276,7 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkClearValue clear_values;
+  VkClearValue clear_values[2];
   VkCommandBufferAllocateInfo buffer_allocate_info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
     .commandPool = vk_ctx->cmd_pool,
@@ -296,12 +296,14 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
       { cogl_framebuffer_get_width (framebuffer),
         cogl_framebuffer_get_height (framebuffer) },
     },
-    .pClearValues = &clear_values,
-    .clearValueCount = 0,
+    .pClearValues = clear_values,
+    .clearValueCount = framebuffer->depth_writing_enabled ? 2 : 1,
   };
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
     return;
+
+  memset (clear_values, 0, sizeof (clear_values));
 
   VK_RET ( ctx,
            vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
