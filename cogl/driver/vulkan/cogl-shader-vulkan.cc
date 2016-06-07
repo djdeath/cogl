@@ -532,6 +532,7 @@ _cogl_shader_vulkan_build_shader_module (CoglShaderVulkan *shader,
   }
 
   VkShaderModuleCreateInfo info;
+  memset (&info, 0, sizeof (info));
   info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   info.codeSize = spirv.size() * sizeof (uint32_t);
   info.pCode = &spirv[0];
