@@ -470,6 +470,14 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
   };
   uint32_t count = 0;
 
+  /* TODO: maybe move this into
+     _cogl_framebuffer_vulkan_ensure_command_buffer ? */
+  if (G_UNLIKELY (!framebuffer->allocated))
+    {
+      cogl_framebuffer_allocate (framebuffer, NULL);
+      vk_fb = framebuffer->winsys;
+    }
+
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   memset (clear_attachments, 0, sizeof (clear_attachments));
