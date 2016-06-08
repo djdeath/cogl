@@ -281,8 +281,7 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
    * compostor and shell object.
    */
   wl_display_roundtrip (renderer->wayland_display);
-  if (!vk_renderer_wl->wayland_compositor ||
-      !renderer->wayland_shell)
+  if (!vk_renderer_wl->wayland_compositor || !renderer->wayland_shell)
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
@@ -416,21 +415,21 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
                             link)
     free_frame_callback_data (frame_callback_data);
 
-  if (!onscreen->foreign_wayland_surface)
+  if (!onscreen->wayland.foreign_surface)
     {
       /* NB: The wayland protocol docs explicitly state that
        * "wl_shell_surface_destroy() must be called before destroying
        * the wl_surface object." ... */
-      if (onscreen->wayland_shell_surface)
+      if (onscreen->wayland.shell_surface)
         {
-          wl_shell_surface_destroy (onscreen->wayland_shell_surface);
-          onscreen->wayland_shell_surface = NULL;
+          wl_shell_surface_destroy (onscreen->wayland.shell_surface);
+          onscreen->wayland.shell_surface = NULL;
         }
 
-      if (onscreen->wayland_surface)
+      if (onscreen->wayland.surface)
         {
-          wl_surface_destroy (onscreen->wayland_surface);
-          onscreen->wayland_surface = NULL;
+          wl_surface_destroy (onscreen->wayland.surface);
+          onscreen->wayland.surface = NULL;
         }
     }
 
@@ -461,13 +460,13 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   _cogl_list_init (&vk_onscreen_wl->frame_callbacks);
 
-  if (onscreen->foreign_wayland_surface)
-    onscreen->wayland_surface = onscreen->foreign_wayland_surface;
+  if (onscreen->wayland.foreign_surface)
+    onscreen->wayland.surface = onscreen->wayland.foreign_surface;
   else
-    onscreen->wayland_surface =
+    onscreen->wayland.surface =
       wl_compositor_create_surface (vk_renderer_wl->wayland_compositor);
 
-  if (!onscreen->wayland_surface)
+  if (!onscreen->wayland.surface)
     {
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                        COGL_WINSYS_ERROR_CREATE_ONSCREEN,
@@ -475,10 +474,10 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       goto error;
     }
 
-  if (!onscreen->foreign_wayland_surface)
-    onscreen->wayland_shell_surface =
+  if (!onscreen->wayland.foreign_surface)
+    onscreen->wayland.shell_surface =
       wl_shell_get_shell_surface (renderer->wayland_shell,
-                                  onscreen->wayland_surface);
+                                  onscreen->wayland.surface);
 
   if (!vk_renderer_wl->get_wayland_presentation_support (vk_renderer->physical_device,
                                                          0,
@@ -494,7 +493,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   result = vk_renderer_wl->create_wayland_surface (vk_renderer->instance, &(VkWaylandSurfaceCreateInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
       .display = renderer->wayland_display,
-      .surface = onscreen->wayland_surface,
+      .surface = onscreen->wayland.surface,
     },
     NULL,
     &vk_onscreen_wl->wsi_surface);
@@ -683,7 +682,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
   frame_callback_data->onscreen = onscreen;
 
   frame_callback_data->callback =
-    wl_surface_frame (onscreen->wayland_surface);
+    wl_surface_frame (onscreen->wayland.surface);
   wl_callback_add_listener (frame_callback_data->callback,
                             &frame_listener,
                             frame_callback_data);
@@ -730,11 +729,11 @@ _cogl_winsys_onscreen_set_visibility (CoglOnscreen *onscreen,
    * then we won't have the shell surface and we'll just let the
    * application deal with setting the surface type. */
   if (visibility &&
-      onscreen->wayland_shell_surface &&
-      !vk_onscreen->shell_surface_type_set)
+      onscreen->wayland.shell_surface &&
+      !onscreen->wayland.shell_surface_type_set)
     {
-      wl_shell_surface_set_toplevel (onscreen->wayland_shell_surface);
-      vk_onscreen->shell_surface_type_set = TRUE;
+      wl_shell_surface_set_toplevel (onscreen->wayland.shell_surface);
+      onscreen->wayland.shell_surface_type_set = TRUE;
       _cogl_onscreen_queue_full_dirty (onscreen);
     }
 
