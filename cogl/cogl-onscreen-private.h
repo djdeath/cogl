@@ -74,10 +74,14 @@ struct _CoglOnscreen
 #endif
 
 #if defined(COGL_HAS_WAYLAND_SUPPORT)
-  struct wl_shell_surface *wayland_shell_surface;
-  struct wl_surface *wayland_surface;
+  struct {
+    struct wl_shell_surface *shell_surface;
+    struct wl_surface *surface;
 
-  struct wl_surface *foreign_wayland_surface;
+    struct wl_surface *foreign_surface;
+
+    CoglBool shell_surface_type_set;
+  } wayland;
 #endif
 
 #ifdef COGL_HAS_EGL_PLATFORM_MIR_SUPPORT

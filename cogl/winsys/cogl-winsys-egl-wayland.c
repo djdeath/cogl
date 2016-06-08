@@ -79,8 +79,6 @@ typedef struct _CoglOnscreenWayland
   int pending_dy;
   CoglBool has_pending;
 
-  CoglBool shell_surface_type_set;
-
   CoglList frame_callbacks;
 } CoglOnscreenWayland;
 
@@ -482,13 +480,13 @@ _cogl_winsys_egl_onscreen_init (CoglOnscreen *onscreen,
 
   _cogl_list_init (&wayland_onscreen->frame_callbacks);
 
-  if (onscreen->foreign_wayland_surface)
-    onscreen->wayland_surface = onscreen->foreign_wayland_surface;
+  if (onscreen->wayland.foreign_surface)
+    onscreen->wayland.surface = onscreen->wayland.foreign_surface;
   else
-    onscreen->wayland_surface =
+    onscreen->wayland.surface =
       wl_compositor_create_surface (wayland_renderer->wayland_compositor);
 
-  if (!onscreen->wayland_surface)
+  if (!onscreen->wayland.surface)
     {
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                    COGL_WINSYS_ERROR_CREATE_ONSCREEN,
@@ -497,7 +495,7 @@ _cogl_winsys_egl_onscreen_init (CoglOnscreen *onscreen,
     }
 
   wayland_onscreen->wayland_egl_native_window =
-    wl_egl_window_create (onscreen->wayland_surface,
+    wl_egl_window_create (onscreen->wayland.surface,
                           cogl_framebuffer_get_width (framebuffer),
                           cogl_framebuffer_get_height (framebuffer));
   if (!wayland_onscreen->wayland_egl_native_window)
@@ -516,10 +514,10 @@ _cogl_winsys_egl_onscreen_init (CoglOnscreen *onscreen,
                             wayland_onscreen->wayland_egl_native_window,
                             NULL);
 
-  if (!onscreen->foreign_wayland_surface)
-    onscreen->wayland_shell_surface =
+  if (!onscreen->wayland.foreign_surface)
+    onscreen->wayland.shell_surface =
       wl_shell_get_shell_surface (renderer->wayland_shell,
-                                  onscreen->wayland_surface);
+                                  onscreen->wayland.surface);
 
   return TRUE;
 }
@@ -552,21 +550,21 @@ _cogl_winsys_egl_onscreen_deinit (CoglOnscreen *onscreen)
       wayland_onscreen->wayland_egl_native_window = NULL;
     }
 
-  if (!onscreen->foreign_wayland_surface)
+  if (!onscreen->wayland.foreign_surface)
     {
       /* NB: The wayland protocol docs explicitly state that
        * "wl_shell_surface_destroy() must be called before destroying
        * the wl_surface object." ... */
-      if (onscreen->wayland_shell_surface)
+      if (onscreen->wayland.shell_surface)
         {
-          wl_shell_surface_destroy (onscreen->wayland_shell_surface);
-          onscreen->wayland_shell_surface = NULL;
+          wl_shell_surface_destroy (onscreen->wayland.shell_surface);
+          onscreen->wayland.shell_surface = NULL;
         }
 
-      if (onscreen->wayland_surface)
+      if (onscreen->wayland.surface)
         {
-          wl_surface_destroy (onscreen->wayland_surface);
-          onscreen->wayland_surface = NULL;
+          wl_surface_destroy (onscreen->wayland.surface);
+          onscreen->wayland.surface = NULL;
         }
     }
 
@@ -645,7 +643,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
   frame_callback_data->onscreen = onscreen;
 
   frame_callback_data->callback =
-    wl_surface_frame (onscreen->wayland_surface);
+    wl_surface_frame (onscreen->wayland.surface);
   wl_callback_add_listener (frame_callback_data->callback,
                             &frame_listener,
                             frame_callback_data);
@@ -663,18 +661,17 @@ _cogl_winsys_onscreen_set_visibility (CoglOnscreen *onscreen,
                                       CoglBool visibility)
 {
   CoglOnscreenEGL *egl_onscreen = onscreen->winsys;
-  CoglOnscreenWayland *wayland_onscreen = egl_onscreen->platform;
 
   /* The first time the onscreen is shown we will set it to toplevel
    * so that it will appear on the screen. If the surface is foreign
    * then we won't have the shell surface and we'll just let the
    * application deal with setting the surface type. */
   if (visibility &&
-      onscreen->wayland_shell_surface &&
-      !wayland_onscreen->shell_surface_type_set)
+      onscreen->wayland.shell_surface &&
+      !onscreen->wayland.shell_surface_type_set)
     {
-      wl_shell_surface_set_toplevel (onscreen->wayland_shell_surface);
-      wayland_onscreen->shell_surface_type_set = TRUE;
+      wl_shell_surface_set_toplevel (onscreen->wayland.shell_surface);
+      onscreen->wayland.shell_surface_type_set = TRUE;
       _cogl_onscreen_queue_full_dirty (onscreen);
     }
 

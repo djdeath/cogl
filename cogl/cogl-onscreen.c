@@ -499,7 +499,7 @@ cogl_wayland_onscreen_get_surface (CoglOnscreen *onscreen)
 {
   cogl_framebuffer_allocate (COGL_FRAMEBUFFER (onscreen), NULL);
 
-  return onscreen->wayland_surface;
+  return onscreen->wayland.surface;
 }
 
 struct wl_shell_surface *
@@ -507,7 +507,7 @@ cogl_wayland_onscreen_get_shell_surface (CoglOnscreen *onscreen)
 {
   cogl_framebuffer_allocate (COGL_FRAMEBUFFER (onscreen), NULL);
 
-  return onscreen->wayland_shell_surface;
+  return onscreen->wayland.shell_surface;
 }
 
 void
@@ -519,7 +519,7 @@ cogl_wayland_onscreen_set_foreign_surface (CoglOnscreen *onscreen,
   fb = COGL_FRAMEBUFFER (onscreen);
   _COGL_RETURN_IF_FAIL (!fb->allocated);
 
-  onscreen->foreign_wayland_surface = surface;
+  onscreen->wayland.foreign_surface = surface;
 }
 
 #endif /* COGL_HAS_WAYLAND_SUPPORT */
