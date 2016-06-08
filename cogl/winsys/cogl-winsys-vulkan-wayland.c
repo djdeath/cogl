@@ -563,7 +563,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                      .image = vk_onscreen_wl->images[i],
                      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                     .format = vk_format,
+                     .format = _cogl_vulkan_format_unorm (vk_format),
                      .components = {
                        .r = VK_COMPONENT_SWIZZLE_R,
                        .g = VK_COMPONENT_SWIZZLE_G,

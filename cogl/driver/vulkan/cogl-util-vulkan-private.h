@@ -95,6 +95,9 @@
   } while(0)
 
 VkFormat
+_cogl_vulkan_format_unorm (VkFormat format);
+
+VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);
 

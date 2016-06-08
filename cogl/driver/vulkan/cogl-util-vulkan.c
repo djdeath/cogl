@@ -35,6 +35,15 @@
 #include "cogl-util-vulkan-private.h"
 
 VkFormat
+_cogl_vulkan_format_unorm (VkFormat format)
+{
+  VkFormat diff = VK_FORMAT_R8G8_UNORM - VK_FORMAT_R8_UNORM;
+  VkFormat delta = (format - VK_FORMAT_R8_UNORM) % diff;
+
+  return format - delta;
+}
+
+VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied)
 {
