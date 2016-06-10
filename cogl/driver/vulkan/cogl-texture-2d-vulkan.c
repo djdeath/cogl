@@ -73,6 +73,9 @@ _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d)
   if (tex_2d->vk_image != VK_NULL_HANDLE)
     VK ( ctx,
          vkDestroyImage (vk_ctx->device, tex_2d->vk_image, NULL) );
+  if (tex_2d->vk_memory != VK_NULL_HANDLE)
+    VK ( ctx,
+         vkFreeMemory (vk_ctx->device, tex_2d->vk_memory, NULL) );
 }
 
 CoglBool
