@@ -306,12 +306,17 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                    error))
       goto error;
 
-  if (!g_module_symbol (renderer->libgl_module,
-                        "vkGetPhysicalDeviceWaylandPresentationSupportKHR",
-                        (gpointer *) &vk_renderer_wl->get_wayland_presentation_support) ||
-      !g_module_symbol (renderer->libgl_module,
-                        "vkCreateWaylandSurfaceKHR",
-                        (gpointer *) &vk_renderer_wl->create_wayland_surface))
+  vk_renderer_wl->get_wayland_presentation_support =
+    _cogl_renderer_get_proc_address (renderer,
+                                     "vkGetPhysicalDeviceWaylandPresentationSupportKHR",
+                                     FALSE);
+  vk_renderer_wl->create_wayland_surface =
+    _cogl_renderer_get_proc_address (renderer,
+                                     "vkCreateWaylandSurfaceKHR",
+                                     FALSE);
+
+  if (!vk_renderer_wl->get_wayland_presentation_support ||
+      !vk_renderer_wl->create_wayland_surface)
     {
       _cogl_set_error (error,
                        COGL_WINSYS_ERROR,
