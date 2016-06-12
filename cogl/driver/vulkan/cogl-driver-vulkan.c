@@ -103,6 +103,7 @@ _cogl_driver_update_features (CoglContext *ctx,
                                             NULL);
 
   COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
+  COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_PBOS, TRUE);
   COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_VBOS, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_OFFSCREEN, TRUE);
