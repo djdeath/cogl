@@ -68,4 +68,12 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
                               unsigned int size,
                               CoglError **error);
 
+CoglBool
+_cogl_buffer_vulkan_flush_mapped_memory (CoglBuffer *buffer,
+                                         CoglError **error);
+
+CoglBool
+_cogl_buffer_vulkan_invalidate_mapped_memory (CoglBuffer *buffer,
+                                              CoglError **error);
+
 #endif /* _COGL_BUFFER_VULKAN_PRIVATE_H_ */

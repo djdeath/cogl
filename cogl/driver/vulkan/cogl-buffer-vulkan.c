@@ -69,38 +69,39 @@ _cogl_buffer_vulkan_create (CoglBuffer *buffer)
 
   buffer->winsys = vk_buffer;
 
-  VK_RET( ctx,
-          vkCreateBuffer (vk_ctx->device, &(VkBufferCreateInfo) {
-              .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-              .size = buffer->size,
-              .usage = _cogl_buffer_usage_to_vulkan_buffer_usage (buffer->usage_hint),
-              .flags = VK_SHARING_MODE_EXCLUSIVE,
-                },
-            NULL,
-            &vk_buffer->buffer) );
+  VK_RET ( ctx,
+           vkCreateBuffer (vk_ctx->device, &(VkBufferCreateInfo) {
+               .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+               .size = buffer->size,
+               .usage = _cogl_buffer_usage_to_vulkan_buffer_usage (buffer->usage_hint),
+               .flags = VK_SHARING_MODE_EXCLUSIVE,
+             },
+             NULL,
+             &vk_buffer->buffer) );
 
   VK ( ctx,
        vkGetBufferMemoryRequirements (vk_ctx->device,
                                       vk_buffer->buffer, &mem_reqs) );
 
-  vk_buffer->memory_need_flush =
-    (mem_reqs.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
+  mem_reqs.memoryTypeBits |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+  /* vk_buffer->memory_need_flush = */
+  /*   (mem_reqs.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0; */
 
-  VK_RET( ctx,
-          vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
-              .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-              .allocationSize = mem_reqs.size,
-              .memoryTypeIndex =
-                _cogl_vulkan_context_get_memory_heap (buffer->context,
-                                                      mem_reqs.memoryTypeBits),
-              },
-            NULL,
-            &vk_buffer->memory) );
+  VK_RET ( ctx,
+           vkAllocateMemory (vk_ctx->device, &(VkMemoryAllocateInfo) {
+               .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+               .allocationSize = mem_reqs.size,
+               .memoryTypeIndex =
+                 _cogl_vulkan_context_get_memory_heap (buffer->context,
+                                                       mem_reqs.memoryTypeBits),
+             },
+             NULL,
+             &vk_buffer->memory) );
 
-  VK_RET( ctx,
-          vkBindBufferMemory (vk_ctx->device,
-                              vk_buffer->buffer,
-                              vk_buffer->memory, 0) );
+  VK_RET ( ctx,
+           vkBindBufferMemory (vk_ctx->device,
+                               vk_buffer->buffer,
+                               vk_buffer->memory, 0) );
 }
 
 void
@@ -187,6 +188,7 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
                               unsigned int size,
                               CoglError **error)
 {
+  CoglBufferVulkan *vk_buf = buffer->winsys;
   CoglContext *ctx = buffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   void *data_map;
@@ -208,9 +210,59 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
   if (!data_map)
     return FALSE;
 
-  memcpy (data_map, data, size);
+  memcpy (data_map + offset, data, size);
 
   _cogl_buffer_vulkan_unmap (buffer);
 
   return TRUE;
+}
+
+CoglBool
+_cogl_buffer_vulkan_flush_mapped_memory (CoglBuffer *buffer,
+                                         CoglError **error)
+{
+  CoglBufferVulkan *vk_buf = buffer->winsys;
+  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  VkMappedMemoryRange range = {
+    .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+    .memory = vk_buf->memory,
+    .offset = 0,
+    .size = buffer->size,
+  };
+
+  VK_ERROR ( ctx, vkFlushMappedMemoryRanges (vk_ctx->device,
+                                             1,
+                                             &range),
+             error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP /* TODO : new error */ );
+
+  return TRUE;
+
+ error:
+  return FALSE;
+}
+
+CoglBool
+_cogl_buffer_vulkan_invalidate_mapped_memory (CoglBuffer *buffer,
+                                              CoglError **error)
+{
+  CoglBufferVulkan *vk_buf = buffer->winsys;
+  CoglContext *ctx = buffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  VkMappedMemoryRange range = {
+    .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+    .memory = vk_buf->memory,
+    .offset = 0,
+    .size = buffer->size,
+  };
+
+  VK_ERROR ( ctx, vkInvalidateMappedMemoryRanges (vk_ctx->device,
+                                                  1,
+                                                  &range),
+             error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP /* TODO: new error */ );
+
+  return TRUE;
+
+ error:
+  return FALSE;
 }
