@@ -128,7 +128,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
     .pApplicationInfo = &(VkApplicationInfo) {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
       .pApplicationName = "Cogl",
-      .apiVersion = VK_MAKE_VERSION(1, 0, 2),
+      .apiVersion = VK_MAKE_VERSION(1, 0, 5),
     },
     .enabledExtensionCount = n_extensions,
     .ppEnabledExtensionNames = extensions,

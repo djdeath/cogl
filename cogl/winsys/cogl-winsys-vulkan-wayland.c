@@ -396,7 +396,8 @@ _cogl_winsys_onscreen_deinit (CoglOnscreen *onscreen)
   FrameCallbackData *frame_callback_data, *tmp;
   uint32_t i;
 
-  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer, VK_NULL_HANDLE);
+  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
+                                               VK_NULL_HANDLE, VK_NULL_HANDLE);
   _cogl_framebuffer_vulkan_deinit (framebuffer);
 
   for (i = 0; i < vk_onscreen->image_count; i++)
@@ -555,7 +556,7 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
              error,
              COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-  if (!_cogl_framebuffer_vulkan_init (framebuffer, error))
+  if (!_cogl_framebuffer_vulkan_init (framebuffer, vk_format, error))
     goto error;
 
   vk_fb = framebuffer->winsys;
@@ -611,7 +612,8 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
              COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
   _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
-                                               vk_onscreen_wl->framebuffers[vk_onscreen_wl->image_index]);
+                                               vk_onscreen_wl->framebuffers[vk_onscreen_wl->image_index],
+                                               vk_onscreen_wl->images[vk_onscreen_wl->image_index]);
 
   return TRUE;
 
@@ -713,7 +715,8 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                   &vk_onscreen->image_index) );
 
   _cogl_framebuffer_vulkan_update_framebuffer (COGL_FRAMEBUFFER (onscreen),
-                                               vk_onscreen->framebuffers[vk_onscreen->image_index]);
+                                               vk_onscreen->framebuffers[vk_onscreen->image_index],
+                                               vk_onscreen->images[vk_onscreen->image_index]);
 
 }
 

@@ -36,6 +36,8 @@ typedef struct _CoglFramebufferVulkan
   /* Not owned. Do not free. (Either this is a copy from CoglOffscreenVulkan
      or from whatever winsys we're running on.) */
   VkFramebuffer framebuffer;
+  VkImage color_image;
+  VkFormat color_format;
 
   /* Owned. */
   VkFormat depth_format;
@@ -46,6 +48,7 @@ typedef struct _CoglFramebufferVulkan
   VkRenderPass render_pass;
   VkCommandBuffer cmd_buffer;
 
+  CoglBool render_pass_started;
   uint32_t cmd_buffer_length;
 
   float clear_color[4]; /* rgba */
@@ -69,6 +72,7 @@ typedef struct _CoglOffscreenVulkan
 
 CoglBool
 _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
+                               VkFormat color_format,
                                CoglError **error);
 
 void
@@ -81,7 +85,8 @@ _cogl_framebuffer_vulkan_create_framebuffer (CoglFramebuffer *framebuffer,
 
 void
 _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
-                                             VkFramebuffer vk_framebuffer);
+                                             VkFramebuffer vk_framebuffer,
+                                             VkImage vk_image);
 
 void
 _cogl_clip_stack_vulkan_flush (CoglClipStack *clip,
