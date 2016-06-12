@@ -46,7 +46,8 @@ _cogl_buffer_usage_to_vulkan_buffer_usage (CoglBufferUsageHint usage)
   switch (usage)
     {
     case COGL_BUFFER_USAGE_HINT_TEXTURE:
-      return VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
+      return (VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     case COGL_BUFFER_USAGE_HINT_ATTRIBUTE_BUFFER:
       return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     case COGL_BUFFER_USAGE_HINT_INDEX_BUFFER:
