@@ -302,7 +302,8 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   if (loader->src.bitmap.bitmap->rowstride ==
       width * _cogl_pixel_format_get_bytes_per_pixel (internal_format))
     {
-      memcpy (data, loader->src.bitmap.bitmap->data, requirements.size);
+      memcpy (data, loader->src.bitmap.bitmap->data,
+              width * height * format_bpp);
     }
   else
     {

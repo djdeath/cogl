@@ -831,6 +831,7 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
   VkDescriptorSetLayoutCreateInfo info;
   CreateDescriptorSetLayout data;
 
+  memset (&data, 0, sizeof (data));
   data.bindings = g_new0 (VkDescriptorSetLayoutBinding,
                           cogl_pipeline_get_n_layers (pipeline) + 1);
   data.program_state = program_state;
@@ -849,6 +850,7 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
   data.bindings[data.n_bindings].stageFlags = data.stage_flags;
   data.bindings[data.n_bindings].pImmutableSamplers = NULL;
 
+  memset (&info, 0, sizeof (info));
   info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   info.bindingCount = ++data.n_bindings;
   info.pBindings = data.bindings;
