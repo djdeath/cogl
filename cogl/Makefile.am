@@ -685,10 +685,10 @@ cogl_sources_c += \
 	winsys/cogl-winsys-vulkan-wayland-private.h \
 	winsys/cogl-winsys-vulkan-wayland.c
 endif
-# if SUPPORT_VULKAN_XCB
+# if SUPPORT_VULKAN_XLIB
 # cogl_sources_c += \
-# 	winsys/cogl-winsys-vulkan-xcb-private.h \
-# 	winsys/cogl-winsys-vulkan-xcb.c
+# 	winsys/cogl-winsys-vulkan-xlib-private.h \
+# 	winsys/cogl-winsys-vulkan-xlib.c
 # endif
 
 EXTRA_DIST += stb_image.c

@@ -839,10 +839,10 @@ AS_IF([test "x$enable_vulkan" = "xyes"],
                         [],
                         [AC_MSG_ERROR([Unable to locate vulkan/vulkan.h])])
 
-        PKG_CHECK_MODULES([XCB], [xcb],
+        PKG_CHECK_MODULES([XLIB], [x11],
                           [
-                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN_PLATFORM_XCB_SUPPORT"
-                           SUPPORT_VULKAN_XCB=yes
+                           COGL_DEFINES_SYMBOLS="$COGL_DEFINES_SYMBOLS COGL_HAS_VULKAN_PLATFORM_XLIB_SUPPORT"
+                           SUPPORT_VULKAN_XLIB=yes
                           ],
                           [])
         PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= wayland_req_version],
@@ -861,7 +861,7 @@ AM_CONDITIONAL([COGL_DRIVER_GLES_SUPPORTED],
                [test "x$enable_gles1" = "xyes" || test "x$enable_gles2" = "xyes"])
 AM_CONDITIONAL([COGL_DRIVER_VULKAN_SUPPORTED], [test "x$enable_vulkan" = "xyes"])
 AM_CONDITIONAL(SUPPORT_VULKAN_WAYLAND, [test "x$SUPPORT_VULKAN_WAYLAND" = "xyes"])
-AM_CONDITIONAL(SUPPORT_VULKAN_XCB, [test "x$SUPPORT_VULKAN_XCB" = "xyes"])
+AM_CONDITIONAL(SUPPORT_VULKAN_XLIB, [test "x$SUPPORT_VULKAN_XLIB" = "xyes"])
 
 dnl Allow the GL library names and default driver to be overridden with configure options
 AC_ARG_WITH([gl-libname],
