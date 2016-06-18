@@ -125,7 +125,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
   int height = loader->src.sized.height;
   VkFormat vk_format;
   VkResult result;
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements reqs;
 
   internal_format =
     _cogl_texture_determine_internal_format (tex, COGL_PIXEL_FORMAT_ANY);
@@ -166,13 +166,14 @@ allocate_with_size (CoglTexture2D *tex_2d,
 
   VK ( ctx, vkGetImageMemoryRequirements (vk_ctx->device,
                                           tex_2d->vk_image,
-                                          &requirements) );
+                                          &reqs) );
   VK_RET_VAL_ERROR ( ctx,
                      vkAllocateMemory (vk_ctx->device,
                                        &(VkMemoryAllocateInfo) {
                                          .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                         .allocationSize = requirements.size,
-                                         .memoryTypeIndex = 0
+                                         .allocationSize = reqs.size,
+                                         .memoryTypeIndex =
+                                           _cogl_vulkan_context_get_memory_heap (ctx, reqs.memoryTypeBits),
                                        },
                                        NULL,
                                        &tex_2d->vk_memory),
@@ -180,8 +181,8 @@ allocate_with_size (CoglTexture2D *tex_2d,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
   VK_RET_VAL_ERROR ( ctx,
-                     vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
-                                       tex_2d->vk_memory, 0),
+                     vkBindImageMemory (vk_ctx->device, tex_2d->vk_image,
+                                        tex_2d->vk_memory, 0),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
@@ -233,7 +234,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   VkFormat vk_format =
     _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
   VkResult result;
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements reqs;
   void *data;
 
   /* TODO: Deal with cases where the bitmap has a backing CoglBuffer. */
@@ -272,13 +273,14 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   VK ( ctx,
        vkGetImageMemoryRequirements (vk_ctx->device,
                                      tex_2d->vk_image,
-                                     &requirements) );
+                                     &reqs) );
   VK_RET_VAL_ERROR ( ctx,
                      vkAllocateMemory (vk_ctx->device,
                                        &(VkMemoryAllocateInfo) {
                                          .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                         .allocationSize = requirements.size,
-                                         .memoryTypeIndex = 0
+                                         .allocationSize = reqs.size,
+                                         .memoryTypeIndex =
+                                           _cogl_vulkan_context_get_memory_heap (ctx, reqs.memoryTypeBits),
                                        },
                                        NULL,
                                        &tex_2d->vk_memory),
@@ -294,7 +296,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   VK_RET_VAL_ERROR ( ctx,
                      vkMapMemory (vk_ctx->device,
                                   tex_2d->vk_memory, 0,
-                                  requirements.size, 0,
+                                  reqs.size, 0,
                                   &data),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
