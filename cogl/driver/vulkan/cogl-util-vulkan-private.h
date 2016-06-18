@@ -105,6 +105,10 @@
 VkFormat
 _cogl_vulkan_format_unorm (VkFormat format);
 
+CoglBool
+_cogl_pixel_format_compatible_with_vulkan_format (CoglPixelFormat cogl_format,
+                                                  VkFormat vk_format);
+
 VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied);

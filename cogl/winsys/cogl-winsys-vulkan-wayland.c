@@ -443,10 +443,11 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
   CoglRendererVulkanWayland *vk_renderer_wl = renderer->winsys;
   CoglOnscreenVulkanWayland *vk_onscreen_wl;
   CoglPixelFormat cogl_format = onscreen->_parent.internal_format;
-  VkFormat vk_format =
-    _cogl_pixel_format_to_vulkan_format (cogl_format, NULL);
+  VkFormat vk_format = VK_FORMAT_UNDEFINED;
+  VkColorSpaceKHR vk_color_space;
+  VkSurfaceFormatKHR *vk_formats;
   VkResult result;
-  uint32_t i;
+  uint32_t i, vk_format_count;
 
   vk_onscreen_wl = g_slice_new0 (CoglOnscreenVulkanWayland);
   framebuffer->winsys = onscreen->winsys = vk_onscreen_wl;
@@ -493,14 +494,46 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       &vk_onscreen_wl->wsi_surface),
     error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-  /* TODO: GetPhysicalDeviceSurfaceFormatsKHR() */
+  VK_ERROR ( ctx,
+             vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
+                                                   vk_onscreen_wl->wsi_surface,
+                                                   &vk_format_count,
+                                                   NULL),
+             error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+  vk_formats = g_alloca (sizeof (VkSurfaceFormatKHR) * vk_format_count);
+  VK_ERROR ( ctx,
+             vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
+                                                   vk_onscreen_wl->wsi_surface,
+                                                   &vk_format_count,
+                                                   vk_formats),
+             error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+
+  for (i = 0; i < vk_format_count; i++)
+    {
+      if (_cogl_pixel_format_compatible_with_vulkan_format (cogl_format,
+                                                            vk_formats[i].format))
+        {
+          vk_format = vk_formats[i].format;
+          vk_color_space = vk_formats[i].colorSpace;
+          break;
+        }
+    }
+
+  if (vk_format == VK_FORMAT_UNDEFINED)
+    {
+      _cogl_set_error (error, COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                       "Cannot find a compatible format for onscreen");
+      goto error;
+    }
+
   VK_ERROR ( ctx,
              vkCreateSwapchainKHR (vk_ctx->device, &(VkSwapchainCreateInfoKHR) {
                  .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                  .surface = vk_onscreen_wl->wsi_surface,
                  .minImageCount = 2,
                  .imageFormat = vk_format,
-                 .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+                 .imageColorSpace = vk_color_space,
                  .imageExtent = { framebuffer->width, framebuffer->height },
                  .imageArrayLayers = 1,
                  .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,

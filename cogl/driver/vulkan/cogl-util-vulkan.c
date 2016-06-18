@@ -43,6 +43,37 @@ _cogl_vulkan_format_unorm (VkFormat format)
   return format - delta;
 }
 
+CoglBool
+_cogl_pixel_format_compatible_with_vulkan_format (CoglPixelFormat cogl_format,
+                                                  VkFormat vk_format)
+{
+  switch (vk_format)
+    {
+    case VK_FORMAT_B8G8R8A8_SRGB:
+    case VK_FORMAT_R8G8B8A8_SRGB:
+      // TODO: should we add ABGR, ARGB?
+      return (cogl_format == COGL_PIXEL_FORMAT_RGBA_8888 ||
+              cogl_format == COGL_PIXEL_FORMAT_RGBA_8888_PRE ||
+              cogl_format == COGL_PIXEL_FORMAT_BGRA_8888 ||
+              cogl_format == COGL_PIXEL_FORMAT_BGRA_8888_PRE);
+
+    case VK_FORMAT_R8G8B8_SRGB:
+    case VK_FORMAT_B8G8R8_SRGB:
+      return (cogl_format == COGL_PIXEL_FORMAT_RGB_888 ||
+              cogl_format == COGL_PIXEL_FORMAT_BGR_888);
+
+    case VK_FORMAT_R8G8_SRGB:
+      return (cogl_format == COGL_PIXEL_FORMAT_RG_88);
+
+    case VK_FORMAT_R8_SRGB:
+      return (cogl_format == COGL_PIXEL_FORMAT_G_8);
+
+      // TODO: Add RGB565 etc...
+    }
+
+  return FALSE;
+}
+
 VkFormat
 _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
                                      CoglBool *premultiplied)
