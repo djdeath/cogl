@@ -43,7 +43,9 @@
     __err = (ctx)->x;                                     \
     while (__err != VK_SUCCESS)                           \
       {                                                   \
-        g_warning ("%s: VK error (%d): %s\n",             \
+        g_warning ("%s: "                                 \
+                   #x                                     \
+                   ": VK error (%d): %s\n",               \
                    G_STRLOC,                              \
                    __err,                                 \
                    _cogl_vulkan_error_to_string (__err)); \
@@ -55,24 +57,28 @@
     __err = (ctx)->x;                                     \
     while (__err != VK_SUCCESS)                           \
       {                                                   \
-        g_warning ("%s: VK error (%d): %s\n",             \
+        g_warning ("%s: "                                 \
+                   #x                                     \
+                   ": VK error (%d): %s\n",               \
                    G_STRLOC,                              \
                    __err,                                 \
                    _cogl_vulkan_error_to_string (__err)); \
         return val;                                       \
       }                                   } G_STMT_END
 
-#define VK_RET_VAL_ERROR(ctx, x, val, err, dom, e) G_STMT_START {        \
-    VkResult __err;                                             \
-    __err = (ctx)->x;                                           \
-    while (__err != VK_SUCCESS)                                 \
-      {                                                         \
-        _cogl_set_error (error, dom, e,                         \
-                         "%s: VK error (%d): %s\n",             \
-                         G_STRLOC,                              \
-                         __err,                                 \
-                         _cogl_vulkan_error_to_string (__err)); \
-        return val;                                             \
+#define VK_RET_VAL_ERROR(ctx, x, val, err, dom, e) G_STMT_START {       \
+    VkResult __err;                                                     \
+    __err = (ctx)->x;                                                   \
+    while (__err != VK_SUCCESS)                                         \
+      {                                                                 \
+        _cogl_set_error (error, dom, e,                                 \
+                         "%s: "                                         \
+                         #x                                             \
+                         ": VK error (%d): %s\n",                       \
+                         G_STRLOC,                                      \
+                         __err,                                         \
+                         _cogl_vulkan_error_to_string (__err));         \
+        return val;                                                     \
       }                                   } G_STMT_END
 
 
@@ -82,7 +88,9 @@
     while (__err != VK_SUCCESS)                                 \
       {                                                         \
         _cogl_set_error (error, dom, e,                         \
-                         "%s: VK error (%d): %s\n",             \
+                         "%s: "                                 \
+                         #x                                     \
+                         ": VK error (%d): %s\n",               \
                          G_STRLOC,                              \
                          __err,                                 \
                          _cogl_vulkan_error_to_string (__err)); \
