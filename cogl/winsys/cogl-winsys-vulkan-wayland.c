@@ -57,10 +57,6 @@ typedef struct _CoglRendererVulkanWayland
 {
   CoglRendererVulkan parent;
 
-  PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR
-    get_wayland_presentation_support;
-  PFN_vkCreateWaylandSurfaceKHR create_wayland_surface;
-
   struct wl_compositor *wayland_compositor;
   struct wl_registry *wayland_registry;
   int fd;
@@ -306,25 +302,6 @@ _cogl_winsys_renderer_connect (CoglRenderer *renderer,
                                    error))
       goto error;
 
-  vk_renderer_wl->get_wayland_presentation_support =
-    _cogl_renderer_get_proc_address (renderer,
-                                     "vkGetPhysicalDeviceWaylandPresentationSupportKHR",
-                                     FALSE);
-  vk_renderer_wl->create_wayland_surface =
-    _cogl_renderer_get_proc_address (renderer,
-                                     "vkCreateWaylandSurfaceKHR",
-                                     FALSE);
-
-  if (!vk_renderer_wl->get_wayland_presentation_support ||
-      !vk_renderer_wl->create_wayland_surface)
-    {
-      _cogl_set_error (error,
-                       COGL_WINSYS_ERROR,
-                       COGL_WINSYS_ERROR_INIT,
-                       "Unable to find Vulkan Wayland extensions");
-      goto error;
-    }
-
   return TRUE;
 
  error:
@@ -349,6 +326,16 @@ _cogl_winsys_context_init (CoglContext *context, CoglError **error)
 {
   if (!_cogl_context_update_features (context, error))
     return FALSE;
+
+  if (!context->vkCreateWaylandSurfaceKHR ||
+      !context->vkGetPhysicalDeviceWaylandPresentationSupportKHR)
+    {
+      _cogl_set_error (error,
+                       COGL_WINSYS_ERROR,
+                       COGL_WINSYS_ERROR_INIT,
+                       "Unable to find Vulkan Wayland extensions");
+      return FALSE;
+    }
 
   if (!_cogl_vulkan_context_init (context, error))
     return FALSE;
@@ -485,33 +472,26 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
       wl_shell_get_shell_surface (renderer->wayland_shell,
                                   onscreen->wayland.surface);
 
-  if (!vk_renderer_wl->get_wayland_presentation_support (vk_renderer->physical_device,
-                                                         0,
-                                                         renderer->wayland_display))
+  if (!VK (ctx,
+           vkGetPhysicalDeviceWaylandPresentationSupportKHR (vk_renderer->physical_device,
+                                                             0,
+                                                             renderer->wayland_display)))
     {
-      _cogl_set_error (error,
-                       COGL_WINSYS_ERROR,
+      _cogl_set_error (error, COGL_WINSYS_ERROR,
                        COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                       "Vulkan not supported on given Wayland surface");
+                       "Cannot get wayland presentation support");
       goto error;
     }
 
-  result = vk_renderer_wl->create_wayland_surface (vk_renderer->instance, &(VkWaylandSurfaceCreateInfoKHR) {
-      .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-      .display = renderer->wayland_display,
-      .surface = onscreen->wayland.surface,
-    },
-    NULL,
-    &vk_onscreen_wl->wsi_surface);
-  if (result != VK_SUCCESS)
-    {
-      _cogl_set_error (error,
-                       COGL_WINSYS_ERROR,
-                       COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                       "Unable to create Vulkan Wayland surface : %s",
-                       _cogl_vulkan_error_to_string (result));
-      goto error;
-    }
+  VK_ERROR ( ctx,
+             vkCreateWaylandSurfaceKHR (vk_renderer->instance, &(VkWaylandSurfaceCreateInfoKHR) {
+        .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+        .display = renderer->wayland_display,
+        .surface = onscreen->wayland.surface,
+      },
+      NULL,
+      &vk_onscreen_wl->wsi_surface),
+    error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
   /* TODO: GetPhysicalDeviceSurfaceFormatsKHR() */
   VK_ERROR ( ctx,
