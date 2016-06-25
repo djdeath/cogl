@@ -103,6 +103,8 @@
   "#define cogl_tex_coord_in cogl_tex_coord0_in;\n"     \
   "#define cogl_tex_coord_out _cogl_tex_coord\n"        \
   "\n"                                                  \
+  "in vec4 cogl_color_in;\n"                            \
+  "in vec3 cogl_normal_in;\n"                           \
   "in vec4 cogl_position_in;\n"                         \
   "\n"                                                  \
   "out vec4 cogl_color_out;\n"                          \

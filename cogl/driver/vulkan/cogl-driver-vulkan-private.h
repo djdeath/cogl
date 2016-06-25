@@ -60,6 +60,8 @@ typedef struct _CoglContextVulkan
   VkFence fence;
   VkCommandPool cmd_pool;
 
+  CoglBuffer *default_attributes;
+
   /* Not owned, this is a copy from CoglRendererVulkan. */
   VkDevice device;
 } CoglContextVulkan;

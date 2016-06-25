@@ -310,6 +310,10 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
                &vk_ctx->cmd_pool),
              error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
 
+  /* Create a default set of attributes. */
+  vk_ctx->default_attributes =
+    _cogl_pipeline_ensure_default_attributes (context);
+
   return TRUE;
 
  error:
@@ -323,6 +327,8 @@ _cogl_vulkan_context_deinit (CoglContext *context)
 {
   CoglContextVulkan *vk_ctx = context->winsys;
 
+  if (vk_ctx->default_attributes)
+    cogl_object_unref (vk_ctx->default_attributes);
   if (vk_ctx->cmd_pool != VK_NULL_HANDLE)
     VK ( context,
          vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL) );

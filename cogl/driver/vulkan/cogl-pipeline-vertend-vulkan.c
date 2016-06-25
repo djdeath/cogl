@@ -424,8 +424,6 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
       CoglPipelineSnippetList *vertex_snippets;
       CoglBool has_per_vertex_point_size =
         cogl_pipeline_get_per_vertex_point_size (pipeline);
-      uint32_t attributes_field =
-        _cogl_pipeline_vulkan_get_attributes_field (pipeline);
 
       COGL_STATIC_COUNTER (vertend_vulkan_compile_counter,
                            "vulkan vertex compile counter",
@@ -433,22 +431,6 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
                            "vertex shader is compiled",
                            0 /* no application private data */);
       COGL_COUNTER_INC (_cogl_uprof_context, vertend_vulkan_compile_counter);
-
-      /* The following */
-      if (_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field,
-                                      COGL_ATTRIBUTE_NAME_ID_COLOR_ARRAY))
-        g_string_append (shader_state->header, "in vec4 cogl_color_in;\n");
-      else
-        g_string_append (shader_state->header,
-                         "vec4 cogl_color_in = vec4(1.0, 1.0, 1.0, 1.0);\n");
-
-      if (_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field,
-                                      COGL_ATTRIBUTE_NAME_ID_NORMAL_ARRAY))
-        g_string_append (shader_state->header, "in vec3 cogl_normal_in;\n");
-      else
-        g_string_append (shader_state->header,
-                         "vec3 cogl_normal_in = vec3(0.0, 0.0, 1.0);\n");
-
 
       g_string_append (shader_state->header,
                        "void\n"

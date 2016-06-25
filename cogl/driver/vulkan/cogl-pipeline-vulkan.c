@@ -56,9 +56,10 @@ typedef struct _CoglPipelineVulkan
   VkPipeline pipeline;
 
   VkPipelineVertexInputStateCreateInfo *vertex_inputs;
+  int n_user_vertex_inputs;
   int n_vertex_inputs;
 
-  VkBuffer *attribute_buffers; /* Content of array not owned */
+  VkBuffer *attribute_buffers; /* VkBuffer elements are not owned */
   VkDeviceSize *attribute_offsets;
 
   CoglVerticesMode vertices_mode;
@@ -70,6 +71,61 @@ typedef struct _CoglPipelineVulkan
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
+
+typedef struct
+{
+  CoglAttributeNameID name_id;
+  const char *name;
+  void *data;
+  size_t size;
+  VkFormat vk_format;
+} DefaultBuiltinAttribute;
+
+static float _cogl_color_in_default[4] = { 1.0, 1.0, 1.0, 1.0 };
+static float _cogl_normal_in_default[3] = { 0.0, 0.0, 1.0 };
+
+static DefaultBuiltinAttribute default_attributes[] =
+  {
+    {
+      COGL_ATTRIBUTE_NAME_ID_COLOR_ARRAY,
+      "cogl_color_in",
+      &_cogl_color_in_default,
+      sizeof (_cogl_color_in_default),
+      VK_FORMAT_R32G32B32A32_SFLOAT,
+    },
+    {
+      COGL_ATTRIBUTE_NAME_ID_NORMAL_ARRAY,
+      "cogl_normal_in",
+      &_cogl_normal_in_default,
+      sizeof (_cogl_normal_in_default),
+      VK_FORMAT_R32G32B32_SFLOAT,
+    }
+  };
+
+CoglBuffer *
+_cogl_pipeline_ensure_default_attributes (CoglContext *ctx)
+{
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  uint32_t size = 0, offset = 0, i;
+  void *data;
+
+  for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
+    size += default_attributes[i].size;
+
+  vk_ctx->default_attributes =
+    COGL_BUFFER (cogl_attribute_buffer_new_with_size (ctx, size));
+
+  data = cogl_buffer_map (vk_ctx->default_attributes,
+                          COGL_BUFFER_ACCESS_WRITE,
+                          COGL_BUFFER_MAP_HINT_DISCARD);
+  for (i = 0, size = 0; i < G_N_ELEMENTS (default_attributes); i++)
+    {
+      memcpy (data + size, default_attributes[i].data,
+              default_attributes[i].size);
+      size += default_attributes[i].size;
+    }
+  cogl_buffer_unmap (vk_ctx->default_attributes);
+}
 
 static CoglPipelineVulkan *
 get_vk_pipeline (CoglPipeline *pipeline)
@@ -110,6 +166,7 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
     {
       g_free (vk_pipeline->vertex_inputs);
       vk_pipeline->vertex_inputs = NULL;
+      vk_pipeline->n_user_vertex_inputs = 0;
       vk_pipeline->n_vertex_inputs = 0;
     }
 }
@@ -201,68 +258,52 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
 }
 
 static void
-_cogl_pipeline_vulkan_build_attributes_field (CoglPipelineVulkan *vk_pipeline,
-                                             CoglAttribute **attributes,
-                                             int n_attributes)
-{
-  int i;
-
-  vk_pipeline->attributes_field = 0;
-
-  for (i = 0; i < n_attributes; i++)
-    {
-      if (attributes[i]->name_state->name_id <
-          COGL_ATTRIBUTE_NAME_ID_CUSTOM_ARRAY)
-        {
-          vk_pipeline->attributes_field |=
-            1 << attributes[i]->name_state->name_id;
-        }
-    }
-}
-
-uint32_t
-_cogl_pipeline_vulkan_get_attributes_field (CoglPipeline *pipeline)
-{
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-
-  return vk_pipeline->attributes_field;
-}
-
-static void
-_cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
+_cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
+                                          CoglPipeline *pipeline,
                                           CoglPipelineVulkan *vk_pipeline,
                                           CoglAttribute **attributes,
-                                          int n_attributes)
+                                          int n_user_attributes)
 {
-  int i;
-  VkPipelineVertexInputStateCreateInfo *info;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglBufferVulkan *vk_buf_default_attributes =
+    vk_ctx->default_attributes->winsys;
   CoglShaderVulkan *shader =
     _cogl_pipeline_progend_get_vulkan_shader (pipeline);
+  int i, n_attributes, n_max_attributes = (n_user_attributes +
+                                           G_N_ELEMENTS (default_attributes));
   void *ptr =
     g_malloc0 (sizeof (VkPipelineVertexInputStateCreateInfo) +
-               n_attributes * sizeof (VkVertexInputBindingDescription) +
-               n_attributes * sizeof (VkVertexInputAttributeDescription));
+               n_max_attributes * (sizeof (VkVertexInputBindingDescription) +
+                                   sizeof (VkVertexInputAttributeDescription)));
+  uint32_t attributes_field = 0, attribute_offset;
+  VkPipelineVertexInputStateCreateInfo *info;
 
   info = ptr;
   info->pVertexBindingDescriptions =
     ptr + sizeof (VkPipelineVertexInputStateCreateInfo);
   info->pVertexAttributeDescriptions =
     ptr + sizeof (VkPipelineVertexInputStateCreateInfo) +
-    n_attributes * sizeof (VkVertexInputBindingDescription);
+    n_max_attributes * sizeof (VkVertexInputBindingDescription);
 
   info->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  info->vertexBindingDescriptionCount =
-    info->vertexAttributeDescriptionCount = n_attributes;
 
-  if (vk_pipeline->n_vertex_inputs != n_attributes)
+  /* Invalidate pipeline if number of user supplied attribute has
+     changed. */
+  if (vk_pipeline->n_user_vertex_inputs != n_user_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
-  vk_pipeline->attribute_buffers = g_malloc (sizeof (VkBuffer) * n_attributes);
-  vk_pipeline->attribute_offsets = g_malloc (sizeof (VkDeviceSize) * n_attributes);
+  vk_pipeline->attribute_buffers =
+    g_malloc (sizeof (VkBuffer) * n_max_attributes);
+  vk_pipeline->attribute_offsets =
+    g_malloc (sizeof (VkDeviceSize) * n_max_attributes);
 
-  for (i = 0; i < n_attributes; i++)
+  /* Process vertex given by the user. */
+  for (i = 0; i < n_user_attributes; i++)
     {
       CoglAttribute *attribute = attributes[i];
+
+      if (attribute->name_state->name_id != COGL_ATTRIBUTE_NAME_ID_CUSTOM_ARRAY)
+        attributes_field |= 1 << attribute->name_state->name_id;
 
       if (attribute->is_buffered)
         {
@@ -297,7 +338,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                        sizeof (VkVertexInputAttributeDescription))))
             {
               COGL_NOTE (VULKAN,
-                         "Invalidate pipeline because of vertex layout");
+                         "Invalidating pipeline because of user vertex "
+                         "layout changed");
               _cogl_pipeline_vulkan_invalidate (pipeline);
             }
 
@@ -311,18 +353,71 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
         }
     }
 
+  /* Verify that we aren't missing any default GL attribute. */
+  n_attributes = n_user_attributes;
+  attribute_offset = 0;
+  for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
+    {
+      DefaultBuiltinAttribute *attribute = &default_attributes[i];
+
+      if (!_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field, attribute->name_id))
+        {
+          VkVertexInputBindingDescription *vertex_bind =
+            (VkVertexInputBindingDescription *) &info->pVertexBindingDescriptions[n_attributes];
+          VkVertexInputAttributeDescription *vertex_desc =
+            (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[n_attributes];
+
+          vertex_bind->binding = n_attributes;
+          vertex_bind->stride = 0;
+          vertex_bind->inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+          vertex_desc->location =
+            _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                              COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                              attribute->name);
+          vertex_desc->binding = n_attributes;
+          vertex_desc->offset = 0;
+          vertex_desc->format = attribute->vk_format;
+
+          vk_pipeline->attribute_buffers[n_attributes] =
+            vk_buf_default_attributes->buffer;
+          vk_pipeline->attribute_offsets[n_attributes] = attribute_offset;
+
+          if (vk_pipeline->vertex_inputs &&
+              (memcmp (&vk_pipeline->vertex_inputs->pVertexBindingDescriptions[n_attributes],
+                       vertex_bind,
+                       sizeof (VkVertexInputBindingDescription)) != 0 ||
+               memcmp (&vk_pipeline->vertex_inputs->pVertexAttributeDescriptions[n_attributes],
+                       vertex_desc,
+                       sizeof (VkVertexInputAttributeDescription))))
+            {
+              COGL_NOTE (VULKAN,
+                         "Invalidating pipeline because of default vertex "
+                         "layout changed");
+              _cogl_pipeline_vulkan_invalidate (pipeline);
+            }
+
+          n_attributes++;
+        }
+
+      attribute_offset += attribute->size;
+    }
+
+  info->vertexBindingDescriptionCount =
+    info->vertexAttributeDescriptionCount = n_attributes;
+
   if (vk_pipeline->vertex_inputs == NULL)
     {
       if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_VULKAN)))
         {
-          for (i = 0; i < n_attributes; i++)
+          for (i = 0; i < n_user_attributes; i++)
             {
               CoglAttribute *attribute = attributes[i];
               VkVertexInputAttributeDescription *vertex_desc =
                 (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
 
               COGL_NOTE (VULKAN,
-                         "Attribute '%s' location=%i offset=%i"
+                         "User attribute '%s' location=%i offset=%i"
                          " stride=%i n_components=%i vk_format=%i",
                          attribute->name_state->name,
                          vertex_desc->location,
@@ -331,9 +426,19 @@ _cogl_pipeline_vulkan_compute_attributes (CoglPipeline *pipeline,
                          attribute->d.buffered.n_components,
                          vertex_desc->format);
             }
+          for (i = n_user_attributes; i < n_attributes; i++)
+            {
+              VkVertexInputAttributeDescription *vertex_desc =
+                (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
+
+              COGL_NOTE (VULKAN,
+                         "Default attribute location=%i vk_format=%i",
+                         vertex_desc->location, vertex_desc->format);
+            }
         }
 
       vk_pipeline->vertex_inputs = info;
+      vk_pipeline->n_user_vertex_inputs = n_user_attributes;
       vk_pipeline->n_vertex_inputs = n_attributes;
     }
   else
@@ -578,7 +683,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
       if (vk_fb->vertices_mode != vk_pipeline->vertices_mode)
         _cogl_pipeline_vulkan_invalidate (pipeline);
 
-      _cogl_pipeline_vulkan_compute_attributes (pipeline, vk_pipeline,
+      _cogl_pipeline_vulkan_compute_attributes (ctx,
+                                                pipeline, vk_pipeline,
                                                 attributes, n_attributes);
 
       if (vk_pipeline->pipeline != VK_NULL_HANDLE)
@@ -587,10 +693,6 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
 
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
-
-  _cogl_pipeline_vulkan_build_attributes_field (vk_pipeline,
-                                                attributes,
-                                                n_attributes);
 
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
@@ -627,7 +729,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
 
   /* Compute the attributes' layout by querying the AST of the generated
      vertex shader. */
-  _cogl_pipeline_vulkan_compute_attributes (pipeline, vk_pipeline,
+  _cogl_pipeline_vulkan_compute_attributes (ctx,
+                                            pipeline, vk_pipeline,
                                             attributes, n_attributes);
   _cogl_pipeline_vulkan_create_pipeline (pipeline, vk_pipeline, framebuffer);
 

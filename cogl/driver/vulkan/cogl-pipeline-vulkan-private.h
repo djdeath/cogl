@@ -36,6 +36,9 @@
 
 #define _COGL_VULKAN_HAS_ATTRIBUTE(field, name_id) ((field) & (1 << (name_id)))
 
+CoglBuffer *
+_cogl_pipeline_ensure_default_attributes (CoglContext *ctx);
+
 void
 _cogl_vulkan_flush_attributes_state (CoglFramebuffer *framebuffer,
                                      CoglPipeline *pipeline,
@@ -56,8 +59,5 @@ _cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline);
 void
 _cogl_pipeline_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                          CoglPipelineState change);
-
-uint32_t
-_cogl_pipeline_vulkan_get_attributes_field (CoglPipeline *pipeline);
 
 #endif /* __COGL_PIPELINE_VULKAN_PRIVATE_H */
