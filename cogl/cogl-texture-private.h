@@ -154,7 +154,8 @@ typedef enum _CoglTextureSoureType {
   COGL_TEXTURE_SOURCE_TYPE_SIZED = 1,
   COGL_TEXTURE_SOURCE_TYPE_BITMAP,
   COGL_TEXTURE_SOURCE_TYPE_EGL_IMAGE,
-  COGL_TEXTURE_SOURCE_TYPE_GL_FOREIGN
+  COGL_TEXTURE_SOURCE_TYPE_GL_FOREIGN,
+  COGL_TEXTURE_SOURCE_TYPE_VULKAN_FOREIGN
 } CoglTextureSourceType;
 
 typedef struct _CoglTextureLoader
@@ -186,6 +187,16 @@ typedef struct _CoglTextureLoader
       unsigned int gl_handle;
       CoglPixelFormat format;
     } gl_foreign;
+#if defined (COGL_HAS_VULKAN)
+    struct {
+      int width;
+      int height;
+      VkImage image;
+      VkFormat format;
+      VkComponentMapping component_mapping;
+      VkImageLayout image_layout;
+    } vulkan_foreign;
+#endif
   } src;
 } CoglTextureLoader;
 

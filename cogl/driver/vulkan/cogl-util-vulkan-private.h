@@ -71,7 +71,7 @@
     __err = (ctx)->x;                                                   \
     while (__err != VK_SUCCESS)                                         \
       {                                                                 \
-        _cogl_set_error (error, dom, e,                                 \
+        _cogl_set_error (err, dom, e,                                   \
                          "%s: "                                         \
                          #x                                             \
                          ": VK error (%d): %s\n",                       \
@@ -87,7 +87,7 @@
     __err = (ctx)->x;                                           \
     while (__err != VK_SUCCESS)                                 \
       {                                                         \
-        _cogl_set_error (error, dom, e,                         \
+        _cogl_set_error (err, dom, e,                           \
                          "%s: "                                 \
                          #x                                     \
                          ": VK error (%d): %s\n",               \
@@ -101,6 +101,9 @@
 #define VK_TODO() do {                                                  \
     g_warning("Unimplemented function %s : %s", G_STRFUNC, G_STRLOC);   \
   } while(0)
+
+CoglPixelFormat
+_cogl_vulkan_format_to_pixel_format (VkFormat format);
 
 VkFormat
 _cogl_vulkan_format_unorm (VkFormat format);

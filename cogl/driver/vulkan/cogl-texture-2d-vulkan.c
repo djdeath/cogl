@@ -48,6 +48,12 @@ _cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d)
   return tex_2d->vk_image;
 }
 
+VkImageLayout
+_cogl_texture_2d_get_vulkan_image_layout (CoglTexture2D *tex_2d)
+{
+  return tex_2d->vk_image_layout;
+}
+
 VkImageView
 _cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d)
 {
@@ -57,8 +63,7 @@ _cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d)
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 {
-  return _cogl_pixel_format_to_vulkan_format_for_sampling (tex_2d->internal_format,
-                                                           NULL);
+  return tex_2d->vk_format;
 }
 
 void
@@ -70,7 +75,7 @@ _cogl_texture_2d_vulkan_free (CoglTexture2D *tex_2d)
   if (tex_2d->vk_image_view != VK_NULL_HANDLE)
     VK ( ctx,
          vkDestroyImageView (vk_ctx->device, tex_2d->vk_image_view, NULL) );
-  if (tex_2d->vk_image != VK_NULL_HANDLE)
+  if (!tex_2d->is_foreign && tex_2d->vk_image != VK_NULL_HANDLE)
     VK ( ctx,
          vkDestroyImage (vk_ctx->device, tex_2d->vk_image, NULL) );
   if (tex_2d->vk_memory != VK_NULL_HANDLE)
@@ -101,81 +106,77 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
 void
 _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
 {
-  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  tex_2d->vk_image = VK_NULL_HANDLE;
+  tex_2d->vk_image_view = VK_NULL_HANDLE;
+  tex_2d->vk_memory = VK_NULL_HANDLE;
 
-  /* We default to GL_LINEAR for both filters */
-  tex_2d->vk_min_filter = VK_FILTER_LINEAR;
-  tex_2d->vk_mag_filter = VK_FILTER_LINEAR;
-
-  /* Wrap mode to repeat */
-  tex_2d->vk_mode_u = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  tex_2d->vk_mode_v = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
+  tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
+  tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
+  tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A;
+  tex_2d->vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
+  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
+  tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 static CoglBool
-allocate_with_size (CoglTexture2D *tex_2d,
-                    CoglTextureLoader *loader,
-                    CoglError **error)
+create_image (CoglTexture2D *tex_2d,
+              VkImageUsageFlags usage,
+              int width, int height,
+              int mip_levels,
+              CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglContext *ctx = tex->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglPixelFormat internal_format;
-  int width = loader->src.sized.width;
-  int height = loader->src.sized.height;
-  VkFormat vk_format;
-  VkResult result;
-  VkMemoryRequirements reqs;
-
-  internal_format =
-    _cogl_texture_determine_internal_format (tex, COGL_PIXEL_FORMAT_ANY);
-  vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
-
-  if (vk_format == VK_FORMAT_UNDEFINED)
-    {
-      _cogl_set_error (error, COGL_TEXTURE_ERROR,
-                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
-                       "Failed to create texture 2d due to format constraints");
-      return FALSE;
-    }
+  VkImageCreateInfo image_create_info = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+    .imageType = VK_IMAGE_TYPE_2D,
+    .format = tex_2d->vk_format,
+    .extent = {
+      .width = width,
+      .height = height,
+      .depth = 1
+    },
+    .mipLevels = mip_levels,
+    .arrayLayers = 1,
+    .samples = VK_SAMPLE_COUNT_1_BIT,
+    .tiling = tex_2d->vk_image_tiling,
+    .usage = usage,
+    .flags = 0,
+    .initialLayout = tex_2d->vk_image_layout,
+  };
 
   VK_RET_VAL_ERROR ( ctx,
-                     vkCreateImage (vk_ctx->device, &(VkImageCreateInfo) {
-                         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                         .imageType = VK_IMAGE_TYPE_2D,
-                         .format = vk_format,
-                         .extent = {
-                           .width = width,
-                           .height = height,
-                           .depth = 1
-                         },
-                         .mipLevels = 1 + floor (log2 (MAX (width, height))),
-                         .arrayLayers = 1,
-                         .samples = VK_SAMPLE_COUNT_1_BIT,
-                         .tiling = VK_IMAGE_TILING_OPTIMAL,
-                         .usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
-                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-                         .flags = 0,
-                         .initialLayout = tex_2d->vk_image_layout,
-                       },
-                       NULL,
-                       &tex_2d->vk_image),
+                     vkCreateImage (vk_ctx->device, &image_create_info, NULL,
+                                    &tex_2d->vk_image),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  return TRUE;
+}
+
+static CoglBool
+allocate_image_memory (CoglTexture2D *tex_2d, uint32_t *size, CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  VkMemoryRequirements reqs;
+  VkMemoryAllocateInfo allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+  };
 
   VK ( ctx, vkGetImageMemoryRequirements (vk_ctx->device,
                                           tex_2d->vk_image,
                                           &reqs) );
+
+  allocate_info.allocationSize = reqs.size;
+  allocate_info.memoryTypeIndex =
+    _cogl_vulkan_context_get_memory_heap (ctx, reqs.memoryTypeBits);
   VK_RET_VAL_ERROR ( ctx,
-                     vkAllocateMemory (vk_ctx->device,
-                                       &(VkMemoryAllocateInfo) {
-                                         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                         .allocationSize = reqs.size,
-                                         .memoryTypeIndex =
-                                           _cogl_vulkan_context_get_memory_heap (ctx, reqs.memoryTypeBits),
-                                       },
-                                       NULL,
+                     vkAllocateMemory (vk_ctx->device, &allocate_info, NULL,
                                        &tex_2d->vk_memory),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
@@ -186,34 +187,77 @@ allocate_with_size (CoglTexture2D *tex_2d,
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
+  if (size)
+    *size = reqs.size;
+
+  return TRUE;
+}
+
+CoglBool
+create_image_view (CoglTexture2D *tex_2d, CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  VkImageViewCreateInfo image_view_create_info = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+    .flags = 0,
+    .image = tex_2d->vk_image,
+    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+    .format = tex_2d->vk_format,
+    .components = tex_2d->vk_component_mapping,
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+  };
+
   VK_RET_VAL_ERROR ( ctx,
-                     vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-                         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                         .flags = 0,
-                         .image = tex_2d->vk_image,
-                         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                         .format = vk_format,
-                         .components = {
-                           .r = VK_COMPONENT_SWIZZLE_R,
-                           .g = VK_COMPONENT_SWIZZLE_G,
-                           .b = VK_COMPONENT_SWIZZLE_B,
-                           .a = VK_COMPONENT_SWIZZLE_A,
-                         },
-                         .subresourceRange = {
-                           .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                           .baseMipLevel = 0,
-                           .levelCount = 1,
-                           .baseArrayLayer = 0,
-                           .layerCount = 1,
-                         },
-                       },
-                       NULL,
-                       &tex_2d->vk_image_view),
+                     vkCreateImageView (vk_ctx->device, &image_view_create_info, NULL,
+                                        &tex_2d->vk_image_view),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER);
 
-  tex_2d->internal_format = internal_format;
+  return TRUE;
+}
 
+static CoglBool
+allocate_with_size (CoglTexture2D *tex_2d,
+                    CoglTextureLoader *loader,
+                    CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglPixelFormat internal_format =
+    _cogl_texture_determine_internal_format (COGL_TEXTURE (tex_2d),
+                                             COGL_PIXEL_FORMAT_ANY);
+  int width = loader->src.sized.width, height = loader->src.sized.height;
+
+  tex_2d->vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
+  if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
+                       "Failed to create texture 2d due to format constraints");
+      return FALSE;
+    }
+
+  if (!create_image (tex_2d, (VK_IMAGE_USAGE_SAMPLED_BIT |
+                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+                     width, height,
+                     1 + floor (log2 (MAX (width, height))), error))
+    return FALSE;
+
+  if (!allocate_image_memory (tex_2d, NULL, error))
+    return FALSE;
+
+  if (!create_image_view (tex_2d, error))
+    return FALSE;
+
+  tex_2d->internal_format = internal_format;
   _cogl_texture_set_allocated (tex, internal_format, width, height);
 
   return TRUE;
@@ -229,17 +273,24 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglPixelFormat internal_format = loader->src.bitmap.bitmap->format;
   int format_bpp = _cogl_pixel_format_get_bytes_per_pixel (internal_format);
-  int width = loader->src.bitmap.bitmap->width;
-  int height = loader->src.bitmap.bitmap->height;
-  VkFormat vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
-  VkResult result;
-  VkMemoryRequirements reqs;
+  int width = loader->src.bitmap.bitmap->width,
+    height = loader->src.bitmap.bitmap->height;
+  uint32_t memory_size;
   void *data;
 
   /* TODO: Deal with cases where the bitmap has a backing CoglBuffer. */
 
-  if (vk_format == VK_FORMAT_UNDEFINED)
+  /* Override default tiling.
+
+     TODO: Consider always using optimal tiling and blit to an intermediate
+     linear buffer.
+   */
+  tex_2d->vk_image_tiling = VK_IMAGE_TILING_LINEAR;
+  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+  tex_2d->vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
+
+  if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
                        COGL_TEXTURE_ERROR_BAD_PARAMETER,
@@ -247,109 +298,73 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  VK_RET_VAL_ERROR ( ctx,
-                     vkCreateImage (vk_ctx->device, &(VkImageCreateInfo) {
-                         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                         .imageType = VK_IMAGE_TYPE_2D,
-                         .format = vk_format,
-                         .extent = {
-                           .width = width,
-                           .height = height,
-                           .depth = 1
-                         },
-                         .mipLevels = 1,
-                         .arrayLayers = 1,
-                         .samples = VK_SAMPLE_COUNT_1_BIT,
-                         .tiling = VK_IMAGE_TILING_LINEAR,
-                         .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
-                         .flags = 0,
-                         .initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED,
-                       },
-                       NULL,
-                       &tex_2d->vk_image),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+  if (!create_image (tex_2d, VK_IMAGE_USAGE_SAMPLED_BIT,
+                     width, height, 1, error))
+    return FALSE;
 
-  VK ( ctx,
-       vkGetImageMemoryRequirements (vk_ctx->device,
-                                     tex_2d->vk_image,
-                                     &reqs) );
-  VK_RET_VAL_ERROR ( ctx,
-                     vkAllocateMemory (vk_ctx->device,
-                                       &(VkMemoryAllocateInfo) {
-                                         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                         .allocationSize = reqs.size,
-                                         .memoryTypeIndex =
-                                           _cogl_vulkan_context_get_memory_heap (ctx, reqs.memoryTypeBits),
-                                       },
-                                       NULL,
-                                       &tex_2d->vk_memory),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
-
-  VK_RET_VAL_ERROR ( ctx,
-                     vkBindImageMemory(vk_ctx->device, tex_2d->vk_image,
-                                       tex_2d->vk_memory, 0),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+  if (!allocate_image_memory (tex_2d, &memory_size, error))
+    return FALSE;
 
   VK_RET_VAL_ERROR ( ctx,
                      vkMapMemory (vk_ctx->device,
                                   tex_2d->vk_memory, 0,
-                                  reqs.size, 0,
+                                  memory_size, 0,
                                   &data),
                      FALSE, error,
                      COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
 
-  if (loader->src.bitmap.bitmap->rowstride ==
-      width * _cogl_pixel_format_get_bytes_per_pixel (internal_format))
+  if (loader->src.bitmap.bitmap->rowstride == width * format_bpp)
     {
       memcpy (data, loader->src.bitmap.bitmap->data,
               width * height * format_bpp);
     }
   else
     {
-      int i, dst_rowstride = width * format_bpp;
+      int i, src_rowstride = loader->src.bitmap.bitmap->rowstride,
+        dst_rowstride = width * format_bpp;
 
       for (i = 0; i < height; i++) {
         memcpy (data + i * dst_rowstride,
-                loader->src.bitmap.bitmap->data +
-                i * loader->src.bitmap.bitmap->rowstride,
+                loader->src.bitmap.bitmap->data + i * src_rowstride,
                 dst_rowstride);
       }
     }
 
   VK ( ctx, vkUnmapMemory (vk_ctx->device, tex_2d->vk_memory) );
 
-  VK_RET_VAL_ERROR ( ctx,
-                     vkCreateImageView (vk_ctx->device, &(VkImageViewCreateInfo) {
-                         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                         .flags = 0,
-                         .image = tex_2d->vk_image,
-                         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                         .format = vk_format,
-                         .components = {
-                           .r = VK_COMPONENT_SWIZZLE_R,
-                           .g = VK_COMPONENT_SWIZZLE_G,
-                           .b = VK_COMPONENT_SWIZZLE_B,
-                           .a = VK_COMPONENT_SWIZZLE_A,
-                         },
-                         .subresourceRange = {
-                           .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                           .baseMipLevel = 0,
-                           .levelCount = 1,
-                           .baseArrayLayer = 0,
-                           .layerCount = 1,
-                         },
-                       },
-                       NULL,
-                       &tex_2d->vk_image_view),
-                     FALSE, error,
-                     COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+  if (!create_image_view (tex_2d, error))
+    return FALSE;
 
   tex_2d->internal_format = internal_format;
-
   _cogl_texture_set_allocated (tex, internal_format, width, height);
+
+  return TRUE;
+}
+
+static CoglBool
+allocate_from_foreign_vulkan (CoglTexture2D *tex_2d,
+                              CoglTextureLoader *loader,
+                              CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  int width = loader->src.vulkan_foreign.width,
+    height = loader->src.vulkan_foreign.height;
+
+  tex_2d->is_foreign = TRUE;
+
+  tex_2d->vk_format = loader->src.vulkan_foreign.format;
+  tex_2d->vk_image = loader->src.vulkan_foreign.image;
+  tex_2d->vk_component_mapping = loader->src.vulkan_foreign.component_mapping;
+  tex_2d->vk_image_layout = loader->src.vulkan_foreign.image_layout;
+  tex_2d->internal_format =
+    _cogl_vulkan_format_to_pixel_format (loader->src.vulkan_foreign.format);
+
+  if (!create_image_view (tex_2d, error))
+      return FALSE;
+
+  _cogl_texture_set_allocated (tex, tex_2d->internal_format, width, height);
 
   return TRUE;
 }
@@ -369,6 +384,8 @@ _cogl_texture_2d_vulkan_allocate (CoglTexture *tex,
       return allocate_with_size (tex_2d, loader, error);
     case COGL_TEXTURE_SOURCE_TYPE_BITMAP:
       return allocate_from_bitmap (tex_2d, loader, error);
+    case COGL_TEXTURE_SOURCE_TYPE_VULKAN_FOREIGN:
+      return allocate_from_foreign_vulkan (tex_2d, loader, error);
     default:
       break;
     }
@@ -446,4 +463,141 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                                   uint8_t *data)
 {
   VK_TODO();
+}
+
+void
+_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
+                                      VkCommandBuffer cmd_buffer)
+{
+  CoglContext *ctx = tex_2d->_parent.context;
+  VkImageMemoryBarrier image_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = tex_2d->vk_access_mask,
+    .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+    .oldLayout = tex_2d->vk_image_layout,
+    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .image = tex_2d->vk_image,
+    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+    .subresourceRange.baseMipLevel = 0,
+    .subresourceRange.levelCount = 1,
+    .subresourceRange.baseArrayLayer = 0,
+    .subresourceRange.layerCount = 1,
+  };
+
+  g_message ("host_read from layout=%i->%i",
+             image_barrier.oldLayout, image_barrier.newLayout);
+  if (tex_2d->vk_image_layout == image_barrier.newLayout)
+    return;
+
+  tex_2d->vk_image_layout = image_barrier.newLayout;
+  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
+
+  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
+                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                   VK_PIPELINE_STAGE_HOST_BIT,
+                                   0,
+                                   0, NULL,
+                                   0, NULL,
+                                   1, &image_barrier) );
+}
+
+void
+_cogl_texture_2d_vulkan_move_to_device_for_read (CoglTexture2D *tex_2d,
+                                                 VkCommandBuffer cmd_buffer)
+{
+  CoglContext *ctx = tex_2d->_parent.context;
+  VkImageMemoryBarrier image_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = tex_2d->vk_access_mask,
+    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+    .oldLayout = tex_2d->vk_image_layout,
+    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .image = tex_2d->vk_image,
+    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+    .subresourceRange.baseMipLevel = 0,
+    .subresourceRange.levelCount = 1,
+    .subresourceRange.baseArrayLayer = 0,
+    .subresourceRange.layerCount = 1,
+  };
+
+  if (tex_2d->vk_image_layout == image_barrier.newLayout)
+    return;
+
+  tex_2d->vk_image_layout = image_barrier.newLayout;
+  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
+
+  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
+                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                   0,
+                                   0, NULL,
+                                   0, NULL,
+                                   1, &image_barrier) );
+}
+
+void
+_cogl_texture_2d_vulkan_move_to_device_for_write (CoglTexture2D *tex_2d,
+                                                  VkCommandBuffer cmd_buffer)
+{
+  CoglContext *ctx = tex_2d->_parent.context;
+  VkImageMemoryBarrier image_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = tex_2d->vk_access_mask,
+    .dstAccessMask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT),
+    .oldLayout = tex_2d->vk_image_layout,
+    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .image = tex_2d->vk_image,
+    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+    .subresourceRange.baseMipLevel = 0,
+    .subresourceRange.levelCount = 1,
+    .subresourceRange.baseArrayLayer = 0,
+    .subresourceRange.layerCount = 1,
+  };
+
+  if (tex_2d->vk_image_layout == image_barrier.newLayout)
+    return;
+
+  tex_2d->vk_image_layout = image_barrier.newLayout;
+  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
+
+  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
+                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                   0,
+                                   0, NULL,
+                                   0, NULL,
+                                   1, &image_barrier) );
+}
+
+CoglTexture2D *
+_cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
+                                         int width,
+                                         int height,
+                                         VkImage image,
+                                         VkFormat format,
+                                         VkComponentMapping component_mapping,
+                                         VkImageLayout image_layout)
+{
+  CoglTextureLoader *loader;
+
+  _COGL_RETURN_VAL_IF_FAIL (image != VK_NULL_HANDLE, NULL);
+  _COGL_RETURN_VAL_IF_FAIL (width > 0 && height > 0, NULL);
+
+  loader = _cogl_texture_create_loader ();
+  loader->src_type = COGL_TEXTURE_SOURCE_TYPE_VULKAN_FOREIGN;
+  loader->src.vulkan_foreign.width = width;
+  loader->src.vulkan_foreign.height = height;
+  loader->src.vulkan_foreign.image = image;
+  loader->src.vulkan_foreign.format = format;
+  loader->src.vulkan_foreign.component_mapping = component_mapping;
+  loader->src.vulkan_foreign.image_layout = image_layout;
+
+  return _cogl_texture_2d_create_base (ctx, width, height, format, loader);
 }

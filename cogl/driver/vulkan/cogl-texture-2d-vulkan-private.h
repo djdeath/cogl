@@ -38,6 +38,9 @@
 VkImage
 _cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d);
 
+VkImageLayout
+_cogl_texture_2d_get_vulkan_image_layout (CoglTexture2D *tex_2d);
+
 VkImageView
 _cogl_texture_2d_get_vulkan_image_view (CoglTexture2D *tex_2d);
 
@@ -111,5 +114,26 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                               CoglPixelFormat format,
                               int rowstride,
                               uint8_t *data);
+
+void
+_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
+                                               VkCommandBuffer cmd_buffer);
+
+void
+_cogl_texture_2d_vulkan_move_to_device_for_read (CoglTexture2D *tex_2d,
+                                                 VkCommandBuffer cmd_buffer);
+
+void
+_cogl_texture_2d_vulkan_move_to_device_for_write (CoglTexture2D *tex_2d,
+                                                  VkCommandBuffer cmd_buffer);
+
+CoglTexture2D *
+_cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
+                                         int width,
+                                         int height,
+                                         VkImage image,
+                                         VkFormat format,
+                                         VkComponentMapping component_mapping,
+                                         VkImageLayout image_layout);
 
 #endif /* _COGL_TEXTURE_2D_VULKAN_PRIVATE_H_ */

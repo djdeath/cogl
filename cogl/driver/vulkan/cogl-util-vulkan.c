@@ -34,6 +34,28 @@
 
 #include "cogl-util-vulkan-private.h"
 
+CoglPixelFormat
+_cogl_vulkan_format_to_pixel_format (VkFormat format)
+{
+  switch (_cogl_vulkan_format_unorm (format))
+    {
+    case VK_FORMAT_R8_UNORM:
+      return COGL_PIXEL_FORMAT_G_8;
+    case VK_FORMAT_R8G8_UNORM:
+      return COGL_PIXEL_FORMAT_RG_88;
+    case VK_FORMAT_R8G8B8_UNORM:
+      return COGL_PIXEL_FORMAT_RGB_888;
+    case VK_FORMAT_B8G8R8_UNORM:
+      return COGL_PIXEL_FORMAT_BGR_888;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+      return COGL_PIXEL_FORMAT_RGBA_8888;
+    case VK_FORMAT_B8G8R8A8_UNORM:
+      return COGL_PIXEL_FORMAT_BGRA_8888;
+    default:
+      return COGL_PIXEL_FORMAT_ANY;
+    }
+}
+
 VkFormat
 _cogl_vulkan_format_unorm (VkFormat format)
 {
@@ -86,13 +108,11 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     {
     case COGL_PIXEL_FORMAT_RGBA_8888:
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      return VK_FORMAT_B8G8R8A8_SRGB;
-
+      return VK_FORMAT_R8G8B8A8_SRGB;
     case COGL_PIXEL_FORMAT_RGB_888:
       return VK_FORMAT_R8G8B8_SRGB;
     case COGL_PIXEL_FORMAT_BGR_888:
       return VK_FORMAT_B8G8R8_SRGB;
-
 
       /* TODO(dixit Mesa): Figure out what all the formats mean and make
        * this table correct.
@@ -103,10 +123,10 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
     /*   return VK_FORMAT_R4G4B4A4_UNORM_PACK16; */
     /* case COGL_PIXEL_FORMAT_RGBA_5551: */
     /*   return VK_FORMAT_R5G5B5A1_UNORM_PACK16; */
-    /* case COGL_PIXEL_FORMAT_G_8: */
-    /*     return VK_FORMAT_R8_SRGB; */
-    /* case COGL_PIXEL_FORMAT_RG_88: */
-    /*   return VK_FORMAT_R8G8_SRGB; */
+    case COGL_PIXEL_FORMAT_RG_88:
+      return VK_FORMAT_R8G8_SRGB;
+    case COGL_PIXEL_FORMAT_G_8:
+      return VK_FORMAT_R8_SRGB;
 
     /* case COGL_PIXEL_FORMAT_RGBA_8888: */
     /* case COGL_PIXEL_FORMAT_RGBA_8888_PRE: */
@@ -127,23 +147,10 @@ VkFormat
 _cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
                                                   CoglBool *premultiplied)
 {
+  VkFormat vk_format = _cogl_pixel_format_to_vulkan_format (format,
+                                                            premultiplied);
 
-  if (premultiplied)
-    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
-
-  switch (format)
-    {
-    case COGL_PIXEL_FORMAT_RGBA_8888:
-    case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      return VK_FORMAT_R8G8B8A8_UNORM;
-    case COGL_PIXEL_FORMAT_RGB_888:
-      return VK_FORMAT_R8G8B8_UNORM;
-    case COGL_PIXEL_FORMAT_BGR_888:
-      return VK_FORMAT_B8G8R8_UNORM;
-
-    default:
-      return VK_FORMAT_UNDEFINED;
-    }
+  return _cogl_vulkan_format_unorm (vk_format);
 }
 
 static VkFormat _attributes_to_formats[5][4] = {

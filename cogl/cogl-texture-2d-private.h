@@ -67,20 +67,16 @@ struct _CoglTexture2D
 
 #ifdef COGL_HAS_VULKAN
   VkImage vk_image;
-  VkImageView vk_image_view;
+  VkImageTiling vk_image_tiling;
+  VkComponentMapping vk_component_mapping;
+  VkFormat vk_format;
 
   VkDeviceMemory vk_memory;
 
+  VkImageView vk_image_view;
+
   VkImageLayout vk_image_layout;
-
-  VkFilter vk_min_filter;
-  VkFilter vk_mag_filter;
-
-  VkSamplerAddressMode vk_mode_u;
-  VkSamplerAddressMode vk_mode_v;
-
-  VkSampler vk_sampler;
-  CoglBool vk_sampler_valid;
+  VkAccessFlags vk_access_mask;
 #endif
 };
 
