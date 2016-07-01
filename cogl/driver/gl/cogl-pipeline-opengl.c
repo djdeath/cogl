@@ -936,7 +936,7 @@ flush_layers_common_gl_state_cb (CoglPipelineLayer *layer, void *user_data)
 
       sampler_state = _cogl_pipeline_layer_get_sampler_state (layer);
 
-      GE( ctx, glBindSampler (unit_index, sampler_state->sampler_object) );
+      GE( ctx, glBindSampler (unit_index, sampler_state->gl_sampler_object) );
     }
 
   /* FIXME: If using GLSL the progend we will use gl_PointCoord
