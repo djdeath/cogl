@@ -238,6 +238,9 @@ _cogl_sampler_cache_get_entry_cogl (CoglSamplerCache *cache,
       canonicalize_key (&canonical_key);
       gl_entry = _cogl_sampler_cache_get_entry_gl (cache, &canonical_key);
       entry->gl_sampler_object = gl_entry->gl_sampler_object;
+#ifdef HAVE_COGL_VULKAN
+      entry->vk_sampler = gl_entry->vk_sampler;
+#endif
 
       g_hash_table_insert (cache->hash_table_cogl, entry, entry);
     }

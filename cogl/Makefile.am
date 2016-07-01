@@ -371,6 +371,8 @@ cogl_driver_sources += \
 	driver/vulkan/cogl-pipeline-vertend-vulkan-private.h \
 	driver/vulkan/cogl-pipeline-vulkan.c \
 	driver/vulkan/cogl-pipeline-vulkan-private.h \
+	driver/vulkan/cogl-sampler-vulkan.c \
+	driver/vulkan/cogl-sampler-vulkan-private.h \
 	driver/vulkan/cogl-texture-2d-vulkan.c \
 	driver/vulkan/cogl-texture-2d-vulkan-private.h \
 	driver/vulkan/cogl-texture-driver-vulkan.c \

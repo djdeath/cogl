@@ -47,6 +47,7 @@
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-framebuffer-vulkan-private.h"
 #include "cogl-pipeline-vulkan-private.h"
+#include "cogl-sampler-vulkan-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 
 static CoglBool
@@ -105,6 +106,8 @@ _cogl_driver_update_features (CoglContext *ctx,
   COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_OFFSCREEN_BLIT, TRUE);
   COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_PBOS, TRUE);
   COGL_FLAGS_SET (ctx->private_features, COGL_PRIVATE_FEATURE_VBOS, TRUE);
+  COGL_FLAGS_SET (ctx->private_features,
+                  COGL_PRIVATE_FEATURE_SAMPLER_OBJECTS, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_OFFSCREEN, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_POINT_SPRITE, TRUE);
@@ -407,4 +410,6 @@ _cogl_driver_vulkan =
     _cogl_buffer_vulkan_map_range,
     _cogl_buffer_vulkan_unmap,
     _cogl_buffer_vulkan_set_data,
+    _cogl_sampler_vulkan_create,
+    _cogl_sampler_vulkan_destroy,
   };

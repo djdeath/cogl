@@ -62,6 +62,9 @@ typedef struct _CoglSamplerCache CoglSamplerCache;
 typedef struct _CoglSamplerCacheEntry
 {
   GLuint gl_sampler_object;
+#ifdef HAVE_COGL_VULKAN
+  VkSampler vk_sampler;
+#endif
 
   GLenum min_filter;
   GLenum mag_filter;
