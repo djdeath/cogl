@@ -192,7 +192,7 @@ COGL_BUFFER_DEFINE (UniformBuffer, uniform_buffer);
 COGL_GTYPE_DEFINE_CLASS (UniformBuffer, uniform_buffer);
 
 static CoglUniformBuffer *
-_cogl_uniform_buffer_new (CoglContext *context, size_t bytes)
+cogl_uniform_buffer_new (CoglContext *context, size_t bytes)
 {
   CoglUniformBuffer *uniforms = g_slice_new (CoglUniformBuffer);
 
@@ -584,7 +584,8 @@ update_constants_cb (CoglPipeline *pipeline,
           image_info->sampler = unit_state->sampler;
           image_info->imageView =
             _cogl_texture_2d_get_vulkan_image_view (COGL_TEXTURE_2D (texture));
-          image_info->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+          image_info->imageLayout =
+            _cogl_texture_2d_get_vulkan_image_layout (COGL_TEXTURE_2D (texture));
         }
     }
 
@@ -969,23 +970,25 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                                     0);
 
       program_state->uniform_buffer =
-        COGL_BUFFER (_cogl_uniform_buffer_new (ctx, block_size));
+        COGL_BUFFER (cogl_uniform_buffer_new (ctx, block_size));
     }
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
     {
+      VkPipelineLayoutCreateInfo layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+      };
+
       _cogl_pipeline_create_descriptor_set_layout (pipeline,
                                                    program_state,
                                                    ctx);
 
+      layout_create_info.pSetLayouts = &program_state->descriptor_set_layout;
       VK_RET ( ctx,
-               vkCreatePipelineLayout (vk_ctx->device, &(VkPipelineLayoutCreateInfo) {
-                   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                   .setLayoutCount = 1,
-                   .pSetLayouts = &program_state->descriptor_set_layout,
-                 },
-                 NULL,
-                 &program_state->pipeline_layout) );
+               vkCreatePipelineLayout (vk_ctx->device, &layout_create_info,
+                                       NULL,
+                                       &program_state->pipeline_layout) );
 
       program_state->stage_info[0] = (VkPipelineShaderStageCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1009,7 +1012,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       program_changed = TRUE;
     }
 
-  if (program_state->descriptor_set == VK_NULL_HANDLE)
+  if (program_state->descriptor_pool == VK_NULL_HANDLE)
     {
       CoglBuffer *buf = program_state->uniform_buffer;
       CoglBufferVulkan *vk_buf = buf->winsys;
@@ -1038,14 +1041,20 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                vkCreateDescriptorPool (vk_ctx->device, &create_info,
                                        NULL, &program_state->descriptor_pool) );
 
+    }
+
+  if (program_state->descriptor_set == VK_NULL_HANDLE)
+    {
+      VkDescriptorSetAllocateInfo allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = program_state->descriptor_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &program_state->descriptor_set_layout,
+      };
+
       VK_RET ( ctx,
-               vkAllocateDescriptorSets (vk_ctx->device, &(VkDescriptorSetAllocateInfo) {
-                   .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                   .descriptorPool = program_state->descriptor_pool,
-                   .descriptorSetCount = 1,
-                   .pSetLayouts = &program_state->descriptor_set_layout,
-                 },
-                 &program_state->descriptor_set) );
+               vkAllocateDescriptorSets (vk_ctx->device, &allocate_info,
+                                         &program_state->descriptor_set) );
     }
 
   state.unit = 0;
@@ -1194,6 +1203,14 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
                                     program_state->unit_state[unit_index].sampler,
                                     NULL) );
               program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
+            }
+          if (program_state->descriptor_set != VK_NULL_HANDLE)
+            {
+              VK ( ctx,
+                   vkFreeDescriptorSets (vk_ctx->device,
+                                         program_state->descriptor_pool,
+                                         1, &program_state->descriptor_set) );
+              program_state->descriptor_set = VK_NULL_HANDLE;
             }
         }
     }
