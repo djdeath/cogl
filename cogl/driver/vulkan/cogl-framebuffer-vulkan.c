@@ -809,7 +809,9 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                  error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
     }
 
-  /* End any drawing operation on the source framebuffer. */
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  /* End any pending drawing operation on the source framebuffer. */
   _cogl_journal_flush (framebuffer->journal);
   _cogl_framebuffer_vulkan_end_render_pass (framebuffer);
 
