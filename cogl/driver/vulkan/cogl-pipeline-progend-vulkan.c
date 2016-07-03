@@ -104,14 +104,15 @@ typedef struct _UnitState
 
   unsigned int dirty_combine_constant:1;
   unsigned int dirty_texture_matrix:1;
-  unsigned int dirty_texture:1;
 
   CoglShaderVulkanUniform *combine_constant_uniform;
   CoglShaderVulkanUniform *texture_matrix_uniform;
 
+  int binding;
+
+  /* Not owned */
   VkSampler sampler;
   VkImageView image_view;
-  int binding;
 } UnitState;
 
 typedef struct
@@ -304,14 +305,6 @@ destroy_program_state (void *user_data,
              vkDestroyPipelineLayout (vk_ctx->device,
                                       program_state->pipeline_layout, NULL) );
 
-      for (i = 0; i < program_state->n_layers; i++)
-        {
-          if (program_state->unit_state[i].sampler != VK_NULL_HANDLE)
-            VK ( ctx,
-                 vkDestroySampler (vk_ctx->device,
-                                   program_state->unit_state[i].sampler,
-                                   NULL) );
-        }
       g_free (program_state->unit_state);
 
       g_free (program_state->write_descriptor_sets);
@@ -1204,6 +1197,11 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
   CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglPipelineProgramState *program_state = get_program_state (owner);
+  int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
+
+  if (!program_state)
+    return;
 
   if ((change & (_cogl_pipeline_get_layer_state_for_fragment_codegen (ctx) |
                  COGL_PIPELINE_LAYER_STATE_AFFECTS_VERTEX_CODEGEN)))
@@ -1212,54 +1210,19 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
     }
   else if (change & COGL_PIPELINE_LAYER_STATE_COMBINE_CONSTANT)
     {
-      CoglPipelineProgramState *program_state = get_program_state (owner);
-      if (program_state)
-        {
-          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
-          program_state->unit_state[unit_index].dirty_combine_constant = TRUE;
-        }
+      program_state->unit_state[unit_index].dirty_combine_constant = TRUE;
     }
   else if (change & COGL_PIPELINE_LAYER_STATE_USER_MATRIX)
     {
-      CoglPipelineProgramState *program_state = get_program_state (owner);
-      if (program_state)
-        {
-          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
-          program_state->unit_state[unit_index].dirty_texture_matrix = TRUE;
-        }
+      program_state->unit_state[unit_index].dirty_texture_matrix = TRUE;
     }
   else if (change & COGL_PIPELINE_LAYER_STATE_SAMPLER)
     {
-      CoglPipelineProgramState *program_state = get_program_state (owner);
-      if (program_state)
-        {
-          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
-          if (program_state->unit_state[unit_index].sampler != VK_NULL_HANDLE)
-            {
-              VK (ctx,
-                  vkDestroySampler (vk_ctx->device,
-                                    program_state->unit_state[unit_index].sampler,
-                                    NULL) );
-              program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
-            }
-          if (program_state->descriptor_set != VK_NULL_HANDLE)
-            {
-              VK ( ctx,
-                   vkFreeDescriptorSets (vk_ctx->device,
-                                         program_state->descriptor_pool,
-                                         1, &program_state->descriptor_set) );
-              program_state->descriptor_set = VK_NULL_HANDLE;
-            }
-        }
+      program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
     }
   else if (change & COGL_PIPELINE_LAYER_STATE_TEXTURE_DATA)
     {
-      CoglPipelineProgramState *program_state = get_program_state (owner);
-      if (program_state)
-        {
-          int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
-          program_state->unit_state[unit_index].dirty_texture = TRUE;
-        }
+      program_state->unit_state[unit_index].image_view = VK_NULL_HANDLE;
     }
 }
 
