@@ -134,6 +134,7 @@ _cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
                                          VkImage image,
                                          VkFormat format,
                                          VkComponentMapping component_mapping,
-                                         VkImageLayout image_layout);
+                                         VkImageLayout image_layout,
+                                         VkAccessFlags access_mask);
 
 #endif /* _COGL_TEXTURE_2D_VULKAN_PRIVATE_H_ */

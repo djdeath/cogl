@@ -46,7 +46,7 @@
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
-#include "cogl-framebuffer-private.h"
+#include "cogl-framebuffer-vulkan-private.h"
 #include "cogl-gtype-private.h"
 #include "cogl-pipeline-cache.h"
 #include "cogl-pipeline-fragend-vulkan-private.h"
@@ -110,6 +110,7 @@ typedef struct _UnitState
   CoglShaderVulkanUniform *texture_matrix_uniform;
 
   VkSampler sampler;
+  VkImageView image_view;
   int binding;
 } UnitState;
 
@@ -559,36 +560,6 @@ update_constants_cb (CoglPipeline *pipeline,
       unit_state->dirty_texture_matrix = FALSE;
     }
 
-  if (state->update_all || unit_state->dirty_texture)
-    {
-      CoglTexture *texture = cogl_pipeline_get_layer_texture (pipeline, layer_index);
-
-      if (_cogl_texture_get_type (texture) == COGL_TEXTURE_TYPE_2D)
-        {
-          int index = program_state->n_write_descriptor_sets++;
-          VkWriteDescriptorSet *write_set =
-            &program_state->write_descriptor_sets[index];
-          VkDescriptorImageInfo *image_info =
-            &program_state->descriptor_image_infos[index];
-
-          if (unit_state->sampler == VK_NULL_HANDLE)
-            create_sampler (pipeline, layer_index, unit_state);
-
-          write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-          write_set->dstSet = program_state->descriptor_set;
-          write_set->dstBinding = unit_state->binding;
-          write_set->descriptorCount = 1;
-          write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-          write_set->pImageInfo = image_info;
-
-          image_info->sampler = unit_state->sampler;
-          image_info->imageView =
-            _cogl_texture_2d_get_vulkan_image_view (COGL_TEXTURE_2D (texture));
-          image_info->imageLayout =
-            _cogl_texture_2d_get_vulkan_image_layout (COGL_TEXTURE_2D (texture));
-        }
-    }
-
   return TRUE;
 }
 
@@ -863,6 +834,71 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
 }
 
 static CoglBool
+compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
+{
+  CoglPipelineProgramState *program_state = user_data;
+  UnitState *unit_state = &program_state->unit_state[layer->index];
+  const CoglSamplerCacheEntry *sampler_entry =
+    _cogl_pipeline_layer_get_sampler_state (layer);
+  CoglTexture2D *texture;
+
+  /* TODO: We only support 2D texture for now. */
+  g_assert (layer->texture_type == COGL_TEXTURE_TYPE_2D);
+
+  texture = COGL_TEXTURE_2D (layer->texture);
+
+  g_message ("sampler%i %x/%x", layer->index,
+             unit_state->sampler, sampler_entry->vk_sampler);
+  g_message ("image%i %x", layer->index,
+             _cogl_texture_2d_get_vulkan_image (texture));
+  g_message ("image_view%i %x/%x", layer->index,
+             unit_state->image_view,
+             _cogl_texture_2d_get_vulkan_image_view (texture));
+
+  if (unit_state->sampler == VK_NULL_HANDLE ||
+      unit_state->sampler != sampler_entry->vk_sampler ||
+      unit_state->image_view != _cogl_texture_2d_get_vulkan_image_view (texture))
+    {
+      int index = program_state->n_write_descriptor_sets++;
+      VkWriteDescriptorSet *write_set =
+        &program_state->write_descriptor_sets[index];
+      VkDescriptorImageInfo *image_info =
+        &program_state->descriptor_image_infos[index];
+
+      write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      write_set->dstSet = program_state->descriptor_set;
+      write_set->dstBinding = unit_state->binding;
+      write_set->descriptorCount = 1;
+      write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      write_set->pImageInfo = image_info;
+
+      image_info->sampler = sampler_entry->vk_sampler;
+      image_info->imageView = _cogl_texture_2d_get_vulkan_image_view (texture);
+      image_info->imageLayout =
+        _cogl_texture_2d_get_vulkan_image_layout (texture);
+
+      /* Update unit state for layer flushes. */
+      unit_state->sampler = image_info->sampler;
+      unit_state->image_view = image_info->imageView;
+    }
+
+  return TRUE;
+}
+
+void
+_cogl_pipeline_progend_flush_descriptors (CoglPipeline *pipeline)
+{
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
+
+  g_message ("flush descriptors layers=%i!",
+             cogl_pipeline_get_n_layers (pipeline));
+
+  _cogl_pipeline_foreach_layer_internal (pipeline,
+                                         compare_layer_differences_cb,
+                                         program_state);
+}
+
+static CoglBool
 _cogl_pipeline_progend_vulkan_start (CoglPipeline *pipeline)
 {
   return TRUE;
@@ -1124,8 +1160,13 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                const CoglColor *new_color)
 {
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
 
   _cogl_pipeline_vulkan_pre_change_notify (pipeline, change);
+
+  if (!program_state)
+    return;
 
   if ((change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
                  _cogl_pipeline_get_state_for_fragment_codegen (ctx))))
@@ -1141,10 +1182,7 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
             (ctx, builtin_uniforms[i].feature_replacement) &&
             (change & builtin_uniforms[i].change))
           {
-            CoglPipelineProgramState *program_state
-              = get_program_state (pipeline);
-            if (program_state)
-              program_state->dirty_builtin_uniforms |= 1 << i;
+            program_state->dirty_builtin_uniforms |= 1 << i;
             return;
           }
     }
@@ -1231,6 +1269,7 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
 {
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglBufferVulkan *vk_uniform_buffer = program_state->uniform_buffer->winsys;
   VkWriteDescriptorSet *write_set =
     &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets];
@@ -1266,6 +1305,13 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
                                    0, NULL) );
       program_state->n_write_descriptor_sets = 0;
     }
+
+  VK ( ctx, vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
+                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                     program_state->pipeline_layout,
+                                     0, 1,
+                                     &program_state->descriptor_set,
+                                     0, NULL) );
 }
 
 static void

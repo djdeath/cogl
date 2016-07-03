@@ -752,7 +752,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
     .flags = 0,
     .imageType = VK_IMAGE_TYPE_2D,
-    .format = VK_FORMAT_B8G8R8A8_SRGB, /* _cogl_pixel_format_to_vulkan_format (bitmap->format, NULL), */
+    .format = _cogl_pixel_format_to_vulkan_format (bitmap->format, NULL),
     .extent = {
       .width = bitmap->width,
       .height = bitmap->height,
@@ -811,6 +811,10 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                  error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
     }
 
+  /* End any drawing operation on the source framebuffer. */
+  _cogl_journal_flush (framebuffer->journal);
+  _cogl_framebuffer_vulkan_end_render_pass (framebuffer);
+
   src_texture =
     COGL_TEXTURE (_cogl_texture_2d_vulkan_new_for_foreign (ctx,
                                                            framebuffer->width,
@@ -818,25 +822,43 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                            vk_fb->color_image,
                                                            _cogl_vulkan_format_unorm (vk_fb->color_format),
                                                            vk_component_mapping,
-                                                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+                                                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                                           (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                                                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)));
+  if (!cogl_texture_allocate (src_texture, error))
+    goto error;
 
-  g_message ("src_image=%x dst_image=%x",
-             vk_fb->color_image, dst_image);
+  /* Move framebuffer as read item. */
+  _cogl_texture_2d_vulkan_move_to_device_for_read (COGL_TEXTURE_2D (src_texture),
+                                                   vk_fb->cmd_buffer);
+
+  cogl_framebuffer_finish (framebuffer);
+  cogl_object_unref (src_texture);
+  g_message ("\tframebuffer finish done");
+
+  src_texture =
+    COGL_TEXTURE (_cogl_texture_2d_vulkan_new_for_foreign (ctx,
+                                                           framebuffer->width,
+                                                           framebuffer->height,
+                                                           vk_fb->color_image,
+                                                           _cogl_vulkan_format_unorm (vk_fb->color_format),
+                                                           vk_component_mapping,
+                                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                           VK_ACCESS_SHADER_READ_BIT));
   dst_texture =
     COGL_TEXTURE (_cogl_texture_2d_vulkan_new_for_foreign (ctx,
                                                            bitmap->width,
                                                            bitmap->height,
                                                            dst_image,
-                                                           VK_FORMAT_B8G8R8A8_SRGB,
+                                                           _cogl_vulkan_format_unorm (image_create_info.format),
                                                            vk_component_mapping,
-                                                           image_create_info.initialLayout));
+                                                           image_create_info.initialLayout,
+                                                           (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                                                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)));
 
   if (!cogl_texture_allocate (src_texture, error) ||
       !cogl_texture_allocate (dst_texture, error))
     goto error;
-
-  /* End any drawing operation on the source framebuffer. */
-  cogl_framebuffer_finish (framebuffer);
 
   offscreen = COGL_FRAMEBUFFER (cogl_offscreen_new_with_texture (dst_texture));
   cogl_framebuffer_set_depth_write_enabled (offscreen, FALSE);
@@ -846,16 +868,9 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
 
   vk_dst_fb = offscreen->winsys;
 
-  _cogl_framebuffer_vulkan_ensure_command_buffer (offscreen);
-
-  /* Move framebuffer as read item. */
-  _cogl_texture_2d_vulkan_move_to_device_for_read (COGL_TEXTURE_2D (src_texture),
-                                                   vk_dst_fb->cmd_buffer);
-
   _cogl_framebuffer_vulkan_begin_render_pass (offscreen);
 
   pipeline = cogl_pipeline_new (offscreen->context);
-  cogl_pipeline_set_color4ub (pipeline, 0, 0xff, 0, 0xff);
   cogl_pipeline_set_layer_texture (pipeline, 0, src_texture);
 
   cogl_framebuffer_draw_textured_rectangle (offscreen, pipeline,
@@ -867,15 +882,15 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
 
   _cogl_journal_flush (offscreen->journal);
 
+  _cogl_framebuffer_vulkan_end_render_pass (offscreen);
+
   /* Move offscreen framebuffer to host. */
   _cogl_texture_2d_vulkan_move_to_host (COGL_TEXTURE_2D (dst_texture),
                                         vk_dst_fb->cmd_buffer);
 
   /* Put the framebuffer back as an attachment. */
-  _cogl_texture_2d_vulkan_move_to_device_for_read (COGL_TEXTURE_2D (src_texture),
-                                                   vk_dst_fb->cmd_buffer);
-
-  _cogl_framebuffer_vulkan_end_render_pass (offscreen);
+  _cogl_texture_2d_vulkan_move_to_device_for_write (COGL_TEXTURE_2D (src_texture),
+                                                    vk_dst_fb->cmd_buffer);
 
   cogl_framebuffer_finish (offscreen);
 

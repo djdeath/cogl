@@ -195,6 +195,7 @@ typedef struct _CoglTextureLoader
       VkFormat format;
       VkComponentMapping component_mapping;
       VkImageLayout image_layout;
+      VkAccessFlags access_mask;
     } vulkan_foreign;
 #endif
   } src;

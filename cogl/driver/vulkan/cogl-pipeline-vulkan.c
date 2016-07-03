@@ -64,10 +64,9 @@ typedef struct _CoglPipelineVulkan
 
   CoglVerticesMode vertices_mode;
 
-  /* A bit field of CoglAttributeNameID easily figure out what attributes
-     are available and which one need to be hardcoded in the vertex
-     shader. */
-  uint32_t attributes_field;
+  /* Not owned, this lets us know when a pipeline is being used with
+     different framebuffers. */
+  CoglFramebuffer *framebuffer;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -101,6 +100,8 @@ static DefaultBuiltinAttribute default_attributes[] =
       VK_FORMAT_R32G32B32_SFLOAT,
     }
   };
+
+static CoglUserDataKey framebuffer_pipeline_key;
 
 CoglBuffer *
 _cogl_pipeline_ensure_default_attributes (CoglContext *ctx)
@@ -142,6 +143,11 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
 
   if (!vk_pipeline)
     return;
+
+  if (vk_pipeline->framebuffer)
+    cogl_object_set_user_data (COGL_OBJECT (vk_pipeline->framebuffer),
+                               &framebuffer_pipeline_key,
+                               NULL, NULL);
 
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     {
@@ -255,6 +261,33 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
     }
 
   return TRUE;
+}
+
+static void
+_cogl_pipeline_vulkan_unset_framebuffer (void *user_data)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (COGL_PIPELINE (user_data));
+
+  vk_pipeline->framebuffer = NULL;
+}
+
+static void
+_cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
+                                       CoglFramebuffer *framebuffer)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  if (vk_pipeline->framebuffer)
+    cogl_object_set_user_data (COGL_OBJECT (framebuffer),
+                               &framebuffer_pipeline_key,
+                               NULL, NULL);
+
+  vk_pipeline->framebuffer = framebuffer;
+
+  cogl_object_set_user_data (COGL_OBJECT (framebuffer),
+                             &framebuffer_pipeline_key,
+                             pipeline,
+                             _cogl_pipeline_vulkan_unset_framebuffer);
 }
 
 static void
@@ -691,8 +724,16 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
         goto done;
     }
 
+  if (vk_pipeline && vk_pipeline->framebuffer != framebuffer)
+    {
+      g_message ("invalidate, different framebuffer!");
+    _cogl_pipeline_vulkan_invalidate (pipeline);
+    }
+
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
+
+  _cogl_pipeline_vulkan_set_framebuffer (pipeline, framebuffer);
 
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
@@ -738,6 +779,8 @@ done:
 
   progend = _cogl_pipeline_progends[pipeline->progend];
 
+  _cogl_pipeline_progend_flush_descriptors (pipeline);
+
   /* Give the progend a chance to update any uniforms that might not
    * depend on the material state. This is used on GLES2 to update the
    * matrices */
@@ -747,14 +790,6 @@ done:
   VK ( ctx, vkCmdBindPipeline (vk_fb->cmd_buffer,
                                VK_PIPELINE_BIND_POINT_GRAPHICS,
                                vk_pipeline->pipeline) );
-
-  pipeline_layout = _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline);
-  descriptor_set = _cogl_pipeline_progend_get_vulkan_descriptor_set (pipeline);
-  VK ( ctx, vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
-                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                     pipeline_layout,
-                                     0, 1,
-                                     &descriptor_set, 0, NULL) );
 
   VK ( ctx, vkCmdBindVertexBuffers (vk_fb->cmd_buffer,
                                     0, vk_pipeline->n_vertex_inputs,

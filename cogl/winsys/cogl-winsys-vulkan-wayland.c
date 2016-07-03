@@ -536,8 +536,9 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                  .imageColorSpace = vk_color_space,
                  .imageExtent = { framebuffer->width, framebuffer->height },
                  .imageArrayLayers = 1,
-                 .imageUsage = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                VK_IMAGE_USAGE_SAMPLED_BIT),
+                 .imageUsage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
                  .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
                  .queueFamilyIndexCount = 1,
                  .pQueueFamilyIndices = (uint32_t[]) { 0 },

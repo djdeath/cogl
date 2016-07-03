@@ -144,7 +144,9 @@ create_image (CoglTexture2D *tex_2d,
     .samples = VK_SAMPLE_COUNT_1_BIT,
     .tiling = tex_2d->vk_image_tiling,
     .usage = usage,
-    .flags = 0,
+    /* TODO: support depth textures */
+    .flags = (VK_IMAGE_USAGE_SAMPLED_BIT |
+              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
     .initialLayout = tex_2d->vk_image_layout,
   };
 
@@ -358,6 +360,7 @@ allocate_from_foreign_vulkan (CoglTexture2D *tex_2d,
   tex_2d->vk_image = loader->src.vulkan_foreign.image;
   tex_2d->vk_component_mapping = loader->src.vulkan_foreign.component_mapping;
   tex_2d->vk_image_layout = loader->src.vulkan_foreign.image_layout;
+  tex_2d->vk_access_mask = loader->src.vulkan_foreign.access_mask;
   tex_2d->internal_format =
     _cogl_vulkan_format_to_pixel_format (loader->src.vulkan_foreign.format);
 
@@ -486,8 +489,6 @@ _cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
     .subresourceRange.layerCount = 1,
   };
 
-  g_message ("host_read from layout=%i->%i",
-             image_barrier.oldLayout, image_barrier.newLayout);
   if (tex_2d->vk_image_layout == image_barrier.newLayout)
     return;
 
@@ -583,7 +584,8 @@ _cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
                                          VkImage image,
                                          VkFormat format,
                                          VkComponentMapping component_mapping,
-                                         VkImageLayout image_layout)
+                                         VkImageLayout image_layout,
+                                         VkAccessFlags access_mask)
 {
   CoglTextureLoader *loader;
 
@@ -598,6 +600,7 @@ _cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
   loader->src.vulkan_foreign.format = format;
   loader->src.vulkan_foreign.component_mapping = component_mapping;
   loader->src.vulkan_foreign.image_layout = image_layout;
+  loader->src.vulkan_foreign.access_mask = access_mask;
 
   return _cogl_texture_2d_create_base (ctx, width, height, format, loader);
 }
