@@ -779,7 +779,7 @@ done:
 
   progend = _cogl_pipeline_progends[pipeline->progend];
 
-  _cogl_pipeline_progend_flush_descriptors (pipeline);
+  _cogl_pipeline_progend_flush_descriptors (ctx, pipeline);
 
   /* Give the progend a chance to update any uniforms that might not
    * depend on the material state. This is used on GLES2 to update the

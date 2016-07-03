@@ -826,10 +826,18 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
                                         &program_state->descriptor_set_layout) );
 }
 
+typedef struct
+{
+  CoglContext *context;
+  CoglPipelineProgramState *program_state;
+} FlushDescriptors;
+
 static CoglBool
 compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
 {
-  CoglPipelineProgramState *program_state = user_data;
+  FlushDescriptors *data = user_data;
+  CoglContext *context = data->context;
+  CoglPipelineProgramState *program_state = data->program_state;
   UnitState *unit_state = &program_state->unit_state[layer->index];
   const CoglSamplerCacheEntry *sampler_entry =
     _cogl_pipeline_layer_get_sampler_state (layer);
@@ -838,15 +846,10 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
   /* TODO: We only support 2D texture for now. */
   g_assert (layer->texture_type == COGL_TEXTURE_TYPE_2D);
 
-  texture = COGL_TEXTURE_2D (layer->texture);
-
-  g_message ("sampler%i %x/%x", layer->index,
-             unit_state->sampler, sampler_entry->vk_sampler);
-  g_message ("image%i %x", layer->index,
-             _cogl_texture_2d_get_vulkan_image (texture));
-  g_message ("image_view%i %x/%x", layer->index,
-             unit_state->image_view,
-             _cogl_texture_2d_get_vulkan_image_view (texture));
+  if (layer->texture)
+    texture = COGL_TEXTURE_2D (layer->texture);
+  else
+    texture = context->default_gl_texture_2d_tex;
 
   if (unit_state->sampler == VK_NULL_HANDLE ||
       unit_state->sampler != sampler_entry->vk_sampler ||
@@ -879,16 +882,17 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
 }
 
 void
-_cogl_pipeline_progend_flush_descriptors (CoglPipeline *pipeline)
+_cogl_pipeline_progend_flush_descriptors (CoglContext *context,
+                                          CoglPipeline *pipeline)
 {
-  CoglPipelineProgramState *program_state = get_program_state (pipeline);
-
-  g_message ("flush descriptors layers=%i!",
-             cogl_pipeline_get_n_layers (pipeline));
+  FlushDescriptors data = {
+    .context = context,
+    .program_state = get_program_state (pipeline),
+  };
 
   _cogl_pipeline_foreach_layer_internal (pipeline,
                                          compare_layer_differences_cb,
-                                         program_state);
+                                         &data);
 }
 
 static CoglBool

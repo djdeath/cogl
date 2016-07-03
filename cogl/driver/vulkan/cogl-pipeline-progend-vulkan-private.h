@@ -51,6 +51,7 @@ CoglShaderVulkan *
 _cogl_pipeline_progend_get_vulkan_shader (CoglPipeline *pipeline);
 
 void
-_cogl_pipeline_progend_flush_descriptors (CoglPipeline *pipeline);
+_cogl_pipeline_progend_flush_descriptors (CoglContext *context,
+                                          CoglPipeline *pipeline);
 
 #endif /* __COGL_PIPELINE_PROGEND_VULKAN_PRIVATE_H */
