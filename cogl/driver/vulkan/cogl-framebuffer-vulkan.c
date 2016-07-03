@@ -769,8 +769,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   };
   VkMemoryRequirements reqs;
 
-  g_message ("read pixels begin");
-
   VK_ERROR ( ctx,
              vkCreateImage (vk_ctx->device, &image_create_info,
                             NULL, &dst_image),
@@ -834,7 +832,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
 
   cogl_framebuffer_finish (framebuffer);
   cogl_object_unref (src_texture);
-  g_message ("\tframebuffer finish done");
 
   src_texture =
     COGL_TEXTURE (_cogl_texture_2d_vulkan_new_for_foreign (ctx,
@@ -928,8 +925,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     VK ( ctx, vkDestroyImage (vk_ctx->device, dst_image, NULL) );
   if (dst_image_memory)
     VK ( ctx, vkFreeMemory (vk_ctx->device, dst_image_memory, NULL) );
-
-  g_message ("read pixels ends");
 
   return ret;
 }
