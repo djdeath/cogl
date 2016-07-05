@@ -1002,6 +1002,10 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                                vk_off->framebuffer,
                                                _cogl_texture_2d_get_vulkan_image (tex_2d));
 
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  _cogl_texture_2d_vulkan_move_to_device_for_write (tex_2d, vk_fb->cmd_buffer);
+
   return TRUE;
 
  error:
