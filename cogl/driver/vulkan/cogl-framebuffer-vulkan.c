@@ -138,18 +138,28 @@ _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  int i;
 
-  if (vk_fb->cmd_buffer)
-    VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                                   1, &vk_fb->cmd_buffer) );
+  if (vk_fb->cmd_buffers->len > 0)
+    {
+      /* TODO: We might need to wait for any in flight command buffer. */
+      VK ( ctx,
+           vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                 vk_fb->cmd_buffers->len,
+                                 (VkCommandBuffer *) vk_fb->cmd_buffers->data) );
+    }
+  g_array_unref (vk_fb->cmd_buffers);
+
   if (vk_fb->render_pass != VK_NULL_HANDLE)
     VK ( ctx, vkDestroyRenderPass (vk_ctx->device, vk_fb->render_pass, NULL) );
-  if (vk_fb->depth_image_view)
+  if (vk_fb->fence != VK_NULL_HANDLE)
+    VK ( ctx, vkDestroyFence (vk_ctx->device, vk_fb->fence, NULL) );
+  if (vk_fb->depth_image_view != VK_NULL_HANDLE)
     VK ( ctx, vkDestroyImageView (vk_ctx->device, vk_fb->depth_image_view,
                                   NULL) );
-  if (vk_fb->depth_image)
+  if (vk_fb->depth_image != VK_NULL_HANDLE)
     VK ( ctx, vkDestroyImage (vk_ctx->device, vk_fb->depth_image, NULL) );
-  if (vk_fb->depth_memory)
+  if (vk_fb->depth_memory != VK_NULL_HANDLE)
     VK ( ctx, vkFreeMemory (vk_ctx->device, vk_fb->depth_memory, NULL) );
 }
 
@@ -228,11 +238,24 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
   vk_fb->color_format = color_format;
 
   VK_RET_VAL_ERROR ( ctx,
+                     vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
+                         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+                       },
+                       NULL,
+                       &vk_fb->fence),
+                     FALSE,
+                     error, COGL_FRAMEBUFFER_ERROR,
+                     COGL_FRAMEBUFFER_ERROR_ALLOCATE );
+
+  VK_RET_VAL_ERROR ( ctx,
                      vkCreateRenderPass (vk_ctx->device, &render_pass_info,
                                          NULL, &vk_fb->render_pass),
                      FALSE,
                      error, COGL_FRAMEBUFFER_ERROR,
                      COGL_FRAMEBUFFER_ERROR_ALLOCATE );
+
+  vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
 
   return TRUE;
 }
@@ -300,8 +323,12 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
            vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
                                      &vk_fb->cmd_buffer) );
 
+  g_array_append_val (vk_fb->cmd_buffers, vk_fb->cmd_buffer);
+
   VK_RET ( ctx,
            vkBeginCommandBuffer (vk_fb->cmd_buffer, &buffer_begin_info) );
+
+  g_message ("begin command buffer!");
 }
 
 static void
@@ -413,7 +440,7 @@ _cogl_framebuffer_vulkan_end_render_pass (CoglFramebuffer *framebuffer)
 }
 
 void
-_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer)
+_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
 {
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
@@ -428,21 +455,44 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer)
 
   VK ( ctx, vkEndCommandBuffer (vk_fb->cmd_buffer) );
 
-  VK ( ctx, vkResetFences (vk_ctx->device, 1, &vk_ctx->fence) );
+  if (wait_fence)
+    {
+      int i;
 
-  VK_ERROR ( ctx,
-             vkQueueSubmit (vk_ctx->queue, 1,
-                            &(VkSubmitInfo) {
-                              .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                              .commandBufferCount = 1,
-                              .pCommandBuffers = &vk_fb->cmd_buffer,
-                            }, vk_ctx->fence),
-             &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+      VK ( ctx, vkResetFences (vk_ctx->device, 1, &vk_fb->fence) );
 
-  VK_ERROR (ctx, vkWaitForFences (vk_ctx->device,
-                                  1, (VkFence[]) { vk_ctx->fence },
-                                  VK_TRUE, INT64_MAX),
-            &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+      VK_ERROR ( ctx,
+                 vkQueueSubmit (vk_ctx->queue, 1,
+                                &(VkSubmitInfo) {
+                                  .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                  .commandBufferCount = 1,
+                                  .pCommandBuffers = &vk_fb->cmd_buffer,
+                                }, vk_fb->fence),
+                 &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+
+      VK_ERROR (ctx, vkWaitForFences (vk_ctx->device,
+                                      1, (VkFence[]) { vk_fb->fence },
+                                      VK_TRUE, INT64_MAX),
+                &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+
+      VK ( ctx,
+           vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                 vk_fb->cmd_buffers->len,
+                                 (VkCommandBuffer *) vk_fb->cmd_buffers->data) );
+
+      g_array_set_size (vk_fb->cmd_buffers, 0);
+    }
+  else
+    {
+      VK_ERROR ( ctx,
+                 vkQueueSubmit (vk_ctx->queue, 1,
+                                &(VkSubmitInfo) {
+                                  .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                  .commandBufferCount = 1,
+                                  .pCommandBuffers = &vk_fb->cmd_buffer,
+                                }, VK_NULL_HANDLE),
+                 &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+    }
 
   goto cleanup;
 
@@ -451,8 +501,6 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer)
   _cogl_clear_error (&error);
 
  cleanup:
-  VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                                  1, &vk_fb->cmd_buffer) );
 
   vk_fb->cmd_buffer = VK_NULL_HANDLE;
   vk_fb->cmd_buffer_length = 0;
@@ -574,7 +622,7 @@ _cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
 
-  _cogl_framebuffer_vulkan_end (framebuffer);
+  _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
 }
 
 void

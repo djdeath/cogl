@@ -57,7 +57,6 @@ typedef struct _CoglRendererVulkan
 typedef struct _CoglContextVulkan
 {
   VkQueue queue;
-  VkFence fence;
   VkCommandPool cmd_pool;
 
   CoglBuffer *default_attributes;

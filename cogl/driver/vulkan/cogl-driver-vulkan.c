@@ -296,15 +296,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   vk_ctx->device = vk_renderer->device;
 
-  VK_ERROR ( context,
-             vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
-                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                 .flags = 0,
-               },
-               NULL,
-               &vk_ctx->fence),
-             error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
-
   VK ( context, vkGetDeviceQueue (vk_ctx->device, 0, 0, &vk_ctx->queue) );
 
   VK_ERROR ( context,
@@ -339,9 +330,6 @@ _cogl_vulkan_context_deinit (CoglContext *context)
   if (vk_ctx->cmd_pool != VK_NULL_HANDLE)
     VK ( context,
          vkDestroyCommandPool (vk_ctx->device, vk_ctx->cmd_pool, NULL) );
-  if (vk_ctx->fence != VK_NULL_HANDLE)
-    VK ( context,
-         vkDestroyFence (vk_ctx->device, vk_ctx->fence, NULL) );
 
   g_slice_free (CoglContextVulkan, vk_ctx);
 }

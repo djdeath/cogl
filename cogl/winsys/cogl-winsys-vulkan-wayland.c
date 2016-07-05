@@ -712,7 +712,7 @@ _cogl_winsys_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
   _cogl_list_insert (&vk_onscreen->frame_callbacks,
                      &frame_callback_data->link);
 
-  _cogl_framebuffer_vulkan_end (COGL_FRAMEBUFFER (onscreen));
+  _cogl_framebuffer_vulkan_end (COGL_FRAMEBUFFER (onscreen), TRUE);
 
   VK_RET ( ctx,
            vkQueuePresentKHR (vk_ctx->queue, &(VkPresentInfoKHR) {

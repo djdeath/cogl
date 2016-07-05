@@ -46,7 +46,11 @@ typedef struct _CoglFramebufferVulkan
   VkDeviceMemory depth_memory;
 
   VkRenderPass render_pass;
+  GArray *cmd_buffers;
   VkCommandBuffer cmd_buffer;
+  int cmd_buffer_index;
+
+  VkFence fence;
 
   CoglBool render_pass_started;
   uint32_t cmd_buffer_length;
@@ -156,7 +160,8 @@ void
 _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen);
 
 void
-_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer);
+_cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer,
+                              CoglBool wait_fence);
 
 
 #endif /* __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__ */
