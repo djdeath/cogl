@@ -144,9 +144,7 @@ create_image (CoglTexture2D *tex_2d,
     .samples = VK_SAMPLE_COUNT_1_BIT,
     .tiling = tex_2d->vk_image_tiling,
     .usage = usage,
-    /* TODO: support depth textures */
-    .flags = (VK_IMAGE_USAGE_SAMPLED_BIT |
-              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+    .flags = 0,
     .initialLayout = tex_2d->vk_image_layout,
   };
 
@@ -300,7 +298,8 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  if (!create_image (tex_2d, VK_IMAGE_USAGE_SAMPLED_BIT,
+  if (!create_image (tex_2d, (VK_IMAGE_USAGE_SAMPLED_BIT |
+                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
                      width, height, 1, error))
     return FALSE;
 
