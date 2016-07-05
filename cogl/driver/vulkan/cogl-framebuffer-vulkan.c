@@ -752,38 +752,6 @@ _cogl_framebuffer_vulkan_framebuffer_read_barrier (CoglFramebuffer *framebuffer,
                                    1, &image_barrier) );
 }
 
-static void
-_cogl_framebuffer_vulkan_image_read_barrier (CoglFramebuffer *framebuffer,
-                                             VkCommandBuffer cmd_buffer,
-                                             VkImage image)
-{
-  CoglContext *ctx = framebuffer->context;
-  VkImageMemoryBarrier image_barrier;
-
-  memset (&image_barrier, 0, sizeof (image_barrier));
-  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  image_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  image_barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-  image_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.image = image;
-  image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  image_barrier.subresourceRange.baseMipLevel = 0;
-  image_barrier.subresourceRange.levelCount = 1;
-  image_barrier.subresourceRange.baseArrayLayer = 0;
-  image_barrier.subresourceRange.layerCount = 1;
-
-  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   0,
-                                   0, NULL,
-                                   0, NULL,
-                                   1, &image_barrier) );
-}
-
 CoglBool
 _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                   int x,
