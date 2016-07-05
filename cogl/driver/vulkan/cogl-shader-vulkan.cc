@@ -69,6 +69,8 @@ struct _CoglShaderVulkan
   VkShaderModule modules[NB_STAGES];
 
   int block_size[NB_STAGES];
+
+  char *shaders[NB_STAGES];
 };
 
 static CoglShaderVulkanAttribute *
@@ -266,6 +268,9 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
       VK ( shader->context,
            vkDestroyShaderModule (vk_ctx->device,
                                   shader->modules[stage], NULL) );
+
+    if (shader->shaders[stage])
+      g_free (shader->shaders[stage]);
   }
 
   if (shader->program)
@@ -307,12 +312,16 @@ _cogl_shader_vulkan_new (CoglContext *context)
 
 extern "C" void
 _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
-                                CoglGlslShaderType type,
+                                CoglGlslShaderType stage,
                                 const char *string)
 {
   glslang::TShader *gl_shader =
-    new glslang::TShader (_cogl_glsl_shader_type_to_es_language (type));
+    new glslang::TShader (_cogl_glsl_shader_type_to_es_language (stage));
   gl_shader->setStrings(&string, 1);
+
+  if (G_UNLIKELY (shader->shaders[stage]))
+    g_free (shader->shaders[stage]);
+  shader->shaders[stage] = g_strdup (string);
 
   glslang::TShader::ForbidInclude no_include;
   bool success = gl_shader->parse(&kDefaultTBuiltInResource,
@@ -329,7 +338,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
     COGL_NOTE (VULKAN, "Shader compilation failed : %s\n%s\n",
                gl_shader->getInfoLog(), gl_shader->getInfoDebugLog());
 
-  shader->program->addShader (gl_shader);
+  shader->program->addShader(gl_shader);
 }
 
 static void
@@ -624,9 +633,16 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
   delete shader->program;
   shader->program = nullptr;
 
+
   if (shader->block_size[COGL_GLSL_SHADER_TYPE_VERTEX] !=
       shader->block_size[COGL_GLSL_SHADER_TYPE_FRAGMENT])
-    g_warning ("Vertex & fragment shaders have different block sizes.");
+    {
+      g_warning ("Vertex & fragment shaders have different block sizes (%i/%i).",
+                 shader->block_size[COGL_GLSL_SHADER_TYPE_VERTEX],
+                 shader->block_size[COGL_GLSL_SHADER_TYPE_FRAGMENT]);
+      g_warning ("Vertex : \n%s", shader->shaders[COGL_GLSL_SHADER_TYPE_VERTEX]);
+      g_warning ("Fragment : \n%s", shader->shaders[COGL_GLSL_SHADER_TYPE_FRAGMENT]);
+    }
 
   return true;
 }

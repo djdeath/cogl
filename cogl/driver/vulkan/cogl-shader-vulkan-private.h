@@ -68,7 +68,7 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader);
 
 void
 _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
-                                CoglGlslShaderType type,
+                                CoglGlslShaderType stage,
                                 const char *string);
 
 CoglBool
@@ -100,7 +100,7 @@ _cogl_shader_vulkan_get_n_samplers (CoglShaderVulkan *shader,
 
 VkShaderModule
 _cogl_shader_vulkan_get_shader_module (CoglShaderVulkan *shader,
-                                       CoglGlslShaderType type);
+                                       CoglGlslShaderType stage);
 
 #ifdef __cplusplus
 }
