@@ -45,20 +45,22 @@ typedef struct _CoglFramebufferVulkan
   VkImageView depth_image_view;
   VkDeviceMemory depth_memory;
 
+  VkFence fence;
+
   VkRenderPass render_pass;
   GArray *cmd_buffers;
-  VkCommandBuffer cmd_buffer;
-  int cmd_buffer_index;
 
-  VkFence fence;
+  /* A copy of the last item in cmd_buffers for conviniency. */
+  VkCommandBuffer cmd_buffer;
 
   CoglBool render_pass_started;
   uint32_t cmd_buffer_length;
 
-  float clear_color[4]; /* rgba */
-  unsigned long clear_mask;
-
-  VkRect2D render_area;
+  /* An array of pipeline being used by the GPU. Some of the data attached
+     onto pipelines must be kept alive for as long as the command buffers
+     using them haven't been processed. We keep a reference on those
+     pipelines until we know they're not in use anymore. */
+  GPtrArray *pipelines;
 
   /* This is a temporary variable used to work around Cogl internal API that
      is doesn't currently propagate vertices mode down to the pipeline
