@@ -507,6 +507,18 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
 }
 
 void
+_cogl_framebuffer_vulkan_ensure_clean_command_buffer (CoglFramebuffer *framebuffer)
+{
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+
+  if (vk_fb->cmd_buffer_length < 1)
+    return;
+
+  _cogl_framebuffer_vulkan_end (framebuffer, FALSE);
+  _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
+}
+
+void
 _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                                       CoglFramebuffer *read_buffer,
                                       CoglFramebufferState state)

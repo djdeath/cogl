@@ -1273,6 +1273,8 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
       program_state->n_write_descriptor_sets = 0;
     }
 
+  _cogl_framebuffer_vulkan_ensure_clean_command_buffer (framebuffer);
+
   VK ( ctx, vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
                                      program_state->pipeline_layout,

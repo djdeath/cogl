@@ -163,5 +163,8 @@ void
 _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer,
                               CoglBool wait_fence);
 
+void
+_cogl_framebuffer_vulkan_ensure_clean_command_buffer (CoglFramebuffer *framebuffer);
+
 
 #endif /* __COGL_FRAMEBUFFER_VULKAN_PRIVATE_H__ */
