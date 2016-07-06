@@ -474,9 +474,10 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
                                 }, vk_fb->fence),
                  &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
 
-      VK_ERROR (ctx, vkWaitForFences (vk_ctx->device,
-                                      1, (VkFence[]) { vk_fb->fence },
-                                      VK_TRUE, INT64_MAX),
+      VK_ERROR (ctx,
+                vkWaitForFences (vk_ctx->device,
+                                 1, (VkFence[]) { vk_fb->fence },
+                                 VK_TRUE, INT64_MAX),
                 &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
 
       VK ( ctx,
@@ -924,12 +925,10 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     {
       void *data;
 
-      VK_ERROR (ctx, vkMapMemory (vk_ctx->device,
-                                  dst_image_memory,
-                                  0,
-                                  reqs.size,
-                                  0,
-                                  &data),
+      VK_ERROR (ctx,
+                vkMapMemory (vk_ctx->device, dst_image_memory,
+                             0, reqs.size, 0,
+                             &data),
                 error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP );
 
       // TODO: check rowstride
