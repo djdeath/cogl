@@ -62,6 +62,7 @@ typedef struct _CoglPipelineVulkan
   VkBuffer *attribute_buffers; /* VkBuffer elements are not owned */
   VkDeviceSize *attribute_offsets;
 
+  CoglColorMask color_mask;
   CoglVerticesMode vertices_mode;
 
   /* Not owned, this lets us know when a pipeline is being used with
@@ -510,6 +511,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     return;
 
+  vk_pipeline->color_mask = framebuffer->color_mask;
   vk_pipeline->vertices_mode = vk_fb->vertices_mode;
 
   /* Blending */
@@ -539,10 +541,6 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     vk_blend_attachment_state.blendEnable =
       _cogl_pipeline_get_blend_enabled (blend_authority) ==
       COGL_PIPELINE_BLEND_ENABLE_DISABLED ? VK_FALSE : VK_TRUE;
-    vk_blend_attachment_state.colorWriteMask = (VK_COLOR_COMPONENT_A_BIT |
-                                                VK_COLOR_COMPONENT_R_BIT |
-                                                VK_COLOR_COMPONENT_G_BIT |
-                                                VK_COLOR_COMPONENT_B_BIT);
     vk_blend_attachment_state.srcColorBlendFactor =
       _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_src_factor_rgb);
     vk_blend_attachment_state.dstColorBlendFactor =
@@ -555,6 +553,12 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
       _cogl_blend_factor_to_vulkan_blend_factor (blend_state->blend_dst_factor_alpha);
     vk_blend_attachment_state.alphaBlendOp =
       _cogl_blend_equation_to_vulkan_blend_op (blend_state->blend_equation_alpha);
+
+    vk_blend_attachment_state.colorWriteMask =
+      ((framebuffer->color_mask & COGL_COLOR_MASK_RED) ? VK_COLOR_COMPONENT_R_BIT : 0) |
+      ((framebuffer->color_mask & COGL_COLOR_MASK_GREEN) ? VK_COLOR_COMPONENT_G_BIT : 0) |
+      ((framebuffer->color_mask & COGL_COLOR_MASK_BLUE) ? VK_COLOR_COMPONENT_B_BIT : 0) |
+      ((framebuffer->color_mask & COGL_COLOR_MASK_ALPHA) ? VK_COLOR_COMPONENT_A_BIT : 0);
   }
 
   /* Rastering */
@@ -707,27 +711,22 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
 
   COGL_TIMER_START (_cogl_uprof_context, pipeline_flush_timer);
 
-  if (!pipeline->dirty_real_blend_enable &&
-      vk_pipeline &&
+  if (vk_pipeline &&
       vk_pipeline->pipeline != VK_NULL_HANDLE &&
       _cogl_pipeline_vertend_vulkan_get_shader (pipeline) != NULL &&
       _cogl_pipeline_fragend_vulkan_get_shader (pipeline) != NULL)
     {
-      if (vk_fb->vertices_mode != vk_pipeline->vertices_mode)
+      if (vk_fb->vertices_mode != vk_pipeline->vertices_mode ||
+          framebuffer->color_mask != vk_pipeline->color_mask ||
+          vk_pipeline->framebuffer != framebuffer) /* TODO: we can refine*/
         _cogl_pipeline_vulkan_invalidate (pipeline);
-
-      _cogl_pipeline_vulkan_compute_attributes (ctx,
-                                                pipeline, vk_pipeline,
-                                                attributes, n_attributes);
+      else
+        _cogl_pipeline_vulkan_compute_attributes (ctx,
+                                                  pipeline, vk_pipeline,
+                                                  attributes, n_attributes);
 
       if (vk_pipeline->pipeline != VK_NULL_HANDLE)
         goto done;
-    }
-
-  if (vk_pipeline && vk_pipeline->framebuffer != framebuffer)
-    {
-      g_message ("invalidate, different framebuffer!");
-    _cogl_pipeline_vulkan_invalidate (pipeline);
     }
 
   if (!vk_pipeline)
