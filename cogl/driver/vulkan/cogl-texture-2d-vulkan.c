@@ -32,6 +32,7 @@
 
 #include <string.h>
 
+#include "cogl-buffer-vulkan-private.h"
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
 #include "cogl-error-private.h"
@@ -264,8 +265,9 @@ allocate_with_size (CoglTexture2D *tex_2d,
 }
 
 static CoglBool
-allocate_from_bitmap (CoglTexture2D *tex_2d,
+load_data_to_texture (CoglTexture2D *tex_2d,
                       CoglTextureLoader *loader,
+                      uint32_t memory_size,
                       CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
@@ -275,36 +277,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   int format_bpp = _cogl_pixel_format_get_bytes_per_pixel (internal_format);
   int width = loader->src.bitmap.bitmap->width,
     height = loader->src.bitmap.bitmap->height;
-  uint32_t memory_size;
   void *data;
-
-  /* TODO: Deal with cases where the bitmap has a backing CoglBuffer. */
-
-  /* Override default tiling.
-
-     TODO: Consider always using optimal tiling and blit to an intermediate
-     linear buffer.
-   */
-  tex_2d->vk_image_tiling = VK_IMAGE_TILING_LINEAR;
-  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-  tex_2d->vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
-
-  if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
-    {
-      _cogl_set_error (error, COGL_TEXTURE_ERROR,
-                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
-                       "Failed to create texture 2d due to format constraints");
-      return FALSE;
-    }
-
-  if (!create_image (tex_2d, (VK_IMAGE_USAGE_SAMPLED_BIT |
-                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-                     width, height, 1, error))
-    return FALSE;
-
-  if (!allocate_image_memory (tex_2d, &memory_size, error))
-    return FALSE;
 
   VK_RET_VAL_ERROR ( ctx,
                      vkMapMemory (vk_ctx->device,
@@ -332,6 +305,185 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
     }
 
   VK ( ctx, vkUnmapMemory (vk_ctx->device, tex_2d->vk_memory) );
+
+  return TRUE;
+}
+
+static CoglBool
+load_buffer_to_texture (CoglTexture2D *tex_2d,
+                        CoglTextureLoader *loader,
+                        CoglBitmap *bitmap,
+                        CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglBufferVulkan *vk_buf = bitmap->buffer->winsys;
+  VkCommandBufferAllocateInfo buffer_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = vk_ctx->cmd_pool,
+    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    .commandBufferCount = 1,
+  };
+  VkCommandBufferBeginInfo buffer_begin_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    .flags = 0
+  };
+  VkBufferImageCopy image_copy = {
+    .bufferOffset = 0,
+    .bufferRowLength = bitmap->width,
+    .bufferImageHeight = bitmap->height,
+    .imageSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .mipLevel = 0,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+    .imageOffset = { 0, 0, 0, },
+    .imageExtent = { bitmap->width, bitmap->height, 1 },
+  };
+  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+  VkFence fence = VK_NULL_HANDLE;
+  CoglBool ret = FALSE;
+
+  VK_ERROR ( ctx,
+             vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
+                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                 .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+               },
+               NULL,
+               &fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( ctx,
+             vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
+                                       &cmd_buffer),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( ctx,
+             vkBeginCommandBuffer (cmd_buffer, &buffer_begin_info),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  if (!_cogl_buffer_vulkan_flush_mapped_memory (bitmap->buffer, error))
+    goto error;
+
+  _cogl_buffer_vulkan_move_to_device (bitmap->buffer, cmd_buffer);
+
+  VK ( ctx,
+       vkCmdCopyBufferToImage (cmd_buffer,
+                               vk_buf->buffer,
+                               tex_2d->vk_image,
+                               tex_2d->vk_image_layout,
+                               1,
+                               &image_copy) );
+
+  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
+
+  VK_ERROR ( ctx,
+             vkEndCommandBuffer (cmd_buffer),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( ctx,
+             vkResetFences (vk_ctx->device, 1, &fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( ctx,
+             vkQueueSubmit (vk_ctx->queue, 1,
+                            &(VkSubmitInfo) {
+                              .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                              .commandBufferCount = 1,
+                              .pCommandBuffers = &cmd_buffer,
+                            }, fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR (ctx, vkWaitForFences (vk_ctx->device,
+                                  1, (VkFence[]) { fence },
+                                  VK_TRUE, INT64_MAX),
+            error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  ret = TRUE;
+
+ error:
+
+  if (cmd_buffer != VK_NULL_HANDLE)
+    VK ( ctx,
+         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                               1, &cmd_buffer) );
+  if (fence != VK_NULL_HANDLE)
+    VK ( ctx, vkDestroyFence (vk_ctx->device, fence, NULL) );
+
+  return ret;
+}
+
+static CoglBool
+allocate_from_bitmap (CoglTexture2D *tex_2d,
+                      CoglTextureLoader *loader,
+                      CoglError **error)
+{
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglPixelFormat internal_format = loader->src.bitmap.bitmap->format;
+  int width = loader->src.bitmap.bitmap->width,
+    height = loader->src.bitmap.bitmap->height;
+  uint32_t memory_size;
+  VkImageUsageFlags initial_image_usage;
+
+  /* Override default tiling.
+
+     TODO: Consider always using optimal tiling and blit to an intermediate
+     linear buffer.
+   */
+  tex_2d->vk_image_tiling = VK_IMAGE_TILING_LINEAR;
+  if (loader->src.bitmap.bitmap->shared_bmp ||
+      loader->src.bitmap.bitmap->buffer)
+    {
+      tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      tex_2d->vk_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      initial_image_usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                             VK_IMAGE_USAGE_SAMPLED_BIT |
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    }
+  else
+    {
+      tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+      initial_image_usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    }
+  tex_2d->vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
+
+  if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
+    {
+      _cogl_set_error (error, COGL_TEXTURE_ERROR,
+                       COGL_TEXTURE_ERROR_BAD_PARAMETER,
+                       "Failed to create texture 2d due to format constraints");
+      return FALSE;
+    }
+
+  if (!create_image (tex_2d, initial_image_usage, width, height, 1, error))
+    return FALSE;
+
+  if (!allocate_image_memory (tex_2d, &memory_size, error))
+    return FALSE;
+
+  if (loader->src.bitmap.bitmap->shared_bmp)
+    {
+      /* TODO */
+      g_assert_not_reached();
+    }
+  else if (loader->src.bitmap.bitmap->buffer)
+    {
+      if (!load_buffer_to_texture (tex_2d, loader,
+                                   loader->src.bitmap.bitmap,
+                                   error))
+        return FALSE;
+    }
+  else
+    {
+      if (!load_data_to_texture (tex_2d, loader, memory_size, error))
+        return FALSE;
+    }
 
   if (!create_image_view (tex_2d, error))
     return FALSE;

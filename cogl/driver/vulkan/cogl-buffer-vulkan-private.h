@@ -40,6 +40,7 @@ typedef struct _CoglBufferVulkan
 {
   VkBuffer buffer;
   VkDeviceMemory memory;
+  VkAccessFlags access_mask;
 
   CoglBool memory_need_flush;
 } CoglBufferVulkan;
@@ -75,5 +76,9 @@ _cogl_buffer_vulkan_flush_mapped_memory (CoglBuffer *buffer,
 CoglBool
 _cogl_buffer_vulkan_invalidate_mapped_memory (CoglBuffer *buffer,
                                               CoglError **error);
+
+void
+_cogl_buffer_vulkan_move_to_device (CoglBuffer *buffer,
+                                    VkCommandBuffer cmd_buffer);
 
 #endif /* _COGL_BUFFER_VULKAN_PRIVATE_H_ */
