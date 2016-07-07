@@ -461,9 +461,8 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
 
   if (wait_fence)
     {
-      int i;
-
-      VK ( ctx, vkResetFences (vk_ctx->device, 1, &vk_fb->fence) );
+      VK_ERROR ( ctx, vkResetFences (vk_ctx->device, 1, &vk_fb->fence),
+                 &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
 
       VK_ERROR ( ctx,
                  vkQueueSubmit (vk_ctx->queue, 1,
