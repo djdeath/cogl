@@ -589,7 +589,24 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
                                           int level,
                                           CoglError **error)
 {
+  if (level != 0 && !tex_2d->vk_has_mipmap)
+    _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
+
+  if (bmp->shared_bmp)
+    {
+      VK_TODO();
+      _cogl_set_error (error, COGL_SYSTEM_ERROR, COGL_SYSTEM_ERROR_UNSUPPORTED,
+                       "Unsupported shared bitmap copy to texture");
+      return FALSE;
+    }
+  else if (bmp->buffer)
+    {
+      if (src_x == 0 && src_y == 0 && bmp->width == width && bmp->height == height)
+        return load_bitmap_buffer_to_texture (tex_2d, bmp, dst_x, dst_y, error);
+    }
+
   VK_TODO();
+
   return FALSE;
 }
 
