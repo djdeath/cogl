@@ -574,6 +574,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     vk_raster_state.frontFace =
       _cogl_winding_to_vulkan_front_face (cogl_pipeline_get_front_face_winding (pipeline));
 
+    vk_raster_state.lineWidth = 1.0;
   }
 
   /* Depth */
