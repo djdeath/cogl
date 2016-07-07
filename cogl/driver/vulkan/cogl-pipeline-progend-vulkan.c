@@ -1055,7 +1055,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = NULL,
-        .flags = 0,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = 1,
         .poolSizeCount = n_samplers > 0 ? 2 : 1,
         .pPoolSizes = (VkDescriptorPoolSize[]) {
