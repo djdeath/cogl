@@ -130,6 +130,8 @@ _cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
       return VK_FORMAT_R8G8_SRGB;
     case COGL_PIXEL_FORMAT_G_8:
       return VK_FORMAT_R8_SRGB;
+    case COGL_PIXEL_FORMAT_A_8:
+      return VK_FORMAT_R8_SRGB;
 
     /* case COGL_PIXEL_FORMAT_RGBA_8888: */
     /* case COGL_PIXEL_FORMAT_RGBA_8888_PRE: */
