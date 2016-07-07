@@ -127,6 +127,10 @@ void
 _cogl_texture_2d_vulkan_move_to_color_attachment (CoglTexture2D *tex_2d,
                                                   VkCommandBuffer cmd_buffer);
 
+void
+_cogl_texture_2d_vulkan_move_to_transfer_destination (CoglTexture2D *tex_2d,
+                                                      VkCommandBuffer cmd_buffer);
+
 CoglTexture2D *
 _cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,
                                          int width,

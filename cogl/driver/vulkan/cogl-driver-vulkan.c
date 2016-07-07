@@ -335,6 +335,92 @@ _cogl_vulkan_context_deinit (CoglContext *context)
   g_slice_free (CoglContextVulkan, vk_ctx);
 }
 
+CoglBool
+_cogl_vulkan_context_create_command_buffer (CoglContext *context,
+                                            VkCommandBuffer *cmd_buffer,
+                                            CoglError **error)
+{
+  CoglContextVulkan *vk_ctx = context->winsys;
+  VkCommandBufferAllocateInfo buffer_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = vk_ctx->cmd_pool,
+    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    .commandBufferCount = 1,
+  };
+  VkCommandBufferBeginInfo buffer_begin_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    .flags = 0
+  };
+
+  VK_ERROR ( context,
+             vkAllocateCommandBuffers (vk_ctx->device,
+                                       &buffer_allocate_info,
+                                       cmd_buffer),
+             error, COGL_SYSTEM_ERROR, COGL_SYSTEM_ERROR_NO_MEMORY );
+
+  VK_ERROR ( context,
+             vkBeginCommandBuffer (*cmd_buffer, &buffer_begin_info),
+             error, COGL_SYSTEM_ERROR, COGL_SYSTEM_ERROR_NO_MEMORY );
+
+  return TRUE;
+
+ error:
+
+  if (*cmd_buffer != VK_NULL_HANDLE)
+    VK ( context,
+         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                               1, cmd_buffer) );
+
+  return FALSE;
+}
+
+CoglBool
+_cogl_vulkan_context_submit_command_buffer (CoglContext *context,
+                                            VkCommandBuffer cmd_buffer,
+                                            CoglError **error)
+{
+  CoglContextVulkan *vk_ctx = context->winsys;
+  VkFence fence = VK_NULL_HANDLE;
+  CoglBool ret = FALSE;
+
+  VK ( context, vkEndCommandBuffer (cmd_buffer) );
+
+  VK_ERROR ( context,
+             vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
+                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                 .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+               },
+               NULL,
+               &fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( context,
+             vkResetFences (vk_ctx->device, 1, &fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( context,
+             vkQueueSubmit (vk_ctx->queue, 1,
+                            &(VkSubmitInfo) {
+                              .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                              .commandBufferCount = 1,
+                              .pCommandBuffers = &cmd_buffer,
+                            }, fence),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  VK_ERROR ( context,
+             vkWaitForFences (vk_ctx->device, 1, &fence, VK_TRUE, INT64_MAX),
+             error, COGL_TEXTURE_ERROR, COGL_TEXTURE_ERROR_BAD_PARAMETER );
+
+  ret = TRUE;
+
+ error:
+  if (fence != VK_NULL_HANDLE)
+    VK ( context,
+         vkDestroyFence (vk_ctx->device, fence, NULL) );
+
+  return ret;
+}
+
 uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
                                                VkMemoryPropertyFlags flags)
 {

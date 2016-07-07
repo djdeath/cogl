@@ -309,30 +309,15 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkCommandBufferAllocateInfo buffer_allocate_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-    .commandPool = vk_ctx->cmd_pool,
-    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-    .commandBufferCount = 1,
-  };
-  VkCommandBufferBeginInfo buffer_begin_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    .flags = 0
-  };
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
     return;
 
-  VK_RET ( ctx,
-           vkAllocateCommandBuffers (vk_ctx->device, &buffer_allocate_info,
-                                     &vk_fb->cmd_buffer) );
+  if (!_cogl_vulkan_context_create_command_buffer (ctx,
+                                                   &vk_fb->cmd_buffer, NULL))
+    return;
 
   g_array_append_val (vk_fb->cmd_buffers, vk_fb->cmd_buffer);
-
-  VK_RET ( ctx,
-           vkBeginCommandBuffer (vk_fb->cmd_buffer, &buffer_begin_info) );
-
-  g_message ("begin command buffer!");
 }
 
 static void

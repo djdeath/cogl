@@ -65,19 +65,34 @@ typedef struct _CoglContextVulkan
   VkDevice device;
 } CoglContextVulkan;
 
-CoglBool _cogl_vulkan_renderer_init (CoglRenderer *renderer,
-                                     const char **extensions,
-                                     int n_extensions,
-                                     CoglError **error);
+CoglBool
+_cogl_vulkan_renderer_init (CoglRenderer *renderer,
+                            const char **extensions,
+                            int n_extensions,
+                            CoglError **error);
 
-void _cogl_vulkan_renderer_deinit (CoglRenderer *renderer);
+void
+_cogl_vulkan_renderer_deinit (CoglRenderer *renderer);
 
-CoglBool _cogl_vulkan_context_init (CoglContext *context, CoglError **error);
+CoglBool
+_cogl_vulkan_context_init (CoglContext *context, CoglError **error);
 
-void _cogl_vulkan_context_deinit (CoglContext *context);
+void
+_cogl_vulkan_context_deinit (CoglContext *context);
 
-uint32_t _cogl_vulkan_context_get_memory_heap (CoglContext *context,
-                                               VkMemoryPropertyFlags flags);
+CoglBool
+_cogl_vulkan_context_create_command_buffer (CoglContext *context,
+                                            VkCommandBuffer *cmd_buffer,
+                                            CoglError **error);
+
+CoglBool
+_cogl_vulkan_context_submit_command_buffer (CoglContext *context,
+                                            VkCommandBuffer cmd_buffer,
+                                            CoglError **error);
+
+uint32_t
+_cogl_vulkan_context_get_memory_heap (CoglContext *context,
+                                      VkMemoryPropertyFlags flags);
 
 CoglFuncPtr
 _cogl_vulkan_renderer_get_proc_address (CoglRenderer *renderer,
