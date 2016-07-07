@@ -692,7 +692,7 @@ _cogl_texture_2d_vulkan_move_to_device_for_read (CoglTexture2D *tex_2d,
 }
 
 void
-_cogl_texture_2d_vulkan_move_to_device_for_write (CoglTexture2D *tex_2d,
+_cogl_texture_2d_vulkan_move_to_color_attachment (CoglTexture2D *tex_2d,
                                                   VkCommandBuffer cmd_buffer)
 {
   CoglContext *ctx = tex_2d->_parent.context;

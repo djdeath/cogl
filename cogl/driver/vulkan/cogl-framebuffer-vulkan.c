@@ -914,7 +914,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                         vk_dst_fb->cmd_buffer);
 
   /* Put the framebuffer back as an attachment. */
-  _cogl_texture_2d_vulkan_move_to_device_for_write (COGL_TEXTURE_2D (src_texture),
+  _cogl_texture_2d_vulkan_move_to_color_attachment (COGL_TEXTURE_2D (src_texture),
                                                     vk_dst_fb->cmd_buffer);
 
   cogl_framebuffer_finish (offscreen);
@@ -1011,7 +1011,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
-  _cogl_texture_2d_vulkan_move_to_device_for_write (tex_2d, vk_fb->cmd_buffer);
+  _cogl_texture_2d_vulkan_move_to_color_attachment (tex_2d, vk_fb->cmd_buffer);
 
   return TRUE;
 
