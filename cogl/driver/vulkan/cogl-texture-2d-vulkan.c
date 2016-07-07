@@ -329,7 +329,7 @@ load_bitmap_buffer_to_texture (CoglTexture2D *tex_2d,
       .layerCount = 1,
     },
     .imageOffset = { dst_x, dst_y, 0, },
-    .imageExtent = { bitmap->width, bitmap->height, 1 },
+    .imageExtent = { bitmap->width, bitmap->height, 1, },
   };
   VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
   CoglBool ret = FALSE;
@@ -509,26 +509,60 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglFramebufferVulkan *vk_fb = src_fb->winsys;
+  VkImageCopy image_copy = {
+    .srcSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .mipLevel = 0,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+    .srcOffset = { src_x, src_y, 0, },
+    .dstSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .mipLevel = level,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+    .dstOffset = { dst_x, dst_y, 0, },
+    .extent = { width, height, 1, },
+  };
+  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+  CoglError *error = NULL;
 
-  /* Make sure the current framebuffers are bound, though we don't need to
-   * flush the clip state here since we aren't going to draw to the
-   * framebuffer. */
-  _cogl_framebuffer_flush_state (ctx->current_draw_buffer,
-                                 src_fb,
-                                 COGL_FRAMEBUFFER_STATE_ALL &
-                                 ~COGL_FRAMEBUFFER_STATE_CLIP);
+  _cogl_framebuffer_vulkan_end (src_fb, TRUE);
 
-  /* _cogl_bind_gl_texture_transient (GL_TEXTURE_2D, */
-  /*                                  tex_2d->gl_texture, */
-  /*                                  tex_2d->is_foreign); */
+  if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
+    goto error;
 
-  /* ctx->glCopyTexSubImage2D (GL_TEXTURE_2D, */
-  /*                           0, /\* level *\/ */
-  /*                           dst_x, dst_y, */
-  /*                           src_x, src_y, */
-  /*                           width, height); */
+  _cogl_texture_2d_vulkan_move_to_transfer_destination (tex_2d, cmd_buffer);
 
-  VK_TODO();
+  VK ( ctx,
+       vkCmdCopyImage (cmd_buffer,
+                       vk_fb->color_image,
+                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                       tex_2d->vk_image,
+                       tex_2d->vk_image_layout,
+                       1, &image_copy) );
+
+  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
+
+  if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error))
+    goto error;
+
+ error:
+  if (error)
+    {
+      g_warning ("Copy from framebuffer to texture failed : %s",
+                 error->message);
+      cogl_error_free (error);
+    }
+
+  if (cmd_buffer != VK_NULL_HANDLE)
+    VK ( ctx,
+         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                               1, &cmd_buffer) );
 }
 
 unsigned int
