@@ -141,14 +141,15 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
       return NULL;
     }
 
-  VK_RET_VAL_ERROR (ctx, vkMapMemory (vk_ctx->device,
-                                      vk_buffer->memory,
-                                      offset,
-                                      size,
-                                      0,
-                                      &data),
-                    NULL,
-                    error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP );
+  VK_RET_VAL_ERROR ( ctx,
+                     vkMapMemory (vk_ctx->device,
+                                  vk_buffer->memory,
+                                  offset,
+                                  size,
+                                  0,
+                                  &data),
+                     NULL,
+                     error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP );
 
   buffer->flags |= COGL_BUFFER_FLAG_MAPPED;
 
@@ -231,9 +232,10 @@ _cogl_buffer_vulkan_flush_mapped_memory (CoglBuffer *buffer,
     .size = buffer->size,
   };
 
-  VK_ERROR ( ctx, vkFlushMappedMemoryRanges (vk_ctx->device,
-                                             1,
-                                             &range),
+  VK_ERROR ( ctx,
+             vkFlushMappedMemoryRanges (vk_ctx->device,
+                                        1,
+                                        &range),
              error, COGL_BUFFER_ERROR, COGL_BUFFER_ERROR_MAP /* TODO : new error */ );
 
   return TRUE;
@@ -290,11 +292,12 @@ _cogl_buffer_vulkan_move_to_device (CoglBuffer *buffer,
 
   vk_buf->access_mask = buffer_barrier.dstAccessMask;
 
-  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
-                                   VK_PIPELINE_STAGE_HOST_BIT,
-                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                   0,
-                                   0, NULL,
-                                   1, &buffer_barrier,
-                                   0, NULL) );
+  VK ( ctx,
+       vkCmdPipelineBarrier (cmd_buffer,
+                             VK_PIPELINE_STAGE_HOST_BIT,
+                             VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                             0,
+                             0, NULL,
+                             1, &buffer_barrier,
+                             0, NULL) );
 }
