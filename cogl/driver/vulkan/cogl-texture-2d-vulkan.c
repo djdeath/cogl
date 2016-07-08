@@ -531,6 +531,9 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
   VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
   CoglError *error = NULL;
 
+  if (level != 0 && !tex_2d->vk_has_mipmap)
+    _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
+
   _cogl_framebuffer_vulkan_end (src_fb, TRUE);
 
   if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
@@ -589,6 +592,30 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
                                           int level,
                                           CoglError **error)
 {
+  CoglTexture *tex = COGL_TEXTURE (tex_2d);
+  CoglContext *ctx = tex->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglTexture2D *src = NULL;
+  VkImageCopy image_copy = {
+    .srcSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .mipLevel = 0,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+    .srcOffset = { src_x, src_y, 0, },
+    .dstSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .mipLevel = level,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+    .dstOffset = { dst_x, dst_y, 0, },
+    .extent = { width, height, 1, },
+  };
+  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+  CoglBool ret = FALSE;
+
   if (level != 0 && !tex_2d->vk_has_mipmap)
     _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
 
@@ -605,9 +632,42 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
         return load_bitmap_buffer_to_texture (tex_2d, bmp, dst_x, dst_y, error);
     }
 
-  VK_TODO();
+  /* Slow 2-stage pass */
+  src = cogl_texture_2d_new_from_bitmap (bmp);
 
-  return FALSE;
+  if (!cogl_texture_allocate (COGL_TEXTURE (src), error))
+      goto error;
+
+  if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, error))
+    goto error;
+
+  _cogl_texture_2d_vulkan_move_to_device_for_read (src, cmd_buffer);
+  _cogl_texture_2d_vulkan_move_to_transfer_destination (tex_2d, cmd_buffer);
+
+  VK ( ctx,
+       vkCmdCopyImage (cmd_buffer,
+                       src->vk_image,
+                       src->vk_image_layout,
+                       tex_2d->vk_image,
+                       tex_2d->vk_image_layout,
+                       1, &image_copy) );
+
+  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
+
+  if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, error))
+    goto error;
+
+  ret = TRUE;
+
+ error:
+  if (cmd_buffer != VK_NULL_HANDLE)
+    VK ( ctx,
+         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                               1, &cmd_buffer) );
+  if (src)
+    cogl_object_unref (src);
+
+  return ret;
 }
 
 void

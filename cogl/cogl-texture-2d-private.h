@@ -77,6 +77,8 @@ struct _CoglTexture2D
 
   VkImageLayout vk_image_layout;
   VkAccessFlags vk_access_mask;
+
+  CoglBool vk_has_mipmap;
 #endif
 };
 
