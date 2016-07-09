@@ -81,4 +81,9 @@ void
 _cogl_buffer_vulkan_move_to_device (CoglBuffer *buffer,
                                     VkCommandBuffer cmd_buffer);
 
+void
+_cogl_buffer_vulkan_move_to_host (CoglBuffer *buffer,
+                                  VkCommandBuffer cmd_buffer);
+
+
 #endif /* _COGL_BUFFER_VULKAN_PRIVATE_H_ */

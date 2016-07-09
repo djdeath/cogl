@@ -301,3 +301,36 @@ _cogl_buffer_vulkan_move_to_device (CoglBuffer *buffer,
                              1, &buffer_barrier,
                              0, NULL) );
 }
+
+void
+_cogl_buffer_vulkan_move_to_host (CoglBuffer *buffer,
+                                  VkCommandBuffer cmd_buffer)
+{
+  CoglBufferVulkan *vk_buf = buffer->winsys;
+  CoglContext *ctx = buffer->context;
+  VkBufferMemoryBarrier buffer_barrier = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+    .srcAccessMask = vk_buf->access_mask,
+    .dstAccessMask = (VK_ACCESS_HOST_READ_BIT |
+                      VK_ACCESS_HOST_WRITE_BIT),
+    .srcQueueFamilyIndex = 0,
+    .dstQueueFamilyIndex = 0,
+    .buffer = vk_buf->buffer,
+    .offset = 0,
+    .size = buffer->size,
+  };
+
+  if (vk_buf->access_mask == buffer_barrier.dstAccessMask)
+    return;
+
+  vk_buf->access_mask = buffer_barrier.dstAccessMask;
+
+  VK ( ctx,
+       vkCmdPipelineBarrier (cmd_buffer,
+                             VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                             VK_PIPELINE_STAGE_HOST_BIT,
+                             0,
+                             0, NULL,
+                             1, &buffer_barrier,
+                             0, NULL) );
+}
