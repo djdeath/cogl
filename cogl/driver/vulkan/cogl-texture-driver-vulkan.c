@@ -32,26 +32,9 @@
 #include "config.h"
 #endif
 
-#include "cogl-private.h"
-#include "cogl-util.h"
-#include "cogl-bitmap.h"
-#include "cogl-bitmap-private.h"
-#include "cogl-texture-private.h"
-#include "cogl-pipeline.h"
 #include "cogl-context-private.h"
-#include "cogl-object-private.h"
-#include "cogl-primitives.h"
-#include "cogl-util-gl-private.h"
-#include "cogl-error-private.h"
-#include "cogl-texture-gl-private.h"
-
-#include <string.h>
-#include <stdlib.h>
-#include <math.h>
-
-#ifndef GL_TEXTURE_SWIZZLE_RGBA
-#define GL_TEXTURE_SWIZZLE_RGBA 0x8E46
-#endif
+#include "cogl-texture-driver.h"
+#include "cogl-util-vulkan-private.h"
 
 static GLuint
 _cogl_texture_driver_gen (CoglContext *ctx,
@@ -156,6 +139,7 @@ _cogl_texture_driver_size_supported (CoglContext *ctx,
                                      int width,
                                      int height)
 {
+  VK_TODO();
   return FALSE;
 }
 
