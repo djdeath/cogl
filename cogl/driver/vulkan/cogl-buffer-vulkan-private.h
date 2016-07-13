@@ -35,6 +35,7 @@
 #include "cogl-context.h"
 #include "cogl-buffer.h"
 #include "cogl-buffer-private.h"
+#include "cogl-vulkan-header.h"
 
 typedef struct _CoglBufferVulkan
 {

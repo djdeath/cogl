@@ -48,9 +48,21 @@ endif
 
 AM_CFLAGS = $(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS)
 
-BUILT_SOURCES += cogl-defines.h cogl-egl-defines.h cogl-gl-header.h
-DISTCLEANFILES += cogl-defines.h cogl-egl-defines.h cogl-gl-header.h
-EXTRA_DIST += cogl-defines.h.in cogl-egl-defines.h.in cogl-gl-header.h.in
+BUILT_SOURCES += \
+	cogl-defines.h \
+	cogl-egl-defines.h \
+	cogl-gl-header.h \
+	cogl-vulkan-header.h
+DISTCLEANFILES += \
+	cogl-defines.h \
+	cogl-egl-defines.h \
+	cogl-gl-header.h \
+	cogl-vulkan-header.h
+EXTRA_DIST += \
+	cogl-defines.h.in \
+	cogl-egl-defines.h.in \
+	cogl-gl-header.h.in \
+	cogl-vulkan-header.h.in
 
 # Note: The cogl-1.0/cogl-gl-1.0 files are essentially for
 # compatability only.  I'm not really sure who could possibly be using

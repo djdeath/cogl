@@ -56,6 +56,7 @@
 #include "cogl-sampler-cache-private.h"
 #include "cogl-gpu-info-private.h"
 #include "cogl-gl-header.h"
+#include "cogl-vulkan-header.h"
 #include "cogl-framebuffer-private.h"
 #include "cogl-onscreen-private.h"
 #include "cogl-fence-private.h"

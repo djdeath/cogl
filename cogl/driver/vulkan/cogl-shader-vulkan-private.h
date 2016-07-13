@@ -31,10 +31,10 @@
 #ifndef _COGL_SHADER_VULKAN_PRIVATE_H_
 #define _COGL_SHADER_VULKAN_PRIVATE_H_
 
-#include "cogl-types.h"
-#include "cogl-gl-header.h"
 #include "cogl-context.h"
 #include "cogl-glsl-shader-private.h"
+#include "cogl-types.h"
+#include "cogl-vulkan-header.h"
 
 #ifdef __cplusplus
 extern "C" {

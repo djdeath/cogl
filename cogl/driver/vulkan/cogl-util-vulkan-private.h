@@ -31,10 +31,9 @@
 #ifndef _COGL_UTIL_VULKAN_PRIVATE_H_
 #define _COGL_UTIL_VULKAN_PRIVATE_H_
 
-#include "cogl-types.h"
-
-#include "cogl-gl-header.h"
 #include "cogl-pipeline-private.h"
+#include "cogl-types.h"
+#include "cogl-vulkan-header.h"
 
 #define VK(ctx, x) (ctx)->x
 

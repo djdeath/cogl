@@ -30,8 +30,6 @@
 
 #include <config.h>
 
-#include "cogl-gl-header.h"
-
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
 #include "cogl-sampler-vulkan-private.h"

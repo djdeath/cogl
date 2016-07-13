@@ -3,7 +3,7 @@
  *
  * A Low Level GPU Graphics and Utilities API
  *
- * Copyright (C) 2007,2008,2009,2010 Intel Corporation.
+ * Copyright (C) 2016 Intel Corporation.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,23 +28,30 @@
  *
  */
 
-#if !defined(__COGL_H_INSIDE__) && !defined(COGL_COMPILATION)
-#error "Only <cogl/cogl.h> can be included directly."
+#if !defined(COGL_COMPILATION)
+#error "cogl-vulkan-header.h should only be included when compiling Cogl"
 #endif
 
-#ifndef __COGL_DEFINES_H__
-#define __COGL_DEFINES_H__
+#ifndef __COGL_VULKAN_HEADER_H__
+#define __COGL_VULKAN_HEADER_H__
 
-@COGL_DEFINES@
+#include "cogl-defines.h"
 
-#if defined(COGL_HAS_EGL_PLATFORM_WAYLAND_SUPPORT) || \
-  defined(COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT)
-#define COGL_HAS_WAYLAND_SUPPORT 1
+#ifdef COGL_HAS_VULKAN_PLATFORM_XLIB_SUPPORT
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
+#ifdef COGL_HAS_VULKAN_PLATFORM_WAYLAND_SUPPORT
+#define VK_USE_PLATFORM_WAYLAND_KHR
 #endif
 
-#define COGL_VERSION_MAJOR_INTERNAL 1
-#define COGL_VERSION_MINOR_INTERNAL @COGL_1_MINOR_VERSION@
-#define COGL_VERSION_MICRO_INTERNAL @COGL_1_MICRO_VERSION@
-#define COGL_VERSION_STRING_INTERNAL "@COGL_1_VERSION@"
+@COGL_VULKAN_HEADER_INCLUDES@
 
-#endif
+#ifndef VK_DEFINE_HANDLE
+
+#define VK_DEFINE_HANDLE(object) typedef struct object##_T* object;
+
+VK_DEFINE_HANDLE(VkImageView)
+
+#endif /* !VK_DEFINE_HANDLE */
+
+#endif /* __COGL_VULKAN_HEADER_H__ */

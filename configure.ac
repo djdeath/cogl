@@ -1513,12 +1513,15 @@ for x in $cogl_gl_headers; do
   COGL_GL_HEADER_INCLUDES="$COGL_GL_HEADER_INCLUDES
 #include <$x>"
 done;
-for x in $cogl_vulkan_headers; do
-  COGL_GL_HEADER_INCLUDES="$COGL_GL_HEADER_INCLUDES
-#include <$x>"
-done;
 AC_SUBST(COGL_GL_HEADER_INCLUDES)
 AM_SUBST_NOTMAKE(COGL_GL_HEADER_INCLUDES)
+COGL_VULKAN_HEADER_INCLUDES=""
+for x in $cogl_vulkan_headers; do
+  COGL_VULKAN_HEADER_INCLUDES="$COGL_VULKAN_HEADER_INCLUDES
+#include <$x>"
+done;
+AC_SUBST(COGL_VULKAN_HEADER_INCLUDES)
+AM_SUBST_NOTMAKE(COGL_VULKAN_HEADER_INCLUDES)
 
 AC_DEFINE([COGL_ENABLE_EXPERIMENTAL_2_0_API], [1],
           [Can use Cogl 2.0 API internally])
@@ -1559,6 +1562,7 @@ cogl/cogl-defines.h.win32
 cogl/cogl-defines.h.win32_SDL
 cogl/cogl-gl-header.h
 cogl/cogl-egl-defines.h
+cogl/cogl-vulkan-header.h
 cogl/cogl.rc
 cogl-pango/Makefile
 cogl-pango/cogl-pango-1.0.pc

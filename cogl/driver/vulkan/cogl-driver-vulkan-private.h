@@ -32,8 +32,8 @@
 #define _COGL_DRIVER_VULKAN_PRIVATE_H_
 
 #include "cogl-types.h"
-#include "cogl-gl-header.h"
 #include "cogl-context.h"
+#include "cogl-vulkan-header.h"
 
 typedef struct _CoglRendererVulkan
 {
