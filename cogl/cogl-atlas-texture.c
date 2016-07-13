@@ -1021,6 +1021,24 @@ _cogl_atlas_texture_get_type (CoglTexture *tex)
   return COGL_TEXTURE_TYPE_2D;
 }
 
+static VkImageView
+_cogl_atlas_texture_get_vulkan_image_view (CoglTexture *tex)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_get_vulkan_image_view (atlas_tex->sub_texture);
+}
+
+static VkImageLayout
+_cogl_atlas_texture_get_vulkan_image_layout (CoglTexture *tex)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_get_vulkan_image_layout (atlas_tex->sub_texture);
+}
+
 static const CoglTextureVtable
 cogl_atlas_texture_vtable =
   {
@@ -1043,5 +1061,7 @@ cogl_atlas_texture_vtable =
     _cogl_atlas_texture_get_gl_format,
     _cogl_atlas_texture_get_type,
     NULL, /* is_foreign */
-    NULL /* set_auto_mipmap */
+    NULL, /* set_auto_mipmap */
+    _cogl_atlas_texture_get_vulkan_image_view,
+    _cogl_atlas_texture_get_vulkan_image_layout
   };

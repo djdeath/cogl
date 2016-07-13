@@ -811,6 +811,18 @@ _cogl_texture_2d_get_type (CoglTexture *tex)
   return COGL_TEXTURE_TYPE_2D;
 }
 
+static VkImageView
+_cogl_texture_2d_get_vulkan_image_view (CoglTexture *tex)
+{
+  return COGL_TEXTURE_2D (tex)->vk_image_view;
+}
+
+static VkImageLayout
+_cogl_texture_2d_get_vulkan_image_layout (CoglTexture *tex)
+{
+  return COGL_TEXTURE_2D (tex)->vk_image_layout;
+}
+
 static const CoglTextureVtable
 cogl_texture_2d_vtable =
   {
@@ -833,5 +845,7 @@ cogl_texture_2d_vtable =
     _cogl_texture_2d_get_gl_format,
     _cogl_texture_2d_get_type,
     _cogl_texture_2d_is_foreign,
-    _cogl_texture_2d_set_auto_mipmap
+    _cogl_texture_2d_set_auto_mipmap,
+    _cogl_texture_2d_get_vulkan_image_view,
+    _cogl_texture_2d_get_vulkan_image_layout
   };

@@ -335,6 +335,30 @@ cogl_texture_get_gl_texture (CoglTexture *texture,
                                           out_gl_handle, out_gl_target);
 }
 
+VkImageView
+_cogl_texture_get_vulkan_image_view (CoglTexture *texture)
+{
+  if (!texture->vtable->get_vulkan_image_view)
+    return VK_NULL_HANDLE;
+
+  if (!texture->allocated)
+    cogl_texture_allocate (texture, NULL);
+
+  return texture->vtable->get_vulkan_image_view (texture);
+}
+
+VkImageLayout
+_cogl_texture_get_vulkan_image_layout (CoglTexture *texture)
+{
+  if (!texture->vtable->get_vulkan_image_layout)
+    return VK_IMAGE_LAYOUT_UNDEFINED;
+
+  if (!texture->allocated)
+    cogl_texture_allocate (texture, NULL);
+
+  return texture->vtable->get_vulkan_image_layout (texture);
+}
+
 CoglTextureType
 _cogl_texture_get_type (CoglTexture *texture)
 {

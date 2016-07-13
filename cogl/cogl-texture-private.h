@@ -42,6 +42,8 @@
 #include "cogl-egl-defines.h"
 #endif
 
+#include "cogl-vulkan-header.h"
+
 typedef struct _CoglTextureVtable     CoglTextureVtable;
 
 /* Encodes three possibiloities result of transforming a quad */
@@ -148,6 +150,10 @@ struct _CoglTextureVtable
   /* Only needs to be implemented if is_primitive == TRUE */
   void (* set_auto_mipmap) (CoglTexture *texture,
                             CoglBool value);
+
+  VkImageView (* get_vulkan_image_view) (CoglTexture *tex);
+
+  VkImageLayout (* get_vulkan_image_layout) (CoglTexture *tex);
 };
 
 typedef enum _CoglTextureSoureType {
@@ -417,5 +423,11 @@ _cogl_texture_create_loader (void);
 void
 _cogl_texture_copy_internal_format (CoglTexture *src,
                                     CoglTexture *dest);
+
+VkImageView
+_cogl_texture_get_vulkan_image_view (CoglTexture *texture);
+
+VkImageLayout
+_cogl_texture_get_vulkan_image_layout (CoglTexture *texture);
 
 #endif /* __COGL_TEXTURE_PRIVATE_H */

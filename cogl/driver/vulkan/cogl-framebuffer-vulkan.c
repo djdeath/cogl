@@ -977,7 +977,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 
   result =
     _cogl_framebuffer_vulkan_create_framebuffer (framebuffer,
-                                                 _cogl_texture_2d_get_vulkan_image_view (tex_2d),
+                                                 _cogl_texture_get_vulkan_image_view (COGL_TEXTURE (tex_2d)),
                                                  &vk_off->framebuffer);
   if (result != VK_SUCCESS)
     {

@@ -841,19 +841,19 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
   UnitState *unit_state = &program_state->unit_state[layer->index];
   const CoglSamplerCacheEntry *sampler_entry =
     _cogl_pipeline_layer_get_sampler_state (layer);
-  CoglTexture2D *texture;
+  CoglTexture *texture;
 
   /* TODO: We only support 2D texture for now. */
   g_assert (layer->texture_type == COGL_TEXTURE_TYPE_2D);
 
-  if (layer->texture)
-    texture = COGL_TEXTURE_2D (layer->texture);
+  if (layer->texture && !cogl_texture_is_sliced (layer->texture))
+    texture = layer->texture;
   else
-    texture = context->default_gl_texture_2d_tex;
+    texture = COGL_TEXTURE (context->default_gl_texture_2d_tex);
 
   if (unit_state->sampler == VK_NULL_HANDLE ||
       unit_state->sampler != sampler_entry->vk_sampler ||
-      unit_state->image_view != _cogl_texture_2d_get_vulkan_image_view (texture))
+      unit_state->image_view != _cogl_texture_get_vulkan_image_view (texture))
     {
       int index = program_state->n_write_descriptor_sets++;
       VkWriteDescriptorSet *write_set =
@@ -869,9 +869,9 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
       write_set->pImageInfo = image_info;
 
       image_info->sampler = sampler_entry->vk_sampler;
-      image_info->imageView = _cogl_texture_2d_get_vulkan_image_view (texture);
+      image_info->imageView = _cogl_texture_get_vulkan_image_view (texture);
       image_info->imageLayout =
-        _cogl_texture_2d_get_vulkan_image_layout (texture);
+        _cogl_texture_get_vulkan_image_layout (texture);
 
       /* Update unit state for layer flushes. */
       unit_state->sampler = image_info->sampler;
