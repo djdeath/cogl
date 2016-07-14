@@ -398,10 +398,14 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
                                CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  CoglFramebufferVulkan *vk_fb;
   int x0, y0, x1, y1;
   VkRect2D vk_rect;
 
+  if (G_UNLIKELY (!framebuffer->allocated))
+    cogl_framebuffer_allocate (framebuffer, NULL);
+
+  vk_fb = framebuffer->winsys;
   _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
 
   _cogl_clip_stack_get_bounds (stack, &x0, &y0, &x1, &y1);
@@ -549,7 +553,7 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
                                 float alpha)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  CoglFramebufferVulkan *vk_fb;
   VkClearAttachment clear_attachments[2];
   VkClearRect rect = {
     .rect = {
@@ -570,10 +574,9 @@ _cogl_framebuffer_vulkan_clear (CoglFramebuffer *framebuffer,
   /* TODO: maybe move this into
      _cogl_framebuffer_vulkan_ensure_command_buffer ? */
   if (G_UNLIKELY (!framebuffer->allocated))
-    {
-      cogl_framebuffer_allocate (framebuffer, NULL);
-      vk_fb = framebuffer->winsys;
-    }
+    cogl_framebuffer_allocate (framebuffer, NULL);
+
+  vk_fb = framebuffer->winsys;
 
   _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
 
@@ -621,9 +624,6 @@ _cogl_framebuffer_vulkan_query_bits (CoglFramebuffer *framebuffer,
 void
 _cogl_framebuffer_vulkan_finish (CoglFramebuffer *framebuffer)
 {
-  CoglContext *ctx = framebuffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
-
   _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
 }
 
@@ -947,6 +947,8 @@ _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOffscreenVulkan *vk_off = framebuffer->winsys;
+
+  _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
 
   _cogl_framebuffer_vulkan_deinit (framebuffer);
 
