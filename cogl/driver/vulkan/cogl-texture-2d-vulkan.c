@@ -32,6 +32,7 @@
 
 #include <string.h>
 
+#include "cogl-blit.h"
 #include "cogl-buffer-vulkan-private.h"
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
@@ -104,6 +105,27 @@ _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
   tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
   tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
   tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A;
+
+  /* switch (COGL_TEXTURE (tex_2d)->components) */
+  /*   { */
+  /*   case COGL_TEXTURE_COMPONENTS_A: */
+  /*     /\* Map A to R because COGL_PIXEL_FORMAT_A_8 can only be represented as */
+  /*        VK_FORMAT_R8_*. *\/ */
+  /*     tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_R; */
+  /*     break; */
+  /*   case COGL_TEXTURE_COMPONENTS_RGBA: */
+  /*   case COGL_TEXTURE_COMPONENTS_DEPTH: */
+  /*     tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A; */
+  /*     /\* fall through *\/ */
+  /*   case COGL_TEXTURE_COMPONENTS_RGB: */
+  /*     tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B; */
+  /*     /\* fall through *\/ */
+  /*   case COGL_TEXTURE_COMPONENTS_RG: */
+  /*     tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R; */
+  /*     tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G; */
+  /*     break; */
+  /*   } */
+
   tex_2d->vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
   tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
   tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
@@ -133,7 +155,10 @@ create_image (CoglTexture2D *tex_2d,
     .arrayLayers = 1,
     .samples = VK_SAMPLE_COUNT_1_BIT,
     .tiling = tex_2d->vk_image_tiling,
-    .usage = usage,
+    .usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+              VK_IMAGE_USAGE_SAMPLED_BIT |
+              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
     .flags = 0,
     .initialLayout = tex_2d->vk_image_layout,
   };
@@ -522,7 +547,7 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
   if (level != 0 && !tex_2d->vk_has_mipmap)
     _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
 
-  _cogl_framebuffer_vulkan_end (src_fb, TRUE);
+  cogl_framebuffer_finish (src_fb);
 
   if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
     goto error;
@@ -583,26 +608,9 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglContext *ctx = tex->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglTexture2D *src = NULL;
-  VkImageCopy image_copy = {
-    .srcSubresource = {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .mipLevel = 0,
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-    },
-    .srcOffset = { src_x, src_y, 0, },
-    .dstSubresource = {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .mipLevel = level,
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-    },
-    .dstOffset = { dst_x, dst_y, 0, },
-    .extent = { width, height, 1, },
-  };
-  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+  CoglTexture *src = NULL;
   CoglBool ret = FALSE;
+  CoglBlitData data;
 
   if (level != 0 && !tex_2d->vk_has_mipmap)
     _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
@@ -621,37 +629,20 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
     }
 
   /* Slow 2-stage pass */
-  src = cogl_texture_2d_new_from_bitmap (bmp);
-
-  if (!cogl_texture_allocate (COGL_TEXTURE (src), error))
-      goto error;
-
-  if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, error))
+  if (!cogl_texture_allocate (tex, error))
     goto error;
 
-  _cogl_texture_2d_vulkan_move_to_device_for_read (src, cmd_buffer);
-  _cogl_texture_2d_vulkan_move_to_transfer_destination (tex_2d, cmd_buffer);
-
-  VK ( ctx,
-       vkCmdCopyImage (cmd_buffer,
-                       src->vk_image,
-                       src->vk_image_layout,
-                       tex_2d->vk_image,
-                       tex_2d->vk_image_layout,
-                       1, &image_copy) );
-
-  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
-
-  if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, error))
+  src = COGL_TEXTURE (cogl_texture_2d_new_from_bitmap (bmp));
+  if (!cogl_texture_allocate (src, error))
     goto error;
+
+  _cogl_blit_begin (&data, tex, src);
+  _cogl_blit (&data, src_x, src_y, dst_x, dst_y, width, height);
+  _cogl_blit_end (&data);
 
   ret = TRUE;
 
  error:
-  if (cmd_buffer != VK_NULL_HANDLE)
-    VK ( ctx,
-         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                               1, &cmd_buffer) );
   if (src)
     cogl_object_unref (src);
 
