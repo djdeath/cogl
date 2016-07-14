@@ -165,11 +165,7 @@ _cogl_texture_driver_find_best_gl_get_data_format
                                              GLenum *closest_gl_format,
                                              GLenum *closest_gl_type)
 {
-  return context->driver_vtable->pixel_format_to_gl (context,
-                                                     format,
-                                                     NULL, /* don't need */
-                                                     closest_gl_format,
-                                                     closest_gl_type);
+  return format;
 }
 
 const CoglTextureDriver
