@@ -528,6 +528,13 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
   if (state & COGL_FRAMEBUFFER_STATE_INDEX_PROJECTION)
     _cogl_context_set_current_projection_entry (draw_buffer->context,
                                                 _cogl_framebuffer_get_projection_entry (draw_buffer));
+
+  /* Ensure ordering by ending the previous drawn to framebuffer. */
+  if (ctx->current_draw_buffer != NULL &&
+      ctx->current_draw_buffer != draw_buffer)
+    _cogl_framebuffer_vulkan_end (ctx->current_draw_buffer, FALSE);
+
+  ctx->current_draw_buffer = draw_buffer;
 }
 
 static CoglTexture *
