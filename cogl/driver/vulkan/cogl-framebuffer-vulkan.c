@@ -960,7 +960,11 @@ _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
   _cogl_framebuffer_vulkan_deinit (framebuffer);
 
   if (vk_off->framebuffer != VK_NULL_HANDLE)
-    VK (ctx, vkDestroyFramebuffer (vk_ctx->device, vk_off->framebuffer, NULL) );
+    VK (ctx,
+        vkDestroyFramebuffer (vk_ctx->device, vk_off->framebuffer, NULL) );
+  if (vk_off->image_view != VK_NULL_HANDLE)
+    VK ( ctx,
+         vkDestroyImageView (vk_ctx->device, vk_off->image_view, NULL) );
 
   g_slice_free (CoglOffscreenVulkan, framebuffer->winsys);
 }
@@ -975,6 +979,27 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   CoglTexture2D *tex_2d = COGL_TEXTURE_2D (offscreen->texture);
   CoglOffscreenVulkan *vk_off = g_slice_new0 (CoglOffscreenVulkan);
   CoglFramebufferVulkan *vk_fb = (CoglFramebufferVulkan *) vk_off;
+  VkImageViewCreateInfo image_view_create_info = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+    .flags = 0,
+    .image = _cogl_texture_2d_get_vulkan_image (tex_2d),
+    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+    .format = _cogl_texture_2d_get_vulkan_format (tex_2d),
+    .components = {
+      .r = VK_COMPONENT_SWIZZLE_R,
+      .g = VK_COMPONENT_SWIZZLE_G,
+      .b = VK_COMPONENT_SWIZZLE_B,
+      .a = VK_COMPONENT_SWIZZLE_A,
+    },
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+  };
+
   VkResult result;
 
   framebuffer->winsys = vk_fb;
@@ -984,9 +1009,14 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
                                       error))
     return FALSE;
 
+  VK_ERROR ( ctx,
+             vkCreateImageView (vk_ctx->device, &image_view_create_info, NULL,
+                                &vk_off->image_view),
+             error, COGL_FRAMEBUFFER_ERROR, COGL_FRAMEBUFFER_ERROR_ALLOCATE);
+
   result =
     _cogl_framebuffer_vulkan_create_framebuffer (framebuffer,
-                                                 _cogl_texture_get_vulkan_image_view (COGL_TEXTURE (tex_2d)),
+                                                 vk_off->image_view,
                                                  &vk_off->framebuffer);
   if (result != VK_SUCCESS)
     {
@@ -1005,6 +1035,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
+  /* TODO: maybe check the layout is right before any rendering? */
   _cogl_texture_2d_vulkan_move_to_color_attachment (tex_2d, vk_fb->cmd_buffer);
 
   return TRUE;
