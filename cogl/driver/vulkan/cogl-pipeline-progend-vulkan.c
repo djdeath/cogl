@@ -846,7 +846,7 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
   /* TODO: We only support 2D texture for now. */
   g_assert (layer->texture_type == COGL_TEXTURE_TYPE_2D);
 
-  if (layer->texture && !cogl_texture_is_sliced (layer->texture))
+  if (layer->texture)
     texture = layer->texture;
   else
     texture = COGL_TEXTURE (context->default_gl_texture_2d_tex);
