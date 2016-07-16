@@ -889,6 +889,10 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
 
   pipeline = cogl_pipeline_new (offscreen->context);
   cogl_pipeline_set_layer_texture (pipeline, 0, src_texture);
+  cogl_pipeline_set_layer_filters (pipeline, 0,
+                                   COGL_PIPELINE_FILTER_NEAREST,
+                                   COGL_PIPELINE_FILTER_NEAREST);
+  cogl_pipeline_set_blend (pipeline, "RGBA = ADD(SRC_COLOR, 0)", NULL);
 
   cogl_framebuffer_draw_textured_rectangle (offscreen, pipeline,
                                             -1, -1, 1, 1,
