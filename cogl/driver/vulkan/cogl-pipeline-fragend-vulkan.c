@@ -969,7 +969,7 @@ add_alpha_test_snippet (CoglPipeline *pipeline,
       g_string_append (shader_state->source, "==");
       break;
     case COGL_PIPELINE_ALPHA_FUNC_GEQUAL:
-      g_string_append (shader_state->source, "< ");
+      g_string_append (shader_state->source, "<");
       break;
 
     case COGL_PIPELINE_ALPHA_FUNC_ALWAYS:
