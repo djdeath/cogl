@@ -924,18 +924,17 @@ _cogl_pipeline_fragend_vulkan_add_layer (CoglPipeline *pipeline,
   return TRUE;
 }
 
-/* GLES2 and GL3 don't have alpha testing so we need to implement it
-   in the shader */
-
-#if defined(HAVE_COGL_GLES2) || defined(HAVE_COGL_GL)
-
 static void
 add_alpha_test_snippet (CoglPipeline *pipeline,
                         CoglPipelineShaderState *shader_state)
 {
-  CoglPipelineAlphaFunc alpha_func;
+  CoglPipelineAlphaFunc alpha_func =
+    cogl_pipeline_get_alpha_test_function (pipeline);
 
-  alpha_func = cogl_pipeline_get_alpha_test_function (pipeline);
+  /* For all of the other alpha functions we need a uniform for the
+     reference */
+  g_string_append (shader_state->block,
+                   "uniform float _cogl_alpha_test_ref;\n");
 
   if (alpha_func == COGL_PIPELINE_ALPHA_FUNC_ALWAYS)
     /* Do nothing */
@@ -948,12 +947,6 @@ add_alpha_test_snippet (CoglPipeline *pipeline,
                        "  discard;\n");
       return;
     }
-
-  /* For all of the other alpha functions we need a uniform for the
-     reference */
-
-  g_string_append (shader_state->block,
-                   "uniform float _cogl_alpha_test_ref;\n");
 
   g_string_append (shader_state->source,
                    "  if (cogl_color_out.a ");
@@ -988,8 +981,6 @@ add_alpha_test_snippet (CoglPipeline *pipeline,
   g_string_append (shader_state->source,
                    " _cogl_alpha_test_ref)\n    discard;\n");
 }
-
-#endif /*  HAVE_COGL_GLES2 */
 
 static CoglBool
 _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
@@ -1041,10 +1032,7 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
         g_string_append (shader_state->source,
                          "  cogl_color_out = cogl_color_in;\n");
 
-#if defined(HAVE_COGL_GLES2) || defined (HAVE_COGL_GL)
-      if (!_cogl_has_private_feature (ctx, COGL_PRIVATE_FEATURE_ALPHA_TEST))
-        add_alpha_test_snippet (pipeline, shader_state);
-#endif
+      add_alpha_test_snippet (pipeline, shader_state);
 
       /* Close the function surrounding the generated fragment processing */
       g_string_append (shader_state->source, "}\n");
