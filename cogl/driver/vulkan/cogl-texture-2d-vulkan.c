@@ -478,7 +478,10 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   CoglPixelFormat internal_format = bitmap->format;
   int width = bitmap->width, height = bitmap->height;
   uint32_t memory_size;
-  VkImageUsageFlags initial_image_usage;
+  VkFormat format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (bitmap->format, NULL);
+  VkImageTiling tiling = VK_IMAGE_TILING_LINEAR;
+  VkImageUsageFlags usage;
 
   /* Override default tiling.
 
@@ -488,19 +491,20 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   if (bitmap->shared_bmp || bitmap->buffer)
     {
       tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
-      initial_image_usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                             VK_IMAGE_USAGE_SAMPLED_BIT |
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+               VK_IMAGE_USAGE_SAMPLED_BIT |
+               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
   else
     {
       tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
-      initial_image_usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
+               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
 
-  tex_2d->vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (bitmap->format, NULL);
+  tex_2d->vk_format = format;
+
+    /* find_best_format_available (tex_2d, format, usage, tiling); */
   if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
@@ -509,7 +513,7 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  if (!create_image (tex_2d, initial_image_usage, VK_IMAGE_TILING_LINEAR,
+  if (!create_image (tex_2d, usage, VK_IMAGE_TILING_LINEAR,
                      width, height, 1, error))
     return FALSE;
 
