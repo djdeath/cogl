@@ -40,6 +40,8 @@
 extern "C" {
 #endif
 
+#define COGL_SHADER_VULKAN_NB_STAGES (COGL_GLSL_SHADER_TYPE_FRAGMENT + 1)
+
 typedef struct _CoglShaderVulkanAttribute
 {
   char *name;
@@ -49,7 +51,7 @@ typedef struct _CoglShaderVulkanAttribute
 typedef struct _CoglShaderVulkanUniform
 {
   char *name;
-  int offset;
+  int offsets[COGL_SHADER_VULKAN_NB_STAGES];
 } CoglShaderVulkanUniform;
 
 typedef struct _CoglShaderVulkanSampler
@@ -86,7 +88,6 @@ _cogl_shader_vulkan_get_input_attribute_location (CoglShaderVulkan *shader,
 
 CoglShaderVulkanUniform *
 _cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
-                                 CoglGlslShaderType stage,
                                  const char *name);
 
 int

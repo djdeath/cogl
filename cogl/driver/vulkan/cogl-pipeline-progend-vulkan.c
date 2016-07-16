@@ -119,10 +119,10 @@ typedef struct
 {
   unsigned int ref_count;
 
-  /* TODO: Maybe factorize the uniform buffer out of the program state. It
-     could be per pipeline, avoiding a lot of flushing code here. */
-  CoglBuffer *uniform_buffer;
-  void *uniform_data; /* Just a pointer to uniform_buffer memory */
+  CoglBuffer *uniform_buffers[COGL_SHADER_VULKAN_NB_STAGES];
+  /* Pointers to mapped uniform_buffers memory. */
+  void *uniform_datas[COGL_SHADER_VULKAN_NB_STAGES];
+  CoglBool uniforms_dirty[COGL_SHADER_VULKAN_NB_STAGES];
 
   VkPipelineLayout pipeline_layout;
 
@@ -132,7 +132,7 @@ typedef struct
 
   CoglShaderVulkan *shader;
 
-  VkPipelineShaderStageCreateInfo stage_info[2];
+  VkPipelineShaderStageCreateInfo stage_info[COGL_SHADER_VULKAN_NB_STAGES];
 
   unsigned long dirty_builtin_uniforms;
   CoglShaderVulkanUniform *builtin_uniform_locations[G_N_ELEMENTS (builtin_uniforms)];
@@ -161,7 +161,8 @@ typedef struct
   int flushed_flip_state;
 
   /* Array of descriptors to write before doing any drawing. This array is
-     allocated with (n_layer + 1) elements. */
+     allocated with (n_layer + 2) elements (including 1 uniform vertex
+     buffer & 1 uniform fragment buffer). */
   VkWriteDescriptorSet *write_descriptor_sets;
   int n_write_descriptor_sets;
 
@@ -173,8 +174,6 @@ typedef struct
   int n_layers;
 
   CoglPipelineCacheEntry *cache_entry;
-
-  unsigned int uniforms_dirty:1;
 } CoglPipelineProgramState;
 
 
@@ -247,7 +246,7 @@ program_state_new (int n_layers,
   program_state->ref_count = 1;
   program_state->n_layers = n_layers;
   program_state->unit_state = g_new0 (UnitState, n_layers);
-  program_state->write_descriptor_sets = g_new0 (VkWriteDescriptorSet, n_layers + 1);
+  program_state->write_descriptor_sets = g_new0 (VkWriteDescriptorSet, n_layers + 2);
   program_state->descriptor_image_infos = g_new0 (VkDescriptorImageInfo, n_layers);
   program_state->uniform_locations = NULL;
   program_state->cache_entry = cache_entry;
@@ -282,10 +281,10 @@ destroy_program_state (void *user_data,
       _cogl_matrix_entry_cache_destroy (&program_state->projection_cache);
       _cogl_matrix_entry_cache_destroy (&program_state->modelview_cache);
 
-      if (program_state->uniform_buffer)
+      for (i = 0; i < G_N_ELEMENTS (program_state->uniform_buffers); i++)
         {
-          cogl_buffer_unmap (COGL_BUFFER (program_state->uniform_buffer));
-          cogl_object_unref (COGL_OBJECT (program_state->uniform_buffer));
+          cogl_buffer_unmap (COGL_BUFFER (program_state->uniform_buffers[i]));
+          cogl_object_unref (COGL_OBJECT (program_state->uniform_buffers[i]));
         }
 
       if (program_state->descriptor_set != VK_NULL_HANDLE)
@@ -356,7 +355,6 @@ get_program_state_uniform_location (CoglPipelineProgramState *program_state,
                                     const char *name)
 {
   return _cogl_shader_vulkan_get_uniform (program_state->shader,
-                                          COGL_GLSL_SHADER_TYPE_VERTEX,
                                           name);
 }
 
@@ -375,22 +373,22 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
                            const void *data,
                            size_t size)
 {
+  int i;
+
   g_assert (program_state->shader);
 
-  COGL_NOTE (VULKAN, "Uniform offset %s = offset=%i size=%i",
-             location->name, location->offset, size);
-
-  if (G_UNLIKELY (program_state->uniform_data == NULL))
+  for (i = 0; i < COGL_SHADER_VULKAN_NB_STAGES; i++)
     {
-      program_state->uniform_data =
-        _cogl_buffer_map (program_state->uniform_buffer,
-                          COGL_BUFFER_ACCESS_WRITE,
-                          COGL_BUFFER_MAP_HINT_DISCARD,
-                          NULL);
-    }
+      if (location->offsets[i] != -1)
+        {
+          COGL_NOTE (VULKAN, "Uniform=%s stage=%i offset=%i size=%i",
+                     location->name, i, location->offsets[i], size);
 
-  memcpy (program_state->uniform_data + location->offset, data, size);
-  program_state->uniforms_dirty = TRUE;
+          memcpy (program_state->uniform_datas[i] + location->offsets[i],
+                  data, size);
+          program_state->uniforms_dirty[i] = TRUE;
+        }
+    }
 }
 
 #define set_program_state_uniform1i(program_state, location, data)      \
@@ -687,14 +685,13 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
     {
       if (program_changed)
         {
-          /* The program has changed so all of the uniform locations
-             are invalid */
+          /* The program has changed so all of the uniform locations are
+             invalid */
           if (program_state->uniform_locations)
             g_array_set_size (program_state->uniform_locations, 0);
         }
 
-      /* We need to flush everything so mark all of the uniforms as
-         dirty */
+      /* We need to flush everything so mark all of the uniforms as dirty */
       memset (data.uniform_differences, 0xff,
               n_uniform_longs * sizeof (unsigned long));
       data.n_differences = G_MAXINT;
@@ -750,6 +747,7 @@ _cogl_pipeline_progend_vulkan_flush_uniforms (CoglPipeline *pipeline,
 typedef struct
 {
   CoglPipelineProgramState *program_state;
+  int n_units;
   int n_bindings;
 
   VkShaderStageFlags stage_flags;
@@ -763,7 +761,7 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
   CreateDescriptorSetLayout *data = user_data;
   VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
   CoglShaderVulkanSampler *sampler;
-  UnitState *unit_state = &data->program_state->unit_state[data->n_bindings];
+  UnitState *unit_state = &data->program_state->unit_state[data->n_units];
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
@@ -782,7 +780,11 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
   binding->stageFlags = data->stage_flags;
   binding->pImmutableSamplers = NULL;
 
+  COGL_NOTE (VULKAN, "Descriptor layout cogl_sampler%i binding=%i",
+             layer->index, unit_state->binding);
+
   data->n_bindings++;
+  data->n_units++;
 
   return TRUE;
 }
@@ -798,26 +800,33 @@ _cogl_pipeline_create_descriptor_set_layout (CoglPipeline *pipeline,
 
   memset (&data, 0, sizeof (data));
   data.bindings = g_new0 (VkDescriptorSetLayoutBinding,
-                          cogl_pipeline_get_n_layers (pipeline) + 1);
+                          cogl_pipeline_get_n_layers (pipeline) + 2);
   data.program_state = program_state;
-  data.n_bindings = 0;
-  data.stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  /* Uniform buffers for all our uniforms. */
+  data.bindings[data.n_bindings].binding = 0;
+  data.bindings[data.n_bindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  data.bindings[data.n_bindings].descriptorCount = 1;
+  data.bindings[data.n_bindings].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  data.bindings[data.n_bindings].pImmutableSamplers = NULL;
+  data.n_bindings++;
+
+  data.bindings[data.n_bindings].binding = 1;
+  data.bindings[data.n_bindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  data.bindings[data.n_bindings].descriptorCount = 1;
+  data.bindings[data.n_bindings].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  data.bindings[data.n_bindings].pImmutableSamplers = NULL;
+  data.n_bindings++;
 
   /* All other potential samplers for each layer. */
+  data.stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
   _cogl_pipeline_foreach_layer_internal (pipeline,
                                          add_layer_to_descriptor_set_layout,
                                          &data);
 
-  /* Uniform buffer for all our uniforms. */
-  data.bindings[data.n_bindings].binding = 0;
-  data.bindings[data.n_bindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  data.bindings[data.n_bindings].descriptorCount = 1;
-  data.bindings[data.n_bindings].stageFlags = data.stage_flags;
-  data.bindings[data.n_bindings].pImmutableSamplers = NULL;
-
   memset (&info, 0, sizeof (info));
   info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  info.bindingCount = ++data.n_bindings;
+  info.bindingCount = data.n_bindings;
   info.pBindings = data.bindings;
 
   VK_RET ( ctx,
@@ -860,6 +869,9 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
         &program_state->write_descriptor_sets[index];
       VkDescriptorImageInfo *image_info =
         &program_state->descriptor_image_infos[index];
+
+      COGL_NOTE (VULKAN, "Writing descriptor set cogl_sampler%i binding=%i",
+                 layer->index, unit_state->binding);
 
       write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       write_set->dstSet = program_state->descriptor_set;
@@ -912,6 +924,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
   UpdateUniformsState state;
   CoglProgram *user_program;
   CoglPipelineCacheEntry *cache_entry = NULL;
+  int i;
 
   program_state = get_program_state (pipeline);
 
@@ -993,17 +1006,25 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
     }
 
   /* Allocate uniform buffers for vertex & fragment shaders. */
-  if (program_state->uniform_buffer == NULL)
+  for (i = 0; i < COGL_SHADER_VULKAN_NB_STAGES; i++)
     {
-      int block_size;
+      if (program_state->uniform_buffers[i] == NULL)
+        {
+          int block_size =
+            _cogl_shader_vulkan_get_uniform_block_size (program_state->shader,
+                                                        i, 0);
 
-      block_size =
-        _cogl_shader_vulkan_get_uniform_block_size (program_state->shader,
-                                                    COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                    0);
+          program_state->uniform_buffers[i] =
+            COGL_BUFFER (cogl_uniform_buffer_new (ctx, block_size));
+          program_state->uniform_datas[i] =
+            _cogl_buffer_map (program_state->uniform_buffers[i],
+                              COGL_BUFFER_ACCESS_WRITE,
+                              COGL_BUFFER_MAP_HINT_DISCARD,
+                              NULL);
 
-      program_state->uniform_buffer =
-        COGL_BUFFER (cogl_uniform_buffer_new (ctx, block_size));
+          COGL_NOTE (VULKAN, "Uniform buffer alloc stage=%i size=%i",
+                     i, block_size);
+        }
     }
 
   if (program_state->pipeline_layout == VK_NULL_HANDLE)
@@ -1047,8 +1068,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
   if (program_state->descriptor_pool == VK_NULL_HANDLE)
     {
-      CoglBuffer *buf = program_state->uniform_buffer;
-      CoglBufferVulkan *vk_buf = buf->winsys;
       int n_samplers =
         _cogl_shader_vulkan_get_n_samplers (program_state->shader,
                                             COGL_GLSL_SHADER_TYPE_FRAGMENT);
@@ -1061,7 +1080,7 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
         .pPoolSizes = (VkDescriptorPoolSize[]) {
           {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1
+            .descriptorCount = COGL_SHADER_VULKAN_NB_STAGES,
           },
           {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1237,30 +1256,34 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  CoglBufferVulkan *vk_uniform_buffer = program_state->uniform_buffer->winsys;
-  VkWriteDescriptorSet *write_set =
-    &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets];
-  VkDescriptorBufferInfo descriptor_buffer_info;
+  VkDescriptorBufferInfo descriptor_buffer_info[COGL_SHADER_VULKAN_NB_STAGES];
+  int i;
 
-  if (program_state->uniforms_dirty)
+  for (i = 0; i < COGL_SHADER_VULKAN_NB_STAGES; i++)
     {
+      CoglBuffer *buffer = program_state->uniform_buffers[i];
+      CoglBufferVulkan *vk_uniform_buffer = buffer->winsys;
+      VkWriteDescriptorSet *write_set =
+        &program_state->write_descriptor_sets[program_state->n_write_descriptor_sets];
+
+      if (!program_state->uniforms_dirty[i])
+        continue;
 
       write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       write_set->dstSet = program_state->descriptor_set;
-      write_set->dstBinding = 0;
+      write_set->dstBinding = i;
       write_set->dstArrayElement = 0;
       write_set->descriptorCount = 1;
       write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-      write_set->pBufferInfo = &descriptor_buffer_info;
+      write_set->pBufferInfo = &descriptor_buffer_info[i];
 
-      descriptor_buffer_info.buffer = vk_uniform_buffer->buffer;
-      descriptor_buffer_info.offset = 0;
-      descriptor_buffer_info.range = program_state->uniform_buffer->size;
+      descriptor_buffer_info[i].buffer = vk_uniform_buffer->buffer;
+      descriptor_buffer_info[i].offset = 0;
+      descriptor_buffer_info[i].range = buffer->size;
 
       program_state->n_write_descriptor_sets++;
-      program_state->uniforms_dirty = FALSE;
 
-      /* cogl_buffer_unmap (program_state->uniform_buffer); */
+      program_state->uniforms_dirty[i] = FALSE;
     }
 
   if (program_state->n_write_descriptor_sets > 0)
@@ -1303,7 +1326,7 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
   program_state = get_program_state (pipeline);
 
-  g_assert (program_state->uniform_buffer);
+  g_assert (program_state->uniform_buffers[0]);
 
   projection_entry = ctx->current_projection_entry;
   modelview_entry = ctx->current_modelview_entry;
@@ -1417,7 +1440,6 @@ update_float_uniform (CoglPipeline *pipeline,
                       CoglShaderVulkanUniform *location,
                       void *getter_func)
 {
-
   float (* float_getter_func) (CoglPipeline *) = getter_func;
   float value;
   CoglPipelineProgramState *program_state = get_program_state (pipeline);

@@ -52,25 +52,23 @@ extern "C" {
 #include <sstream>
 #include <vector>
 
-#define NB_STAGES (COGL_GLSL_SHADER_TYPE_FRAGMENT + 1)
-
 struct _CoglShaderVulkan
 {
   CoglContext *context;
 
   glslang::TProgram *program;
 
-  GHashTable *inputs[NB_STAGES];
-  GHashTable *outputs[NB_STAGES];
+  GHashTable *inputs[COGL_SHADER_VULKAN_NB_STAGES];
+  GHashTable *outputs[COGL_SHADER_VULKAN_NB_STAGES];
 
-  GHashTable *samplers[NB_STAGES];
-  GHashTable *uniforms[NB_STAGES];
+  GHashTable *samplers[COGL_SHADER_VULKAN_NB_STAGES];
+  GHashTable *uniforms;
 
-  VkShaderModule modules[NB_STAGES];
+  VkShaderModule modules[COGL_SHADER_VULKAN_NB_STAGES];
 
-  int block_size[NB_STAGES];
+  int block_size[COGL_SHADER_VULKAN_NB_STAGES];
 
-  char *shaders[NB_STAGES];
+  char *shaders[COGL_SHADER_VULKAN_NB_STAGES];
 };
 
 static CoglShaderVulkanAttribute *
@@ -93,13 +91,15 @@ _cogl_shader_vulkan_attribute_free (CoglShaderVulkanAttribute *attribute)
 }
 
 static CoglShaderVulkanUniform *
-_cogl_shader_vulkan_uniform_new (const char *name, int offset)
+_cogl_shader_vulkan_uniform_new (const char *name)
 {
   CoglShaderVulkanUniform *uniform =
     g_slice_new0 (CoglShaderVulkanUniform);
+  int i;
 
   uniform->name = g_strdup (name);
-  uniform->offset = offset;
+  for (i = 0; i < COGL_SHADER_VULKAN_NB_STAGES; i++)
+    uniform->offsets[i] = -1;
 
   return uniform;
 }
@@ -258,11 +258,10 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
 {
   CoglContextVulkan *vk_ctx = (CoglContextVulkan *) shader->context->winsys;
 
-  for (int stage = 0; stage < NB_STAGES; stage++) {
+  for (int stage = 0; stage < COGL_SHADER_VULKAN_NB_STAGES; stage++) {
     g_hash_table_unref (shader->inputs[stage]);
     g_hash_table_unref (shader->outputs[stage]);
     g_hash_table_unref (shader->samplers[stage]);
-    g_hash_table_unref (shader->uniforms[stage]);
 
     if (shader->modules[stage] != VK_NULL_HANDLE)
       VK ( shader->context,
@@ -272,6 +271,8 @@ _cogl_shader_vulkan_free (CoglShaderVulkan *shader)
     if (shader->shaders[stage])
       g_free (shader->shaders[stage]);
   }
+
+  g_hash_table_unref (shader->uniforms);
 
   if (shader->program)
     delete shader->program;
@@ -288,7 +289,7 @@ _cogl_shader_vulkan_new (CoglContext *context)
   shader->context = context;
   shader->program = new glslang::TProgram();
 
-  for (int stage = 0; stage < NB_STAGES; stage++) {
+  for (int stage = 0; stage < COGL_SHADER_VULKAN_NB_STAGES; stage++) {
     shader->inputs[stage] = g_hash_table_new_full (g_str_hash,
                                                    g_str_equal,
                                                    NULL,
@@ -297,15 +298,17 @@ _cogl_shader_vulkan_new (CoglContext *context)
                                                     g_str_equal,
                                                     NULL,
                                                     (GDestroyNotify) _cogl_shader_vulkan_attribute_free);
-    shader->uniforms[stage] = g_hash_table_new_full (g_str_hash,
-                                                     g_str_equal,
-                                                     NULL,
-                                                     (GDestroyNotify) _cogl_shader_vulkan_uniform_free);
     shader->samplers[stage] = g_hash_table_new_full (g_str_hash,
                                                      g_str_equal,
                                                      NULL,
                                                      (GDestroyNotify) _cogl_shader_vulkan_sampler_free);
   }
+
+  shader->uniforms = g_hash_table_new_full (g_str_hash,
+                                            g_str_equal,
+                                            NULL,
+                                            (GDestroyNotify) _cogl_shader_vulkan_uniform_free);
+
 
   return shader;
 }
@@ -384,8 +387,9 @@ _cogl_shader_vulkan_add_sampler (CoglShaderVulkan *shader,
                                  CoglGlslShaderType stage,
                                  glslang::TIntermSymbol* symbol)
 {
-  /* We start mapping samplers at 1 because 0 is used by uniform block. */
-  int binding = g_hash_table_size (shader->samplers[stage]) + 1;
+  /* We start mapping samplers at 2 because 0 & 1 are used by uniform blocks
+     (0 for vertex, 1 for fragment). */
+  int binding = g_hash_table_size (shader->samplers[stage]) + 2;
   CoglShaderVulkanSampler *sampler =
     _cogl_shader_vulkan_sampler_new (symbol->getName().c_str(), binding);
 
@@ -401,9 +405,16 @@ _cogl_shader_vulkan_add_uniform (CoglShaderVulkan *shader,
                                  int offset)
 {
   CoglShaderVulkanUniform *uniform =
-    _cogl_shader_vulkan_uniform_new (name, offset);
+    (CoglShaderVulkanUniform *) g_hash_table_lookup (shader->uniforms, name);
 
-  g_hash_table_insert (shader->uniforms[stage], uniform->name, uniform);
+  if (uniform == NULL)
+    {
+      uniform = _cogl_shader_vulkan_uniform_new (name);
+      g_hash_table_insert (shader->uniforms, uniform->name, uniform);
+    }
+
+  uniform->offsets[stage] = offset;
+
 }
 
 /* Lookup or calculate the offset of a block member, using the recursively
@@ -450,6 +461,8 @@ _cogl_shader_vulkan_add_block (CoglShaderVulkan *shader,
   const glslang::TTypeList member_list = *block_type.getStruct();
   glslang::TIntermediate* intermediate =
     shader->program->getIntermediate (_cogl_glsl_shader_type_to_es_language (stage));
+
+  symbol->getQualifier().layoutBinding = static_cast<int>(stage);
 
   int member_offset = 0;
   int member_size = 0;
@@ -562,7 +575,7 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
     return false;
   }
 
-  for (int stage = 0; stage < NB_STAGES; stage++) {
+  for (int stage = 0; stage < COGL_SHADER_VULKAN_NB_STAGES; stage++) {
     EShLanguage lang =
       _cogl_glsl_shader_type_to_es_language ((CoglGlslShaderType) stage);
     glslang::TIntermediate* intermediate =
@@ -633,27 +646,15 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
   delete shader->program;
   shader->program = nullptr;
 
-
-  if (shader->block_size[COGL_GLSL_SHADER_TYPE_VERTEX] !=
-      shader->block_size[COGL_GLSL_SHADER_TYPE_FRAGMENT])
-    {
-      g_warning ("Vertex & fragment shaders have different block sizes (%i/%i).",
-                 shader->block_size[COGL_GLSL_SHADER_TYPE_VERTEX],
-                 shader->block_size[COGL_GLSL_SHADER_TYPE_FRAGMENT]);
-      g_warning ("Vertex : \n%s", shader->shaders[COGL_GLSL_SHADER_TYPE_VERTEX]);
-      g_warning ("Fragment : \n%s", shader->shaders[COGL_GLSL_SHADER_TYPE_FRAGMENT]);
-    }
-
   return true;
 }
 
 extern "C" CoglShaderVulkanUniform *
 _cogl_shader_vulkan_get_uniform (CoglShaderVulkan *shader,
-                                 CoglGlslShaderType stage,
                                  const char *name)
 {
   return (CoglShaderVulkanUniform *)
-    g_hash_table_lookup (shader->uniforms[stage], name);
+    g_hash_table_lookup (shader->uniforms, name);
 }
 
 extern "C" int
