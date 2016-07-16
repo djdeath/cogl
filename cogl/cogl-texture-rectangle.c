@@ -635,8 +635,12 @@ static void
 _cogl_texture_rectangle_pre_paint (CoglTexture *tex,
                                    CoglTexturePrePaintFlags flags)
 {
+  CoglContext *ctx = tex->context;
+
   /* Rectangle textures don't support mipmaps */
   g_assert ((flags & COGL_TEXTURE_NEEDS_MIPMAP) == 0);
+
+  ctx->texture_driver->pre_paint (ctx, tex);
 }
 
 static void

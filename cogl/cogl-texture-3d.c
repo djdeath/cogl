@@ -700,6 +700,8 @@ _cogl_texture_3d_pre_paint (CoglTexture *tex, CoglTexturePrePaintFlags flags)
 
       tex_3d->mipmaps_dirty = FALSE;
     }
+
+  ctx->texture_driver->pre_paint (ctx, tex);
 }
 
 static void

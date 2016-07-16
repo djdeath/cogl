@@ -715,18 +715,19 @@ _cogl_texture_2d_get_gl_texture (CoglTexture *tex,
 static void
 _cogl_texture_2d_pre_paint (CoglTexture *tex, CoglTexturePrePaintFlags flags)
 {
+  CoglContext *ctx = tex->context;
   CoglTexture2D *tex_2d = COGL_TEXTURE_2D (tex);
 
   /* Only update if the mipmaps are dirty */
   if ((flags & COGL_TEXTURE_NEEDS_MIPMAP) &&
       tex_2d->auto_mipmap && tex_2d->mipmaps_dirty)
     {
-      CoglContext *ctx = tex->context;
-
       ctx->driver_vtable->texture_2d_generate_mipmap (tex_2d);
 
       tex_2d->mipmaps_dirty = FALSE;
     }
+
+  ctx->texture_driver->pre_paint (ctx, tex);
 }
 
 static void

@@ -33,6 +33,8 @@
 #endif
 
 #include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
+#include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-texture-driver.h"
 #include "cogl-util-vulkan-private.h"
 
@@ -168,6 +170,40 @@ _cogl_texture_driver_find_best_gl_get_data_format
   return format;
 }
 
+static void
+_cogl_texture_driver_pre_paint (CoglContext *ctx,
+                                CoglTexture *texture)
+{
+  if (cogl_is_texture_2d (texture) &&
+      !_cogl_texture_2d_vulkan_ready_for_sampling (COGL_TEXTURE_2D (texture)))
+    {
+      CoglContextVulkan *vk_ctx = ctx->winsys;
+      CoglError *error = NULL;
+      VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+
+      if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer,
+                                                       &error))
+        goto error;
+
+      _cogl_texture_2d_vulkan_move_to_device_for_sampling (COGL_TEXTURE_2D (texture),
+                                                           cmd_buffer);
+
+      _cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error);
+
+    error:
+      g_message ("moved texture for sampling error=%p", error);
+      if (error)
+        {
+          g_warning ("Failed to prepare texture for sampling : %s",
+                     error->message);
+          cogl_error_free (error);
+        }
+      if (cmd_buffer)
+        VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                        1, &cmd_buffer) );
+    }
+}
+
 const CoglTextureDriver
 _cogl_texture_driver_vulkan =
   {
@@ -182,5 +218,6 @@ _cogl_texture_driver_vulkan =
     _cogl_texture_driver_size_supported_3d,
     _cogl_texture_driver_try_setting_gl_border_color,
     _cogl_texture_driver_allows_foreign_gl_target,
-    _cogl_texture_driver_find_best_gl_get_data_format
+    _cogl_texture_driver_find_best_gl_get_data_format,
+    _cogl_texture_driver_pre_paint
   };
