@@ -109,13 +109,16 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                               int rowstride,
                               uint8_t *data);
 
-void
-_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
-                                               VkCommandBuffer cmd_buffer);
+CoglBool
+_cogl_texture_2d_vulkan_ready_for_sampling (CoglTexture2D *tex_2d);
 
 void
-_cogl_texture_2d_vulkan_move_to_device_for_read (CoglTexture2D *tex_2d,
-                                                 VkCommandBuffer cmd_buffer);
+_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
+                                      VkCommandBuffer cmd_buffer);
+
+void
+_cogl_texture_2d_vulkan_move_to_device_for_sampling (CoglTexture2D *tex_2d,
+                                                     VkCommandBuffer cmd_buffer);
 
 void
 _cogl_texture_2d_vulkan_move_to_color_attachment (CoglTexture2D *tex_2d,

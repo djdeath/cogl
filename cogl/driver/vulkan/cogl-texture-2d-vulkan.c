@@ -126,15 +126,99 @@ _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
   /*     break; */
   /*   } */
 
-  tex_2d->vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
   tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
   tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 static CoglBool
+is_format_available (CoglTexture2D *tex_2d,
+                     VkFormat format,
+                     VkImageUsageFlags usage,
+                     VkImageTiling tiling)
+{
+  CoglContext *ctx = tex_2d->_parent.context;
+  CoglRenderer *renderer = ctx->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  VkFormatProperties properties;
+  VkFormatFeatureFlags requested_flags = 0;
+
+  if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+    requested_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+  if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+    requested_flags |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+  if (usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+    requested_flags |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+  if (usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+    requested_flags |= VK_FORMAT_FEATURE_BLIT_DST_BIT;
+  /* TODO: add more checks here. */
+
+  VK ( ctx, vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
+                                                 format,
+                                                 &properties) );
+
+  if (tiling == VK_IMAGE_TILING_OPTIMAL)
+    return ((properties.optimalTilingFeatures & requested_flags) ==
+            requested_flags);
+  if (tiling == VK_IMAGE_TILING_LINEAR)
+    return ((properties.linearTilingFeatures & requested_flags) ==
+            requested_flags);
+  return FALSE;
+}
+
+static CoglBool
+super_seeding_format (VkFormat format,
+                      VkComponentMapping mapping,
+                      VkFormat *next_format,
+                      VkComponentMapping *next_mapping)
+{
+  switch (format)
+    {
+    case VK_FORMAT_R8_UNORM:
+      *next_format = VK_FORMAT_R8G8_UNORM;
+      *next_mapping = mapping;
+      return TRUE;
+    case VK_FORMAT_R8G8_UNORM:
+      *next_format = VK_FORMAT_R8G8B8_UNORM;
+      *next_mapping = mapping;
+      return TRUE;
+    case VK_FORMAT_R8G8B8_UNORM:
+      *next_format = VK_FORMAT_R8G8B8A8_UNORM;
+      *next_mapping = mapping;
+      next_mapping->a = VK_COMPONENT_SWIZZLE_ONE;
+      return TRUE;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+      *next_format = format;
+      *next_mapping = mapping;
+      return TRUE;
+    }
+  return FALSE;
+}
+
+/* Try to find a suitable backing format. For example, we can add some more
+   components and map them to 0 or 1. */
+static VkFormat
+find_best_format_available (CoglTexture2D *tex_2d,
+                            VkFormat format,
+                            VkImageUsageFlags usage,
+                            VkImageTiling tiling)
+{
+  VkFormat next_format = format;
+
+  while (!is_format_available (tex_2d, next_format, usage, tiling))
+    {
+      if (!super_seeding_format (next_format, tex_2d->vk_component_mapping,
+                                 &next_format, &tex_2d->vk_component_mapping))
+        return VK_FORMAT_UNDEFINED;
+    }
+
+  return next_format;
+}
+
+static CoglBool
 create_image (CoglTexture2D *tex_2d,
               VkImageUsageFlags usage,
+              VkImageTiling tiling,
               int width, int height,
               int mip_levels,
               CoglError **error)
@@ -154,7 +238,7 @@ create_image (CoglTexture2D *tex_2d,
     .mipLevels = mip_levels,
     .arrayLayers = 1,
     .samples = VK_SAMPLE_COUNT_1_BIT,
-    .tiling = tex_2d->vk_image_tiling,
+    .tiling = tiling,
     .usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
               VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -249,9 +333,15 @@ allocate_with_size (CoglTexture2D *tex_2d,
     _cogl_texture_determine_internal_format (COGL_TEXTURE (tex_2d),
                                              COGL_PIXEL_FORMAT_ANY);
   int width = loader->src.sized.width, height = loader->src.sized.height;
+  VkImageUsageFlags usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+  VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+  VkFormat format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
 
   tex_2d->vk_format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
+    find_best_format_available (tex_2d, format, usage, tiling);
+
   if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
@@ -260,9 +350,7 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  if (!create_image (tex_2d, (VK_IMAGE_USAGE_SAMPLED_BIT |
-                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-                     width, height, 1, error))
+  if (!create_image (tex_2d, usage, tiling, width, height, 1, error))
     return FALSE;
 
   if (!allocate_image_memory (tex_2d, NULL, error))
@@ -362,7 +450,7 @@ load_bitmap_buffer_to_texture (CoglTexture2D *tex_2d,
                                1,
                                &image_copy) );
 
-  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
+  _cogl_texture_2d_vulkan_move_to_device_for_sampling (tex_2d, cmd_buffer);
 
   if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, error))
     goto error;
@@ -397,7 +485,6 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
      TODO: Consider always using optimal tiling and blit to an intermediate
      linear buffer.
    */
-  tex_2d->vk_image_tiling = VK_IMAGE_TILING_LINEAR;
   if (bitmap->shared_bmp || bitmap->buffer)
     {
       tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
@@ -422,7 +509,8 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  if (!create_image (tex_2d, initial_image_usage, width, height, 1, error))
+  if (!create_image (tex_2d, initial_image_usage, VK_IMAGE_TILING_LINEAR,
+                     width, height, 1, error))
     return FALSE;
 
   if (!allocate_image_memory (tex_2d, &memory_size, error))
@@ -562,7 +650,7 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
                        tex_2d->vk_image_layout,
                        1, &image_copy) );
 
-  _cogl_texture_2d_vulkan_move_to_device_for_read (tex_2d, cmd_buffer);
+  _cogl_texture_2d_vulkan_move_to_device_for_sampling (tex_2d, cmd_buffer);
 
   if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error))
     goto error;
@@ -741,6 +829,13 @@ _cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
                                1, &cmd_buffer) );
 }
 
+CoglBool
+_cogl_texture_2d_vulkan_ready_for_sampling (CoglTexture2D *tex_2d)
+{
+  return (tex_2d->vk_access_mask & VK_ACCESS_SHADER_READ_BIT) != 0 &&
+    tex_2d->vk_image_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+}
+
 void
 _cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
                                       VkCommandBuffer cmd_buffer)
@@ -778,8 +873,8 @@ _cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
 }
 
 void
-_cogl_texture_2d_vulkan_move_to_device_for_read (CoglTexture2D *tex_2d,
-                                                 VkCommandBuffer cmd_buffer)
+_cogl_texture_2d_vulkan_move_to_device_for_sampling (CoglTexture2D *tex_2d,
+                                                     VkCommandBuffer cmd_buffer)
 {
   CoglContext *ctx = tex_2d->_parent.context;
   VkImageMemoryBarrier image_barrier = {

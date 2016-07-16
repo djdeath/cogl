@@ -858,8 +858,8 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     goto error;
 
   /* Move framebuffer as read item. */
-  _cogl_texture_2d_vulkan_move_to_device_for_read (COGL_TEXTURE_2D (src_texture),
-                                                   vk_fb->cmd_buffer);
+  _cogl_texture_2d_vulkan_move_to_device_for_sampling (COGL_TEXTURE_2D (src_texture),
+                                                       vk_fb->cmd_buffer);
 
   cogl_framebuffer_finish (framebuffer);
 

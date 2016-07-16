@@ -67,7 +67,6 @@ struct _CoglTexture2D
 
 #ifdef COGL_HAS_VULKAN
   VkImage vk_image;
-  VkImageTiling vk_image_tiling;
   VkComponentMapping vk_component_mapping;
   VkFormat vk_format;
 
