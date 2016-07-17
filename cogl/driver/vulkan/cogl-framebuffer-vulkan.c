@@ -779,7 +779,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   };
   VkImageCreateInfo image_create_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-    .flags = 0,
+    .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
     .imageType = VK_IMAGE_TYPE_2D,
     .format = _cogl_pixel_format_to_vulkan_format (bitmap->format, NULL),
     .extent = {
@@ -857,10 +857,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   if (!cogl_texture_allocate (src_texture, error))
     goto error;
 
-  /* Move framebuffer as read item. */
-  _cogl_texture_2d_vulkan_move_to_device_for_sampling (COGL_TEXTURE_2D (src_texture),
-                                                       vk_fb->cmd_buffer);
-
   cogl_framebuffer_finish (framebuffer);
 
   dst_texture =
@@ -884,8 +880,6 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     goto error;
 
   vk_dst_fb = offscreen->winsys;
-
-  _cogl_framebuffer_vulkan_begin_render_pass (offscreen);
 
   pipeline = cogl_pipeline_new (offscreen->context);
   cogl_pipeline_set_layer_texture (pipeline, 0, src_texture);

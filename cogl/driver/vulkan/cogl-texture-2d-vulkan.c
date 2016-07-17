@@ -228,6 +228,7 @@ create_image (CoglTexture2D *tex_2d,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   VkImageCreateInfo image_create_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+    .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
     .imageType = VK_IMAGE_TYPE_2D,
     .format = tex_2d->vk_format,
     .extent = {
@@ -243,7 +244,6 @@ create_image (CoglTexture2D *tex_2d,
               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
               VK_IMAGE_USAGE_SAMPLED_BIT |
               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-    .flags = 0,
     .initialLayout = tex_2d->vk_image_layout,
   };
 
