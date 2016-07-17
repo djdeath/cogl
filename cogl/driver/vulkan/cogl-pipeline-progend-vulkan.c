@@ -1297,13 +1297,6 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
     }
 
   _cogl_framebuffer_vulkan_ensure_clean_command_buffer (framebuffer);
-
-  VK ( ctx, vkCmdBindDescriptorSets (vk_fb->cmd_buffer,
-                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                     program_state->pipeline_layout,
-                                     0, 1,
-                                     &program_state->descriptor_set,
-                                     0, NULL) );
 }
 
 static void
