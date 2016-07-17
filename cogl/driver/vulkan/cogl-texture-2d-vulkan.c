@@ -712,10 +712,12 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
 
   if (bmp->shared_bmp)
     {
-      VK_TODO();
-      _cogl_set_error (error, COGL_SYSTEM_ERROR, COGL_SYSTEM_ERROR_UNSUPPORTED,
-                       "Unsupported shared bitmap copy to texture");
-      return FALSE;
+      /* We need to go deeper. */
+      return _cogl_texture_2d_vulkan_copy_from_bitmap (tex_2d, src_x, src_y,
+                                                       width, height,
+                                                       bmp->shared_bmp,
+                                                       dst_x, dst_y,
+                                                       level, error);
     }
   else if (bmp->buffer)
     {
@@ -733,6 +735,10 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
 
   _cogl_blit_begin (&data, tex, src);
   _cogl_blit (&data, src_x, src_y, dst_x, dst_y, width, height);
+
+   /* Synchronously wait */
+  _cogl_framebuffer_vulkan_end (data.dest_fb, TRUE);
+
   _cogl_blit_end (&data);
 
   ret = TRUE;
