@@ -43,6 +43,7 @@
 #include "cogl-framebuffer-vulkan-private.h"
 #include "cogl-indices-private.h"
 #include "cogl-texture-private.h"
+#include "cogl-texture-2d-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
@@ -983,12 +984,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
     .image = _cogl_texture_2d_get_vulkan_image (tex_2d),
     .viewType = VK_IMAGE_VIEW_TYPE_2D,
     .format = _cogl_texture_2d_get_vulkan_format (tex_2d),
-    .components = {
-      .r = VK_COMPONENT_SWIZZLE_R,
-      .g = VK_COMPONENT_SWIZZLE_G,
-      .b = VK_COMPONENT_SWIZZLE_B,
-      .a = VK_COMPONENT_SWIZZLE_A,
-    },
+    .components = tex_2d->vk_component_mapping,
     .subresourceRange = {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
       .baseMipLevel = 0,

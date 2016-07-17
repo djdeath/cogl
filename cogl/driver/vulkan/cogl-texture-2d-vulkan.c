@@ -101,30 +101,36 @@ _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
   tex_2d->vk_image_view = VK_NULL_HANDLE;
   tex_2d->vk_memory = VK_NULL_HANDLE;
 
-  tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
-  tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
-  tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
-  tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A;
+  tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_ZERO;
+  tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_ZERO;
+  tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_ZERO;
+  tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_ZERO;
 
-  /* switch (COGL_TEXTURE (tex_2d)->components) */
-  /*   { */
-  /*   case COGL_TEXTURE_COMPONENTS_A: */
-  /*     /\* Map A to R because COGL_PIXEL_FORMAT_A_8 can only be represented as */
-  /*        VK_FORMAT_R8_*. *\/ */
-  /*     tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_R; */
-  /*     break; */
-  /*   case COGL_TEXTURE_COMPONENTS_RGBA: */
-  /*   case COGL_TEXTURE_COMPONENTS_DEPTH: */
-  /*     tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A; */
-  /*     /\* fall through *\/ */
-  /*   case COGL_TEXTURE_COMPONENTS_RGB: */
-  /*     tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B; */
-  /*     /\* fall through *\/ */
-  /*   case COGL_TEXTURE_COMPONENTS_RG: */
-  /*     tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R; */
-  /*     tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G; */
-  /*     break; */
-  /*   } */
+  switch (COGL_TEXTURE (tex_2d)->components)
+    {
+    case COGL_TEXTURE_COMPONENTS_A:
+      /* Map A to R because COGL_PIXEL_FORMAT_A_8 can only be represented as
+         VK_FORMAT_R8_*. */
+      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_R;
+      break;
+    case COGL_TEXTURE_COMPONENTS_RGBA:
+    case COGL_TEXTURE_COMPONENTS_DEPTH:
+      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
+      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
+      tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
+      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A;
+      break;
+    case COGL_TEXTURE_COMPONENTS_RGB:
+      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
+      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
+      tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
+      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_ONE;
+      break;
+    case COGL_TEXTURE_COMPONENTS_RG:
+      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
+      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
+      break;
+    }
 
   tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
   tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
@@ -211,6 +217,9 @@ find_best_format_available (CoglTexture2D *tex_2d,
                                  &next_format, &tex_2d->vk_component_mapping))
         return VK_FORMAT_UNDEFINED;
     }
+
+  COGL_NOTE (VULKAN, "Selecting format=%i for requested format=%i",
+             next_format, format);
 
   return next_format;
 }
