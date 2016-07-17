@@ -676,7 +676,10 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
 unsigned int
 _cogl_texture_2d_vulkan_get_gl_handle (CoglTexture2D *tex_2d)
 {
-    return 0;
+  uint64_t value = (uint64_t) tex_2d->vk_image;
+  uint32_t *pvalue = (uint32_t *) &value;
+
+  return pvalue[0] ^ pvalue[1];
 }
 
 void
