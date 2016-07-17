@@ -744,10 +744,6 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
 
   _cogl_blit_begin (&data, tex, src);
   _cogl_blit (&data, src_x, src_y, dst_x, dst_y, width, height);
-
-   /* Synchronously wait */
-  _cogl_framebuffer_vulkan_end (data.dest_fb, TRUE);
-
   _cogl_blit_end (&data);
 
   ret = TRUE;

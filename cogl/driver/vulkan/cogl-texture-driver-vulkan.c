@@ -191,7 +191,6 @@ _cogl_texture_driver_pre_paint (CoglContext *ctx,
       _cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error);
 
     error:
-      g_message ("moved texture for sampling error=%p", error);
       if (error)
         {
           g_warning ("Failed to prepare texture for sampling : %s",
