@@ -954,6 +954,9 @@ _cogl_offscreen_vulkan_free (CoglOffscreen *offscreen)
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglOffscreenVulkan *vk_off = framebuffer->winsys;
 
+  if (vk_off == NULL)
+    return;
+
   _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
 
   _cogl_framebuffer_vulkan_deinit (framebuffer);
