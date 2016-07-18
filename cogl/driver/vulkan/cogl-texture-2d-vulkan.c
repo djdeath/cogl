@@ -714,7 +714,7 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglTexture *src = NULL;
   CoglBool ret = FALSE;
-  CoglBlitData data;
+  CoglBlitData blit_data;
 
   if (level != 0 && !tex_2d->vk_has_mipmap)
     _cogl_texture_2d_vulkan_generate_mipmap (tex_2d);
@@ -742,9 +742,9 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
   if (!cogl_texture_allocate (src, error))
     goto error;
 
-  _cogl_blit_begin (&data, tex, src);
-  _cogl_blit (&data, src_x, src_y, dst_x, dst_y, width, height);
-  _cogl_blit_end (&data);
+  _cogl_blit_begin (&blit_data, tex, src);
+  _cogl_blit (&blit_data, src_x, src_y, dst_x, dst_y, width, height);
+  _cogl_blit_end (&blit_data);
 
   ret = TRUE;
 
@@ -753,98 +753,6 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
     cogl_object_unref (src);
 
   return ret;
-}
-
-void
-_cogl_texture_2d_vulkan_get_data (CoglTexture2D *tex_2d,
-                                  CoglPixelFormat format,
-                                  int rowstride,
-                                  uint8_t *data)
-{
-  CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglBuffer *buffer;
-  CoglBufferVulkan *vk_buf;
-  uint32_t bpp = _cogl_pixel_format_get_bytes_per_pixel (format),
-    src_rowstride = bpp * tex->width;
-  VkBufferImageCopy image_copy = {
-    .bufferOffset = 0,
-    .bufferRowLength = rowstride / bpp,
-    .bufferImageHeight = tex->height,
-    .imageSubresource = {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .mipLevel = 0,
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-    },
-    .imageOffset = { 0, 0, 0, },
-    .imageExtent = { tex->width, tex->height, 1, },
-  };
-  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
-  CoglError *error = NULL;
-  void *mapped_data;
-
-  if (tex_2d->internal_format != format)
-    {
-      g_warning ("Unsupported format conversion from texture format.");
-      return;
-    }
-
-  buffer = COGL_BUFFER (cogl_pixel_buffer_new (ctx,
-                                               src_rowstride * tex->height,
-                                               NULL));
-  vk_buf = buffer->winsys;
-
-  if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
-    goto error;
-
-  _cogl_texture_2d_vulkan_move_to_transfer_source (tex_2d, cmd_buffer);
-
-  VK ( ctx,
-       vkCmdCopyImageToBuffer (cmd_buffer,
-                               tex_2d->vk_image,
-                               tex_2d->vk_image_layout,
-                               vk_buf->buffer,
-                               1,
-                               &image_copy) );
-
-  _cogl_buffer_vulkan_move_to_host (buffer, cmd_buffer);
-
-  if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error))
-    goto error;
-
-  mapped_data = cogl_buffer_map (buffer, COGL_BUFFER_ACCESS_READ, 0);
-
-  if (rowstride == src_rowstride)
-    {
-      memcpy (data, mapped_data, buffer->size);
-    }
-  else
-    {
-      int i;
-
-      for (i = 0; i < tex->height; i++)
-        {
-          memcpy (data + i * rowstride,
-                  mapped_data + i * src_rowstride,
-                  src_rowstride);
-        }
-    }
-
-  cogl_buffer_unmap (buffer);
-
- error:
-  if (error)
-    g_warning ("Failed to get data from texture : %s", error->message);
-
-  if (buffer)
-    cogl_object_unref (buffer);
-
-  if (cmd_buffer != VK_NULL_HANDLE)
-    VK ( ctx,
-         vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
-                               1, &cmd_buffer) );
 }
 
 CoglBool
