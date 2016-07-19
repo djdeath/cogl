@@ -847,7 +847,8 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
   FlushDescriptors *data = user_data;
   CoglContext *context = data->context;
   CoglPipelineProgramState *program_state = data->program_state;
-  UnitState *unit_state = &program_state->unit_state[layer->index];
+  int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
+  UnitState *unit_state = &program_state->unit_state[unit_index];
   const CoglSamplerCacheEntry *sampler_entry =
     _cogl_pipeline_layer_get_sampler_state (layer);
   CoglTexture *texture;
@@ -869,8 +870,8 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
       VkDescriptorImageInfo *image_info =
         &program_state->descriptor_image_infos[index];
 
-      COGL_NOTE (VULKAN, "Writing descriptor set cogl_sampler%i binding=%i",
-                 layer->index, unit_state->binding);
+      COGL_NOTE (VULKAN, "Writing descriptor set cogl_sampler%i unit=%i binding=%i",
+                 layer->index, unit_index, unit_state->binding);
 
       write_set->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       write_set->dstSet = program_state->descriptor_set;
