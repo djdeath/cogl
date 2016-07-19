@@ -875,6 +875,9 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     goto error;
 
   offscreen = COGL_FRAMEBUFFER (cogl_offscreen_new_with_texture (dst_texture));
+  cogl_framebuffer_orthographic (offscreen,
+                                 0, 0, bitmap->width, bitmap->height,
+                                 -1 /* near */, 1 /* far */);
   cogl_framebuffer_set_depth_write_enabled (offscreen, FALSE);
 
   if (!cogl_framebuffer_allocate (offscreen, error))
@@ -890,7 +893,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   cogl_pipeline_set_blend (pipeline, "RGBA = ADD(SRC_COLOR, 0)", NULL);
 
   cogl_framebuffer_draw_textured_rectangle (offscreen, pipeline,
-                                            -1, -1, 1, 1,
+                                            0, 0, bitmap->width, bitmap->height,
                                             (float) x / (float) framebuffer->width,
                                             (float) y / (float) framebuffer->height,
                                             (float) (x + bitmap->width) / (float) framebuffer->width,
