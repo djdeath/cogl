@@ -196,10 +196,13 @@ add_layer_vulkan_vertex_boilerplate_cb (CoglPipelineLayer *layer,
   struct _CoglVulkanShaderBuilder *builder = user_data;
   int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
   g_string_append_printf (builder->attributes,
-                          "in vec4 cogl_tex_coord%d_in;\n"
+                          "in vec4 _cogl_tex_coord%d_in;\n"
+                          "#define cogl_tex_coord%d_in _cogl_tex_coord%d_in\n"
                           "#define cogl_texture_matrix%i cogl_texture_matrix[%i]\n"
                           "#define cogl_tex_coord%i_out _cogl_tex_coord[%i]\n",
+                          unit_index,
                           layer->index,
+                          unit_index,
                           layer->index,
                           unit_index,
                           layer->index,

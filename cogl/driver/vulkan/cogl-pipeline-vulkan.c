@@ -291,6 +291,62 @@ _cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
                              _cogl_pipeline_vulkan_unset_framebuffer);
 }
 
+static int
+_get_attribute_unit_index (CoglPipeline *pipeline,
+                           CoglAttribute *attribute)
+{
+  int layer_number = attribute->name_state->layer_number;
+  CoglPipelineLayer *layer =
+    _cogl_pipeline_get_layer_with_flags (pipeline,
+                                         layer_number,
+                                         COGL_PIPELINE_GET_LAYER_NO_CREATE);
+
+  if (layer)
+    return _cogl_pipeline_layer_get_unit_index (layer);
+
+  return -1;
+}
+
+static const char *tex_coords_names[] = {
+  "_cogl_tex_coord0_in",
+  "_cogl_tex_coord1_in",
+  "_cogl_tex_coord2_in",
+  "_cogl_tex_coord3_in",
+  "_cogl_tex_coord4_in",
+  "_cogl_tex_coord5_in",
+  "_cogl_tex_coord6_in",
+  "_cogl_tex_coord7_in"
+};
+
+static int
+_get_input_attribute_location (CoglShaderVulkan *shader,
+                               CoglPipeline *pipeline,
+                               CoglAttribute *attribute)
+{
+  int unit_index;
+  if (attribute->name_state->name_id == COGL_ATTRIBUTE_NAME_ID_TEXTURE_COORD_ARRAY &&
+      (unit_index = _get_attribute_unit_index (pipeline, attribute)) != -1)
+    {
+      char name[80];
+      if (unit_index < G_N_ELEMENTS (tex_coords_names))
+        return
+          _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                            COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                            tex_coords_names[unit_index]);
+
+      g_snprintf (name, sizeof (name), "_cogl_tex_coord%i_in", unit_index);
+
+      return
+        _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                          COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                          name);
+    }
+
+  return _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                           COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                           attribute->name_state->name);
+}
+
 static void
 _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
                                           CoglPipeline *pipeline,
@@ -354,9 +410,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
           vertex_bind->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
           vertex_desc->location =
-            _cogl_shader_vulkan_get_input_attribute_location (shader,
-                                                              COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                              attribute->name_state->name);
+            _get_input_attribute_location (shader, pipeline, attribute);
           vertex_desc->binding = i;
           vertex_desc->offset = 0;
           vertex_desc->format =
