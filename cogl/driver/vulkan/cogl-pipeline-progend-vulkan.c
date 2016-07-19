@@ -860,8 +860,7 @@ compare_layer_differences_cb (CoglPipelineLayer *layer, void *user_data)
   else
     texture = COGL_TEXTURE (context->default_gl_texture_2d_tex);
 
-  if (unit_state->sampler == VK_NULL_HANDLE ||
-      unit_state->sampler != sampler_entry->vk_sampler ||
+  if (unit_state->sampler != sampler_entry->vk_sampler ||
       unit_state->image_view != _cogl_texture_get_vulkan_image_view (texture))
     {
       int index = program_state->n_write_descriptor_sets++;
