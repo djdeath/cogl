@@ -83,6 +83,7 @@ typedef struct
 
 static float _cogl_color_in_default[4] = { 1.0, 1.0, 1.0, 1.0 };
 static float _cogl_normal_in_default[3] = { 0.0, 0.0, 1.0 };
+static float _cogl_tex_coord_in_default[4] = { 0.0, 0.0, 0.0, 0.0 };
 
 static DefaultBuiltinAttribute default_attributes[] =
   {
@@ -99,6 +100,13 @@ static DefaultBuiltinAttribute default_attributes[] =
       &_cogl_normal_in_default,
       sizeof (_cogl_normal_in_default),
       VK_FORMAT_R32G32B32_SFLOAT,
+    },
+    {
+      COGL_ATTRIBUTE_NAME_ID_TEXTURE_COORD_ARRAY,
+      "_cogl_tex_coord0_in",
+      &_cogl_tex_coord_in_default,
+      sizeof (_cogl_tex_coord_in_default),
+      VK_FORMAT_R32G32B32A32_SFLOAT,
     }
   };
 
