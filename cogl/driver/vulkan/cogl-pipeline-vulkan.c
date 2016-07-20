@@ -387,7 +387,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
   /* Invalidate pipeline if number of user supplied attribute has
      changed. */
-  if (vk_pipeline->n_user_vertex_inputs != n_user_attributes)
+  if (vk_pipeline->n_user_vertex_inputs != 0 &&
+      vk_pipeline->n_user_vertex_inputs != n_user_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
   vk_pipeline->attribute_buffers =
