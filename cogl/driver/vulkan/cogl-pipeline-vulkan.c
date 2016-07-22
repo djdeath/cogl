@@ -156,9 +156,11 @@ get_vk_pipeline (CoglPipeline *pipeline)
 static void
 _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglContextVulkan *vk_ctx;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  vk_ctx = ctx->winsys;
 
   if (!vk_pipeline)
     return;
@@ -244,7 +246,6 @@ vertend_add_layer_cb (CoglPipelineLayer *layer,
   CoglPipelineAddLayerState *state = user_data;
   const CoglPipelineVertend *vertend = state->vertend;
   CoglPipeline *pipeline = state->pipeline;
-  int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
 
   /* Either generate per layer code snippets or setup the
    * fixed function glTexEnv for each layer... */
@@ -267,7 +268,6 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
   CoglPipelineAddLayerState *state = user_data;
   const CoglPipelineFragend *fragend = state->fragend;
   CoglPipeline *pipeline = state->pipeline;
-  int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
 
   /* Either generate per layer code snippets or setup the
    * fixed function glTexEnv for each layer... */
@@ -521,8 +521,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
                 (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
 
               COGL_NOTE (VULKAN,
-                         "User attribute '%s' location=%i offset=%i"
-                         " stride=%i n_components=%i vk_format=%i",
+                         "User attribute '%s' location=%i offset=%lu"
+                         " stride=%lu n_components=%i vk_format=%i",
                          attribute->name_state->name,
                          vertex_desc->location,
                          attribute->d.buffered.offset,
@@ -766,7 +766,7 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-  int i, n_layers = cogl_pipeline_get_n_layers (pipeline);
+  int n_layers = cogl_pipeline_get_n_layers (pipeline);
   const CoglPipelineProgend *progend;
   const CoglPipelineVertend *vertend;
   const CoglPipelineFragend *fragend;

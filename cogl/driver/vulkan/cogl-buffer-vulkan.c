@@ -187,8 +187,6 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
                               unsigned int size,
                               CoglError **error)
 {
-  CoglContext *ctx = buffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   void *data_map;
 
   if (buffer->flags & COGL_BUFFER_FLAG_MAPPED)

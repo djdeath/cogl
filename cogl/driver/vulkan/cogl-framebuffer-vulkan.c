@@ -139,7 +139,6 @@ _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  int i;
 
   if (vk_fb->cmd_buffers->len > 0)
     {
@@ -308,7 +307,6 @@ static void
 _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
@@ -325,7 +323,6 @@ static void
 _cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkClearValue clear_values[2];
   VkRenderPassBeginInfo render_begin_info = {
@@ -423,7 +420,6 @@ static void
 _cogl_framebuffer_vulkan_end_render_pass (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
 
   if (!vk_fb->render_pass_started)
@@ -519,8 +515,6 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
                                       CoglFramebufferState state)
 {
   CoglContext *ctx = draw_buffer->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglFramebufferVulkan *vk_fb = draw_buffer->winsys;
 
   if (state & COGL_FRAMEBUFFER_STATE_INDEX_MODELVIEW)
     _cogl_context_set_current_modelview_entry (draw_buffer->context,

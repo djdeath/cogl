@@ -197,8 +197,9 @@ super_seeding_format (VkFormat format,
       *next_format = format;
       *next_mapping = mapping;
       return TRUE;
+    default:
+      return FALSE;
     }
-  return FALSE;
 }
 
 /* Try to find a suitable backing format. For example, we can add some more
@@ -481,15 +482,11 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
                       CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglBitmap *bitmap = loader->src.bitmap.bitmap;
-  CoglPixelFormat internal_format = bitmap->format;
   int width = bitmap->width, height = bitmap->height;
   uint32_t memory_size;
   VkFormat format =
     _cogl_pixel_format_to_vulkan_format_for_sampling (bitmap->format, NULL);
-  VkImageTiling tiling = VK_IMAGE_TILING_LINEAR;
   VkImageUsageFlags usage;
 
   /* Override default tiling.
@@ -563,8 +560,6 @@ allocate_from_foreign_vulkan (CoglTexture2D *tex_2d,
                               CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   int width = loader->src.vulkan_foreign.width,
     height = loader->src.vulkan_foreign.height;
 
@@ -710,8 +705,6 @@ _cogl_texture_2d_vulkan_copy_from_bitmap (CoglTexture2D *tex_2d,
                                           CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
-  CoglContext *ctx = tex->context;
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglTexture *src = NULL;
   CoglBool ret = FALSE;
   CoglBlitData blit_data;

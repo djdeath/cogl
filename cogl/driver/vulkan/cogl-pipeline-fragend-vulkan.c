@@ -993,7 +993,6 @@ _cogl_pipeline_fragend_vulkan_end (CoglPipeline *pipeline,
   if (shader_state->source)
     {
       GString *shader_source;
-      CoglShaderVulkan *shader = NULL;
       CoglPipelineSnippetData snippet_data;
 
       COGL_STATIC_COUNTER (fragend_vulkan_compile_counter,

@@ -261,9 +261,11 @@ destroy_program_state (void *user_data,
                        void *instance)
 {
   CoglPipelineProgramState *program_state = user_data;
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglContextVulkan *vk_ctx;
   int i;
+
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  vk_ctx = ctx->winsys;
 
   /* If the program state was last used for this pipeline then clear
      it so that if same address gets used again for a new pipeline
@@ -381,7 +383,7 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
     {
       if (location->offsets[i] != -1)
         {
-          COGL_NOTE (VULKAN, "Uniform=%s stage=%i offset=%i size=%i",
+          COGL_NOTE (VULKAN, "Uniform=%s stage=%i offset=%i size=%lu",
                      location->name, i, location->offsets[i], size);
 
           memcpy ((uint8_t *) program_state->uniform_datas[i] +
@@ -450,7 +452,6 @@ get_uniform_cb (CoglPipeline *pipeline,
   UpdateUniformsState *state = user_data;
   CoglPipelineProgramState *program_state = state->program_state;
   UnitState *unit_state = &program_state->unit_state[state->unit];
-  CoglShaderVulkanUniform *uniform_location;
 
   _COGL_GET_CONTEXT (ctx, FALSE);
 
@@ -483,8 +484,6 @@ update_constants_cb (CoglPipeline *pipeline,
   UpdateUniformsState *state = user_data;
   CoglPipelineProgramState *program_state = state->program_state;
   UnitState *unit_state = &program_state->unit_state[state->unit++];
-  _COGL_GET_CONTEXT (ctx, FALSE);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
 
   if (unit_state->combine_constant_uniform != NULL &&
       (state->update_all || unit_state->dirty_combine_constant))
@@ -722,7 +721,6 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
 {
   CreateDescriptorSetLayout *data = user_data;
   VkDescriptorSetLayoutBinding *binding = &data->bindings[data->n_bindings];
-  CoglShaderVulkanSampler *sampler;
   UnitState *unit_state = &data->program_state->unit_state[data->n_units];
 
   _COGL_GET_CONTEXT (ctx, FALSE);
@@ -879,14 +877,15 @@ static void
 _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
                                  unsigned long pipelines_difference)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglContextVulkan *vk_ctx;
   CoglPipelineProgramState *program_state;
   CoglBool program_changed = FALSE;
   UpdateUniformsState state;
-  CoglProgram *user_program;
   CoglPipelineCacheEntry *cache_entry = NULL;
   int i;
+
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
+  vk_ctx = ctx->winsys;
 
   program_state = get_program_state (pipeline);
 
@@ -1137,9 +1136,9 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
                                                CoglPipelineState change,
                                                const CoglColor *new_color)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglPipelineProgramState *program_state = get_program_state (pipeline);
+
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   _cogl_pipeline_vulkan_pre_change_notify (pipeline, change);
 
@@ -1180,10 +1179,10 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
                                                 CoglPipelineLayer *layer,
                                                 CoglPipelineLayerState change)
 {
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglPipelineProgramState *program_state = get_program_state (owner);
   int unit_index = _cogl_pipeline_layer_get_unit_index (layer);
+
+  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   if (!program_state)
     return;
@@ -1217,7 +1216,6 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
 {
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   VkDescriptorBufferInfo descriptor_buffer_info[COGL_SHADER_VULKAN_NB_STAGES];
   int i;
 
@@ -1274,8 +1272,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglBool need_modelview;
   CoglBool need_projection;
   CoglMatrix modelview, projection;
-  CoglBuffer *uniform_buffer;
-  CoglBufferVulkan *vk_uniform_buffer;
 
   _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 

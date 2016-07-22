@@ -435,7 +435,6 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
                             CoglError **error)
 {
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
-  CoglFramebufferVulkan *vk_fb;
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglRenderer *renderer = ctx->display->renderer;
@@ -573,8 +572,6 @@ _cogl_winsys_onscreen_init (CoglOnscreen *onscreen,
 
   if (!_cogl_framebuffer_vulkan_init (framebuffer, vk_format, error))
     goto error;
-
-  vk_fb = framebuffer->winsys;
 
   for (i = 0; i < vk_onscreen_wl->image_count; i++)
     {
@@ -745,8 +742,6 @@ static void
 _cogl_winsys_onscreen_set_visibility (CoglOnscreen *onscreen,
                                       CoglBool visibility)
 {
-  CoglOnscreenVulkanWayland *vk_onscreen = onscreen->winsys;
-
   /* The first time the onscreen is shown we will set it to toplevel
    * so that it will appear on the screen. If the surface is foreign
    * then we won't have the shell surface and we'll just let the
