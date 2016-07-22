@@ -94,9 +94,9 @@ _cogl_pixel_format_compatible_with_vulkan_format (CoglPixelFormat cogl_format,
       return (cogl_format == COGL_PIXEL_FORMAT_G_8);
 
       // TODO: Add RGB565 etc...
+    default:
+      return FALSE;
     }
-
-  return FALSE;
 }
 
 VkFormat

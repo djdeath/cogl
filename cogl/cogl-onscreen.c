@@ -33,6 +33,7 @@
 #endif
 
 #include "cogl-util.h"
+#include "cogl-onscreen.h"
 #include "cogl-onscreen-private.h"
 #include "cogl-frame-info-private.h"
 #include "cogl-framebuffer-private.h"

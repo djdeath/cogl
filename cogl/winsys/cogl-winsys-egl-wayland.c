@@ -660,8 +660,6 @@ static void
 _cogl_winsys_onscreen_set_visibility (CoglOnscreen *onscreen,
                                       CoglBool visibility)
 {
-  CoglOnscreenEGL *egl_onscreen = onscreen->winsys;
-
   /* The first time the onscreen is shown we will set it to toplevel
    * so that it will appear on the screen. If the surface is foreign
    * then we won't have the shell surface and we'll just let the

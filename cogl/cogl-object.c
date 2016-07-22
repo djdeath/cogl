@@ -276,7 +276,6 @@ cogl_debug_object_foreach_type (CoglDebugObjectForeachTypeCallback func,
 {
   GHashTableIter iter;
   GHashTable *obj_table;
-  unsigned long *instance_count;
   CoglDebugObjectTypeInfo info;
 
   g_hash_table_iter_init (&iter, _cogl_debug_instances);

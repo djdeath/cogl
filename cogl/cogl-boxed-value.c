@@ -401,6 +401,8 @@ _cogl_boxed_value_get_pointer (const CoglBoxedValue *value)
       else
         return value->v.float_array;
     }
+
+  return NULL;
 }
 
 const size_t
@@ -418,4 +420,6 @@ _cogl_boxed_value_get_size (const CoglBoxedValue *value)
     case COGL_BOXED_FLOAT:
       return value->count * value->size * sizeof (float);
     }
+
+  return 0;
 }

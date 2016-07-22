@@ -230,7 +230,7 @@ _cogl_glsl_vulkan_shader_get_source_with_boilerplate (CoglContext *ctx,
                                                       GString *global,
                                                       GString *source)
 {
-  int i, n_layers = cogl_pipeline_get_n_layers (pipeline);
+  int n_layers = cogl_pipeline_get_n_layers (pipeline);
   struct _CoglVulkanShaderBuilder builder = {
     g_string_new (NULL),
     g_string_new (NULL),
