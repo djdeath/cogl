@@ -751,6 +751,8 @@ _cogl_winsys_egl_wayland_get_vtable (void)
       vtable.onscreen_swap_buffers_with_damage =
         _cogl_winsys_onscreen_swap_buffers_with_damage;
 
+      vtable.wayland_onscreen_resize = _cogl_winsys_onscreen_resize;
+
       vtable.onscreen_set_visibility =
         _cogl_winsys_onscreen_set_visibility;
 
