@@ -112,10 +112,12 @@ _cogl_driver_update_features (CoglContext *ctx,
 
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_GLSL, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_OFFSCREEN, TRUE);
-  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_POINT_SPRITE, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_MAP_BUFFER_FOR_READ, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_MAP_BUFFER_FOR_WRITE, TRUE);
   COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TEXTURE_RG, TRUE);
+
+  if (vk_renderer->physical_device_properties.limits.pointSizeRange[1] > 1.0)
+    COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_POINT_SPRITE, TRUE);
 
   ctx->feature_flags |= COGL_FEATURE_SHADERS_GLSL;
 
@@ -159,6 +161,9 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
       !g_module_symbol (renderer->libgl_module,
                         "vkEnumeratePhysicalDevices",
                         (gpointer *) &vk_renderer->vkEnumeratePhysicalDevices) ||
+      !g_module_symbol (renderer->libgl_module,
+                        "vkGetPhysicalDeviceFeatures",
+                        (gpointer *) &vk_renderer->vkGetPhysicalDeviceFeatures) ||
       !g_module_symbol (renderer->libgl_module,
                         "vkGetPhysicalDeviceProperties",
                         (gpointer *) &vk_renderer->vkGetPhysicalDeviceProperties) ||
@@ -237,6 +242,8 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
     }
 
   vk_renderer->physical_device = devices[0];
+  vk_renderer->vkGetPhysicalDeviceFeatures (vk_renderer->physical_device,
+                                            &vk_renderer->physical_device_features);
   vk_renderer->vkGetPhysicalDeviceProperties (vk_renderer->physical_device,
                                               &vk_renderer->physical_device_properties);
 

@@ -40,6 +40,7 @@ typedef struct _CoglRendererVulkan
   VkInstance instance;
   VkDevice device;
   VkPhysicalDevice physical_device;
+  VkPhysicalDeviceFeatures physical_device_features;
   VkPhysicalDeviceProperties physical_device_properties;
   VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
 
@@ -47,6 +48,7 @@ typedef struct _CoglRendererVulkan
   PFN_vkDestroyInstance vkDestroyInstance;
   PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
   PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
+  PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
   PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
   PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
   PFN_vkCreateDevice vkCreateDevice;
