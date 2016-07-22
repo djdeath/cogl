@@ -76,36 +76,55 @@ typedef struct
 {
   CoglAttributeNameID name_id;
   const char *name;
-  void *data;
-  size_t size;
+  size_t offset;
   VkFormat vk_format;
 } DefaultBuiltinAttribute;
 
-static float _cogl_color_in_default[4] = { 1.0, 1.0, 1.0, 1.0 };
-static float _cogl_normal_in_default[3] = { 0.0, 0.0, 1.0 };
-static float _cogl_tex_coord_in_default[4] = { 0.0, 0.0, 0.0, 0.0 };
+typedef struct
+{
+  struct {
+    float r;
+    float g;
+    float b;
+    float a;
+  } cogl_color_in;
+  struct {
+    float x;
+    float y;
+    float z;
+  } cogl_normal_in;
+  struct {
+    float x;
+    float y;
+    float s;
+    float t;
+  } cogl_tex_coord_in;
+} DefaultBuiltinAttributeValues;
+
+static const DefaultBuiltinAttributeValues default_attributes_values = {
+  .cogl_color_in = { 1.0, 1.0, 1.0, 1.0 },
+  .cogl_normal_in = { 0.0, 0.0, 1.0 },
+  .cogl_tex_coord_in = { 0.0, 0.0, 0.0, 0.0 },
+};
 
 static DefaultBuiltinAttribute default_attributes[] =
   {
     {
       COGL_ATTRIBUTE_NAME_ID_COLOR_ARRAY,
       "cogl_color_in",
-      &_cogl_color_in_default,
-      sizeof (_cogl_color_in_default),
+      G_STRUCT_OFFSET (DefaultBuiltinAttributeValues, cogl_color_in),
       VK_FORMAT_R32G32B32A32_SFLOAT,
     },
     {
       COGL_ATTRIBUTE_NAME_ID_NORMAL_ARRAY,
       "cogl_normal_in",
-      &_cogl_normal_in_default,
-      sizeof (_cogl_normal_in_default),
+      G_STRUCT_OFFSET (DefaultBuiltinAttributeValues, cogl_normal_in),
       VK_FORMAT_R32G32B32_SFLOAT,
     },
     {
       COGL_ATTRIBUTE_NAME_ID_TEXTURE_COORD_ARRAY,
       "_cogl_tex_coord0_in",
-      &_cogl_tex_coord_in_default,
-      sizeof (_cogl_tex_coord_in_default),
+      G_STRUCT_OFFSET (DefaultBuiltinAttributeValues, cogl_tex_coord_in),
       VK_FORMAT_R32G32B32A32_SFLOAT,
     }
   };
@@ -116,24 +135,15 @@ CoglBuffer *
 _cogl_pipeline_ensure_default_attributes (CoglContext *ctx)
 {
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  uint32_t size = 0, offset = 0, i;
   void *data;
 
-  for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
-    size += default_attributes[i].size;
-
   vk_ctx->default_attributes =
-    COGL_BUFFER (cogl_attribute_buffer_new_with_size (ctx, size));
+    COGL_BUFFER (cogl_attribute_buffer_new_with_size (ctx, sizeof (default_attributes_values)));
 
   data = cogl_buffer_map (vk_ctx->default_attributes,
                           COGL_BUFFER_ACCESS_WRITE,
                           COGL_BUFFER_MAP_HINT_DISCARD);
-  for (i = 0, size = 0; i < G_N_ELEMENTS (default_attributes); i++)
-    {
-      memcpy (data + size, default_attributes[i].data,
-              default_attributes[i].size);
-      size += default_attributes[i].size;
-    }
+  memcpy (data, &default_attributes_values, vk_ctx->default_attributes->size);
   cogl_buffer_unmap (vk_ctx->default_attributes);
 }
 
@@ -373,7 +383,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
     g_malloc0 (sizeof (VkPipelineVertexInputStateCreateInfo) +
                n_max_attributes * (sizeof (VkVertexInputBindingDescription) +
                                    sizeof (VkVertexInputAttributeDescription)));
-  uint32_t attributes_field = 0, attribute_offset;
+  uint32_t attributes_field = 0;
   VkPipelineVertexInputStateCreateInfo *info;
 
   info = ptr;
@@ -452,7 +462,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
   /* Verify that we aren't missing any default GL attribute. */
   n_attributes = n_user_attributes;
-  attribute_offset = 0;
   for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
     {
       DefaultBuiltinAttribute *attribute = &default_attributes[i];
@@ -478,7 +487,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
           vk_pipeline->attribute_buffers[n_attributes] =
             vk_buf_default_attributes->buffer;
-          vk_pipeline->attribute_offsets[n_attributes] = attribute_offset;
+          vk_pipeline->attribute_offsets[n_attributes] = attribute->offset;
 
           if (vk_pipeline->vertex_inputs &&
               (memcmp (&vk_pipeline->vertex_inputs->pVertexBindingDescriptions[n_attributes],
@@ -496,8 +505,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
           n_attributes++;
         }
-
-      attribute_offset += attribute->size;
     }
 
   info->vertexBindingDescriptionCount =
