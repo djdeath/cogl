@@ -387,11 +387,11 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
   VkPipelineVertexInputStateCreateInfo *info;
 
   info = ptr;
-  info->pVertexBindingDescriptions =
-    ptr + sizeof (VkPipelineVertexInputStateCreateInfo);
-  info->pVertexAttributeDescriptions =
-    ptr + sizeof (VkPipelineVertexInputStateCreateInfo) +
-    n_max_attributes * sizeof (VkVertexInputBindingDescription);
+  info->pVertexBindingDescriptions = (VkVertexInputBindingDescription *)
+    ((uint8_t *) ptr + sizeof (VkPipelineVertexInputStateCreateInfo));
+  info->pVertexAttributeDescriptions = (VkVertexInputAttributeDescription *)
+    ((uint8_t *) ptr + sizeof (VkPipelineVertexInputStateCreateInfo) +
+     n_max_attributes * sizeof (VkVertexInputBindingDescription));
 
   info->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 

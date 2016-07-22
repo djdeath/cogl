@@ -236,7 +236,7 @@ _cogl_feature_check_ext_functions (CoglContext *context,
 
 #ifdef HAVE_COGL_VULKAN
 
-CoglBool
+static CoglBool
 _cogl_feature_vulkan_check (CoglRenderer *renderer,
                             const CoglFeatureData *data,
                             int vk_major,

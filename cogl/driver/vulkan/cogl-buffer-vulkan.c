@@ -131,7 +131,6 @@ _cogl_buffer_vulkan_map_range (CoglBuffer *buffer,
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglBufferVulkan *vk_buffer = buffer->winsys;
   void *data;
-  VkResult result;
 
   if (vk_buffer->buffer == VK_NULL_HANDLE)
     {
@@ -162,7 +161,6 @@ _cogl_buffer_vulkan_unmap (CoglBuffer *buffer)
   CoglContext *ctx = buffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglBufferVulkan *vk_buffer = buffer->winsys;
-  VkResult result;
 
   if (vk_buffer->memory_need_flush)
     {
@@ -189,11 +187,9 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
                               unsigned int size,
                               CoglError **error)
 {
-  CoglBufferVulkan *vk_buf = buffer->winsys;
   CoglContext *ctx = buffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
   void *data_map;
-  VkResult result;
 
   if (buffer->flags & COGL_BUFFER_FLAG_MAPPED)
     {
@@ -211,7 +207,7 @@ _cogl_buffer_vulkan_set_data (CoglBuffer *buffer,
   if (!data_map)
     return FALSE;
 
-  memcpy (data_map + offset, data, size);
+  memcpy ((uint8_t *) data_map + offset, data, size);
 
   _cogl_buffer_vulkan_unmap (buffer);
 

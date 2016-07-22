@@ -31,6 +31,9 @@
 #ifndef __COGL_SAMPLER_GL_PRIVATE_H__
 #define __COGL_SAMPLER_GL_PRIVATE_H__
 
+#include "cogl-context-private.h"
+#include "cogl-sampler-cache-private.h"
+
 void
 _cogl_sampler_gl_create (CoglContext *context, CoglSamplerCacheEntry *entry);
 

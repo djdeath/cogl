@@ -419,7 +419,7 @@ _cogl_clip_stack_vulkan_flush (CoglClipStack *stack,
   VK ( ctx, vkCmdSetScissor (vk_fb->cmd_buffer, 0, 1, &vk_rect) );
 }
 
-void
+static void
 _cogl_framebuffer_vulkan_end_render_pass (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
@@ -536,20 +536,6 @@ _cogl_framebuffer_vulkan_flush_state (CoglFramebuffer *draw_buffer,
     _cogl_framebuffer_vulkan_end (ctx->current_draw_buffer, FALSE);
 
   ctx->current_draw_buffer = draw_buffer;
-}
-
-static CoglTexture *
-create_depth_texture (CoglContext *ctx,
-                      int width,
-                      int height)
-{
-  CoglTexture2D *depth_texture =
-    cogl_texture_2d_new_with_size (ctx, width, height);
-
-  cogl_texture_set_components (COGL_TEXTURE (depth_texture),
-                               COGL_TEXTURE_COMPONENTS_DEPTH);
-
-  return COGL_TEXTURE (depth_texture);
 }
 
 void
@@ -669,21 +655,6 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
 }
 
-static size_t
-sizeof_indices_type (CoglIndicesType type)
-{
-  switch (type)
-    {
-    case COGL_INDICES_TYPE_UNSIGNED_BYTE:
-      return 1;
-    case COGL_INDICES_TYPE_UNSIGNED_SHORT:
-      return 2;
-    case COGL_INDICES_TYPE_UNSIGNED_INT:
-      return 4;
-    }
-  g_return_val_if_reached (0);
-}
-
 void
 _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                                                   CoglPipeline *pipeline,
@@ -720,38 +691,6 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffer_length++;
 
   g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
-}
-
-static void
-_cogl_framebuffer_vulkan_framebuffer_read_barrier (CoglFramebuffer *framebuffer,
-                                                   VkCommandBuffer cmd_buffer)
-{
-  CoglContext *ctx = framebuffer->context;
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  VkImageMemoryBarrier image_barrier;
-
-  memset (&image_barrier, 0, sizeof (image_barrier));
-  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  image_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-  image_barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.image = vk_fb->color_image;
-  image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  image_barrier.subresourceRange.baseMipLevel = 0;
-  image_barrier.subresourceRange.levelCount = 1;
-  image_barrier.subresourceRange.baseArrayLayer = 0;
-  image_barrier.subresourceRange.layerCount = 1;
-
-  VK ( ctx,  vkCmdPipelineBarrier (cmd_buffer,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   0,
-                                   0, NULL,
-                                   0, NULL,
-                                   1, &image_barrier) );
 }
 
 CoglBool

@@ -69,26 +69,6 @@ _cogl_driver_pixel_format_to_gl (CoglContext *context,
   return format;
 }
 
-static const char *
-get_extension_for_winsys_id (CoglWinsysID winsys_id)
-{
-  switch (winsys_id)
-    {
-#ifdef VK_KHR_xcb_surface
-    case COGL_WINSYS_ID_GLX:
-      return VK_KHR_XCB_SURFACE_EXTENSION_NAME;
-    case COGL_WINSYS_ID_EGL_XLIB:
-      return VK_KHR_XCB_SURFACE_EXTENSION_NAME;
-#endif
-#ifdef VK_KHR_wayland_surface
-    case COGL_WINSYS_ID_EGL_WAYLAND:
-      return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
-#endif
-    default:
-      return NULL;
-    }
-}
-
 static CoglBool
 _cogl_driver_update_features (CoglContext *ctx,
                               CoglError **error)
@@ -296,7 +276,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
   CoglRenderer *renderer = context->display->renderer;
   CoglRendererVulkan *vk_renderer = renderer->winsys;
   CoglContextVulkan *vk_ctx = g_slice_new0 (CoglContextVulkan);
-  uint32_t count = 1;
 
   context->winsys = vk_ctx;
 

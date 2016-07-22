@@ -301,7 +301,7 @@ allocate_image_memory (CoglTexture2D *tex_2d, uint32_t *size, CoglError **error)
   return TRUE;
 }
 
-CoglBool
+static CoglBool
 create_image_view (CoglTexture2D *tex_2d, CoglError **error)
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
@@ -407,7 +407,7 @@ load_bitmap_data_to_texture (CoglTexture2D *tex_2d,
         dst_rowstride = width * format_bpp;
 
       for (i = 0; i < height; i++) {
-        memcpy (data + i * dst_rowstride,
+        memcpy ((uint8_t *) data + i * dst_rowstride,
                 bitmap->data + i * src_rowstride,
                 dst_rowstride);
       }

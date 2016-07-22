@@ -384,7 +384,8 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
           COGL_NOTE (VULKAN, "Uniform=%s stage=%i offset=%i size=%i",
                      location->name, i, location->offsets[i], size);
 
-          memcpy (program_state->uniform_datas[i] + location->offsets[i],
+          memcpy ((uint8_t *) program_state->uniform_datas[i] +
+                  location->offsets[i],
                   data, size);
           program_state->uniforms_dirty[i] = TRUE;
         }
@@ -472,45 +473,6 @@ get_uniform_cb (CoglPipeline *pipeline,
   state->unit++;
 
   return TRUE;
-}
-
-static void
-create_sampler (CoglPipeline *pipeline,
-                int layer_index,
-                UnitState *unit_state)
-{
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
-  CoglContextVulkan *vk_ctx = ctx->winsys;
-  VkSamplerCreateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-    .mipLodBias = 0.0f,
-    .anisotropyEnable = VK_FALSE,
-    .maxAnisotropy = 1,
-    .compareOp = VK_COMPARE_OP_NEVER,
-    .minLod = 0.0f,
-    .maxLod = 0.0f,
-    .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
-    .unnormalizedCoordinates = VK_FALSE,
-  };
-
-  _cogl_filter_to_vulkan_filter (cogl_pipeline_get_layer_mag_filter (pipeline,
-                                                                     layer_index),
-                                 &info.magFilter,
-                                 NULL);
-  _cogl_filter_to_vulkan_filter (cogl_pipeline_get_layer_min_filter (pipeline,
-                                                                     layer_index),
-                                 &info.minFilter,
-                                 &info.mipmapMode);
-
-  info.addressModeU = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_s (pipeline, layer_index));
-  info.addressModeV = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_t (pipeline, layer_index));
-  info.addressModeW = _cogl_wrap_mode_to_vulkan_address_mode (cogl_pipeline_get_layer_wrap_mode_p (pipeline, layer_index));
-
-  VK_RET ( ctx,
-           vkCreateSampler (vk_ctx->device,
-                            &info,
-                            NULL,
-                            &unit_state->sampler) );
 }
 
 static CoglBool
