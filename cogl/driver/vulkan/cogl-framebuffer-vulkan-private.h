@@ -56,6 +56,10 @@ typedef struct _CoglFramebufferVulkan
   CoglBool render_pass_started;
   uint32_t cmd_buffer_length;
 
+  /* An array of attributes being used by the GPU. This needs to stay alive
+     for as long as the GPU will use it. */
+  GPtrArray *attributes;
+
   /* An array of pipeline being used by the GPU. Some of the data attached
      onto pipelines must be kept alive for as long as the command buffers
      using them haven't been processed. We keep a reference on those

@@ -150,6 +150,7 @@ _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
     }
   g_array_unref (vk_fb->cmd_buffers);
 
+  g_ptr_array_unref (vk_fb->attributes);
   g_ptr_array_unref (vk_fb->pipelines);
 
   if (vk_fb->render_pass != VK_NULL_HANDLE)
@@ -258,6 +259,8 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
                      COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
+  vk_fb->attributes = g_ptr_array_new_full (10,
+                                            (GDestroyNotify) cogl_object_unref);
   vk_fb->pipelines = g_ptr_array_new_full (10,
                                            (GDestroyNotify) cogl_object_unref);
 
@@ -633,6 +636,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
 {
   CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  int i;
 
   vk_fb->vertices_mode = mode;
 
@@ -646,6 +650,13 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   VK ( ctx, vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0) );
   vk_fb->cmd_buffer_length++;
 
+  for (i = 0; i < n_attributes; i++)
+    {
+      if (vk_fb->attributes->len == 0 ||
+          g_ptr_array_index (vk_fb->attributes,
+                             vk_fb->attributes->len - 1) != attributes[i])
+        g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
+    }
   g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
 }
 
@@ -664,6 +675,7 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   CoglBufferVulkan *vk_buf = indices_buffer->winsys;
   CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  int i;
 
   vk_fb->vertices_mode = mode;
 
@@ -684,6 +696,13 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                               1 /* TODO: Figure out why 1... */) );
   vk_fb->cmd_buffer_length++;
 
+  for (i = 0; i < n_attributes; i++)
+    {
+      if (vk_fb->attributes->len == 0 ||
+          g_ptr_array_index (vk_fb->attributes,
+                             vk_fb->attributes->len - 1) != attributes[i])
+        g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
+    }
   g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
 }
 
