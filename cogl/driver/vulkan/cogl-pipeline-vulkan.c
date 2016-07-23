@@ -871,6 +871,8 @@ done:
                                VK_PIPELINE_BIND_POINT_GRAPHICS,
                                vk_pipeline->pipeline) );
 
+  g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
+
   pipeline_layout =
     _cogl_pipeline_progend_get_vulkan_pipeline_layout (pipeline);
   descriptor_set =

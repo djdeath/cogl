@@ -651,13 +651,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffer_length++;
 
   for (i = 0; i < n_attributes; i++)
-    {
-      if (vk_fb->attributes->len == 0 ||
-          g_ptr_array_index (vk_fb->attributes,
-                             vk_fb->attributes->len - 1) != attributes[i])
-        g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
-    }
-  g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
+    g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
 }
 
 void
@@ -697,13 +691,7 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffer_length++;
 
   for (i = 0; i < n_attributes; i++)
-    {
-      if (vk_fb->attributes->len == 0 ||
-          g_ptr_array_index (vk_fb->attributes,
-                             vk_fb->attributes->len - 1) != attributes[i])
-        g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
-    }
-  g_ptr_array_add (vk_fb->pipelines, cogl_object_ref (pipeline));
+    g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
 }
 
 CoglBool
