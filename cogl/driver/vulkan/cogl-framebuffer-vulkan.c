@@ -473,6 +473,10 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
                                  vk_fb->cmd_buffers->len,
                                  (VkCommandBuffer *) vk_fb->cmd_buffers->data) );
 
+      /* Do this first to avoid reentrant calls when freeing the pipelines. */
+      vk_fb->cmd_buffer = VK_NULL_HANDLE;
+      vk_fb->cmd_buffer_length = 0;
+
       g_array_set_size (vk_fb->cmd_buffers, 0);
       g_ptr_array_set_size (vk_fb->attributes, 0);
       g_ptr_array_set_size (vk_fb->pipelines, 0);
@@ -487,18 +491,16 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
                                   .pCommandBuffers = &vk_fb->cmd_buffer,
                                 }, VK_NULL_HANDLE),
                  &error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL );
+
+      vk_fb->cmd_buffer = VK_NULL_HANDLE;
+      vk_fb->cmd_buffer_length = 0;
     }
 
-  goto cleanup;
+  return;
 
  error:
   g_warning ("%s", error->message);
   _cogl_clear_error (&error);
-
- cleanup:
-
-  vk_fb->cmd_buffer = VK_NULL_HANDLE;
-  vk_fb->cmd_buffer_length = 0;
 }
 
 void
