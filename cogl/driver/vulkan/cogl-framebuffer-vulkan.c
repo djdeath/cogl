@@ -474,6 +474,7 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
                                  (VkCommandBuffer *) vk_fb->cmd_buffers->data) );
 
       g_array_set_size (vk_fb->cmd_buffers, 0);
+      g_ptr_array_set_size (vk_fb->attributes, 0);
       g_ptr_array_set_size (vk_fb->pipelines, 0);
     }
   else
@@ -650,8 +651,6 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   VK ( ctx, vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0) );
   vk_fb->cmd_buffer_length++;
 
-  for (i = 0; i < n_attributes; i++)
-    g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
 }
 
 void
@@ -690,8 +689,6 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                               1 /* TODO: Figure out why 1... */) );
   vk_fb->cmd_buffer_length++;
 
-  for (i = 0; i < n_attributes; i++)
-    g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
 }
 
 CoglBool
