@@ -169,7 +169,7 @@ _cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
   if (vk_pipeline->framebuffer)
     {
       _cogl_framebuffer_vulkan_end (vk_pipeline->framebuffer, TRUE);
-      cogl_object_set_user_data (COGL_OBJECT (framebuffer),
+      cogl_object_set_user_data (COGL_OBJECT (vk_pipeline->framebuffer),
                                  &framebuffer_pipeline_key,
                                  NULL, NULL);
     }
