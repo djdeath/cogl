@@ -465,8 +465,13 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
   for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
     {
       DefaultBuiltinAttribute *attribute = &default_attributes[i];
+      int location =
+        _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                          COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                          attribute->name);
 
-      if (!_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field, attribute->name_id))
+      if (!_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field, attribute->name_id) &&
+          location != -1)
         {
           VkVertexInputBindingDescription *vertex_bind =
             (VkVertexInputBindingDescription *) &info->pVertexBindingDescriptions[n_attributes];
@@ -477,10 +482,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
           vertex_bind->stride = 0;
           vertex_bind->inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-          vertex_desc->location =
-            _cogl_shader_vulkan_get_input_attribute_location (shader,
-                                                              COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                              attribute->name);
+          vertex_desc->location = location;
           vertex_desc->binding = n_attributes;
           vertex_desc->offset = 0;
           vertex_desc->format = attribute->vk_format;
