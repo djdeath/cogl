@@ -154,6 +154,38 @@ get_vk_pipeline (CoglPipeline *pipeline)
 }
 
 static void
+_cogl_pipeline_vulkan_unset_framebuffer (void *user_data)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (COGL_PIPELINE (user_data));
+
+  vk_pipeline->framebuffer = NULL;
+}
+
+static void
+_cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
+                                       CoglPipelineVulkan *vk_pipeline,
+                                       CoglFramebuffer *framebuffer)
+{
+  if (vk_pipeline->framebuffer)
+    {
+      _cogl_framebuffer_vulkan_end (vk_pipeline->framebuffer, TRUE);
+      cogl_object_set_user_data (COGL_OBJECT (framebuffer),
+                                 &framebuffer_pipeline_key,
+                                 NULL, NULL);
+    }
+
+  vk_pipeline->framebuffer = framebuffer;
+
+  if (vk_pipeline->framebuffer)
+    {
+      cogl_object_set_user_data (COGL_OBJECT (framebuffer),
+                                 &framebuffer_pipeline_key,
+                                 pipeline,
+                                 _cogl_pipeline_vulkan_unset_framebuffer);
+    }
+}
+
+static void
 _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
 {
   CoglContextVulkan *vk_ctx;
@@ -165,10 +197,7 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
   if (!vk_pipeline)
     return;
 
-  if (vk_pipeline->framebuffer)
-    cogl_object_set_user_data (COGL_OBJECT (vk_pipeline->framebuffer),
-                               &framebuffer_pipeline_key,
-                               NULL, NULL);
+  _cogl_pipeline_vulkan_set_framebuffer (pipeline, vk_pipeline, NULL);
 
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     {
@@ -280,33 +309,6 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
     }
 
   return TRUE;
-}
-
-static void
-_cogl_pipeline_vulkan_unset_framebuffer (void *user_data)
-{
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (COGL_PIPELINE (user_data));
-
-  vk_pipeline->framebuffer = NULL;
-}
-
-static void
-_cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
-                                       CoglFramebuffer *framebuffer)
-{
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-
-  if (vk_pipeline->framebuffer)
-    cogl_object_set_user_data (COGL_OBJECT (framebuffer),
-                               &framebuffer_pipeline_key,
-                               NULL, NULL);
-
-  vk_pipeline->framebuffer = framebuffer;
-
-  cogl_object_set_user_data (COGL_OBJECT (framebuffer),
-                             &framebuffer_pipeline_key,
-                             pipeline,
-                             _cogl_pipeline_vulkan_unset_framebuffer);
 }
 
 static int
@@ -805,7 +807,7 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
 
-  _cogl_pipeline_vulkan_set_framebuffer (pipeline, framebuffer);
+  _cogl_pipeline_vulkan_set_framebuffer (pipeline, vk_pipeline, framebuffer);
 
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
