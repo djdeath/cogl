@@ -150,7 +150,7 @@ _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
     }
   g_array_unref (vk_fb->cmd_buffers);
 
-  g_ptr_array_unref (vk_fb->attributes);
+  g_ptr_array_unref (vk_fb->attribute_buffers);
   g_ptr_array_unref (vk_fb->pipelines);
 
   if (vk_fb->render_pass != VK_NULL_HANDLE)
@@ -259,8 +259,8 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
                      COGL_FRAMEBUFFER_ERROR_ALLOCATE );
 
   vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
-  vk_fb->attributes = g_ptr_array_new_full (10,
-                                            (GDestroyNotify) cogl_object_unref);
+  vk_fb->attribute_buffers =
+    g_ptr_array_new_full (20, (GDestroyNotify) cogl_object_unref);
   vk_fb->pipelines = g_ptr_array_new_full (10,
                                            (GDestroyNotify) cogl_object_unref);
 
@@ -478,7 +478,7 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
       vk_fb->cmd_buffer_length = 0;
 
       g_array_set_size (vk_fb->cmd_buffers, 0);
-      g_ptr_array_set_size (vk_fb->attributes, 0);
+      g_ptr_array_set_size (vk_fb->attribute_buffers, 0);
       g_ptr_array_set_size (vk_fb->pipelines, 0);
     }
   else
@@ -691,6 +691,7 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
                               1 /* TODO: Figure out why 1... */) );
   vk_fb->cmd_buffer_length++;
 
+  g_ptr_array_add (vk_fb->attribute_buffers, cogl_object_ref (indices->buffer));
 }
 
 CoglBool

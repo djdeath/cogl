@@ -62,6 +62,11 @@ typedef struct _CoglPipelineVulkan
   VkBuffer *attribute_buffers; /* VkBuffer elements are not owned */
   VkDeviceSize *attribute_offsets;
 
+  /* A list of buffer to reference in the framebuffer until GPU has
+     completed work. */
+  CoglBuffer **seen_attribute_buffers;
+  int n_seen_attribute_buffers;
+
   CoglColorMask color_mask;
   CoglVerticesMode vertices_mode;
 
@@ -405,10 +410,21 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
       vk_pipeline->n_user_vertex_inputs != n_user_attributes)
     _cogl_pipeline_vulkan_invalidate (pipeline);
 
+  if (vk_pipeline->attribute_buffers)
+    {
+      g_free (vk_pipeline->attribute_buffers);
+      g_free (vk_pipeline->attribute_offsets);
+      g_free (vk_pipeline->seen_attribute_buffers);
+    }
+
   vk_pipeline->attribute_buffers =
     g_malloc (sizeof (VkBuffer) * n_max_attributes);
   vk_pipeline->attribute_offsets =
     g_malloc (sizeof (VkDeviceSize) * n_max_attributes);
+  vk_pipeline->seen_attribute_buffers =
+    g_malloc (sizeof (CoglBuffer *) * n_max_attributes);
+
+  vk_pipeline->n_seen_attribute_buffers = 0;
 
   /* Process vertex given by the user. */
   for (i = 0; i < n_user_attributes; i++)
@@ -460,7 +476,10 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
           vk_pipeline->attribute_buffers[i] = vk_buf->buffer;
           vk_pipeline->attribute_offsets[i] = attribute->d.buffered.offset;
 
-          g_ptr_array_add (vk_fb->attributes, cogl_object_ref (attributes[i]));
+          /* Only reference the buffer if it's a different one from the last. */
+          if (vk_pipeline->n_seen_attribute_buffers == 0 ||
+              vk_pipeline->seen_attribute_buffers[vk_pipeline->n_seen_attribute_buffers - 1] != buffer)
+            vk_pipeline->seen_attribute_buffers[vk_pipeline->n_seen_attribute_buffers++] = buffer;
         }
       else
         {
@@ -778,7 +797,7 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
-  int n_layers = cogl_pipeline_get_n_layers (pipeline);
+  int i, n_layers = cogl_pipeline_get_n_layers (pipeline);
   const CoglPipelineProgend *progend;
   const CoglPipelineVertend *vertend;
   const CoglPipelineFragend *fragend;
@@ -876,6 +895,14 @@ done:
                                     0, vk_pipeline->n_vertex_inputs,
                                     vk_pipeline->attribute_buffers,
                                     vk_pipeline->attribute_offsets) );
+
+  for (i = 0; i < vk_pipeline->n_seen_attribute_buffers; i++)
+    {
+      g_message ("ref buffer=0x%x for pipeline=%p",
+                 vk_pipeline->seen_attribute_buffers[i], pipeline);
+      g_ptr_array_add (vk_fb->attribute_buffers,
+                       cogl_object_ref (vk_pipeline->seen_attribute_buffers[i]));
+    }
 
   VK ( ctx, vkCmdBindPipeline (vk_fb->cmd_buffer,
                                VK_PIPELINE_BIND_POINT_GRAPHICS,
