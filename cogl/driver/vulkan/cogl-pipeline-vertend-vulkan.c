@@ -499,21 +499,7 @@ _cogl_pipeline_vertend_vulkan_end (CoglPipeline *pipeline,
                        "void\n"
                        "main ()\n"
                        "{\n"
-                       "  cogl_vertex_hook ();\n");
-
-      /* If there are any snippets then we can't rely on the
-         projection matrix to flip the rendering for offscreen buffers
-         so we'll need to flip it using an extra statement and a
-         uniform */
-      if (_cogl_pipeline_has_vertex_snippets (pipeline))
-        {
-          g_string_append (shader_state->block,
-                           "uniform vec4 _cogl_flip_vector;\n");
-          g_string_append (shader_state->source,
-                           "  cogl_position_out *= _cogl_flip_vector;\n");
-        }
-
-      g_string_append (shader_state->source,
+                       "  cogl_vertex_hook ();\n"
                        "}\n");
 
       shader_source =

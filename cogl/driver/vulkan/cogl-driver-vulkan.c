@@ -281,6 +281,11 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   context->glsl_version_to_use = 420;
 
+  cogl_matrix_init_identity (&vk_ctx->mat);
+  vk_ctx->mat.yy = -1;
+  vk_ctx->mat.zz = 0.5;
+  vk_ctx->mat.zw = 0.5;
+
   vk_ctx->device = vk_renderer->device;
 
   VK ( context, vkGetDeviceQueue (vk_ctx->device, 0, 0, &vk_ctx->queue) );

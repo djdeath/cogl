@@ -62,6 +62,7 @@ typedef struct _CoglContextVulkan
   VkCommandPool cmd_pool;
 
   CoglBuffer *default_attributes;
+  CoglMatrix mat;
 
   /* Not owned, this is a copy from CoglRendererVulkan. */
   VkDevice device;

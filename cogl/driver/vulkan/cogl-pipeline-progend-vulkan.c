@@ -1263,7 +1263,8 @@ static void
 _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                                          CoglFramebuffer *framebuffer)
 {
-  CoglBool needs_flip;
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
   CoglMatrixEntry *projection_entry;
   CoglMatrixEntry *modelview_entry;
   CoglPipelineProgramState *program_state;
@@ -1272,8 +1273,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   CoglBool need_modelview;
   CoglBool need_projection;
   CoglMatrix modelview, projection;
-
-  _COGL_GET_CONTEXT (ctx, NO_RETVAL);
 
   program_state = get_program_state (pipeline);
 
@@ -1288,14 +1287,10 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   if (modelview_entry == NULL || projection_entry == NULL)
     return;
 
-  needs_flip = TRUE; /* TODO: to rework */
-
   projection_changed =
     _cogl_matrix_entry_cache_maybe_update (&program_state->projection_cache,
                                            projection_entry,
-                                           (needs_flip &&
-                                            program_state->flip_uniform ==
-                                            NULL));
+                                           FALSE);
 
   modelview_changed =
     _cogl_matrix_entry_cache_maybe_update (&program_state->modelview_cache,
@@ -1317,19 +1312,12 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
 
       if (need_modelview)
         cogl_matrix_entry_get (modelview_entry, &modelview);
-      if (need_projection)
-        {
-          if (needs_flip && program_state->flip_uniform == NULL)
-            {
-              CoglMatrix tmp_matrix;
-              cogl_matrix_entry_get (projection_entry, &tmp_matrix);
-              cogl_matrix_multiply (&projection,
-                                    &ctx->y_flip_matrix,
-                                    &tmp_matrix);
-            }
-          else
-            cogl_matrix_entry_get (projection_entry, &projection);
-        }
+
+      {
+        CoglMatrix tmp_projection;
+        cogl_matrix_entry_get (projection_entry, &tmp_projection);
+        cogl_matrix_multiply (&projection, &vk_ctx->mat, &tmp_projection);
+      }
 
       if (projection_changed && program_state->projection_uniform != NULL)
         set_program_state_uniform_matrix4fv (program_state,
@@ -1369,18 +1357,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
                                                    cogl_matrix_get_array (&combined));
             }
         }
-    }
-
-  if (program_state->flip_uniform != NULL
-      && program_state->flushed_flip_state != needs_flip)
-    {
-      static const float do_flip[4] = { 1.0f, -1.0f, 1.0f, 1.0f };
-      static const float dont_flip[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-      set_program_state_uniform4fv (program_state,
-                                    program_state->flip_uniform,
-                                    1, /* count */
-                                    needs_flip ? do_flip : dont_flip);
-      program_state->flushed_flip_state = needs_flip;
     }
 
   _cogl_pipeline_progend_write_descriptors (program_state, framebuffer);
