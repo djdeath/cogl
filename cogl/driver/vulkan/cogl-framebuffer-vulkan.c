@@ -322,7 +322,7 @@ _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
   g_array_append_val (vk_fb->cmd_buffers, vk_fb->cmd_buffer);
 }
 
-static void
+void
 _cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;

@@ -890,6 +890,7 @@ done:
   if (progend->pre_paint)
     progend->pre_paint (pipeline, framebuffer);
 
+  _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
 
   VK ( ctx, vkCmdBindVertexBuffers (vk_fb->cmd_buffer,
                                     0, vk_pipeline->n_vertex_inputs,

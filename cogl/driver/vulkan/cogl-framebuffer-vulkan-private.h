@@ -171,6 +171,9 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer,
                               CoglBool wait_fence);
 
 void
+_cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer);
+
+void
 _cogl_framebuffer_vulkan_ensure_clean_command_buffer (CoglFramebuffer *framebuffer);
 
 
