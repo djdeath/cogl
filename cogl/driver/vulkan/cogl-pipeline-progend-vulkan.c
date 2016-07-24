@@ -301,6 +301,12 @@ destroy_program_state (void *user_data,
                                       program_state->descriptor_pool,
                                       NULL) );
 
+      if (program_state->descriptor_set_layout != VK_NULL_HANDLE)
+        VK ( ctx,
+             vkDestroyDescriptorSetLayout (vk_ctx->device,
+                                           program_state->descriptor_set_layout,
+                                           NULL) );
+
       if (program_state->pipeline_layout != VK_NULL_HANDLE)
         VK ( ctx,
              vkDestroyPipelineLayout (vk_ctx->device,
