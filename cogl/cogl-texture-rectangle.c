@@ -782,6 +782,10 @@ cogl_texture_rectangle_vtable =
     _cogl_texture_rectangle_get_type,
     _cogl_texture_rectangle_is_foreign,
     _cogl_texture_rectangle_set_auto_mipmap,
+    NULL, /* get_vulkan_format */
+    NULL, /* get_vulkan_image */
     NULL, /* get_vulkan_image_view */
-    NULL /* get_vulkan_image_layout */
+    NULL, /* get_vulkan_image_layout */
+    NULL, /* get_vulkan_component_mapping */
+    NULL /* vulkan_move_to */
   };

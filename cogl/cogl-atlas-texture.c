@@ -1021,6 +1021,24 @@ _cogl_atlas_texture_get_type (CoglTexture *tex)
   return COGL_TEXTURE_TYPE_2D;
 }
 
+static VkFormat
+_cogl_atlas_texture_get_vulkan_format (CoglTexture *tex)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_get_vulkan_format (atlas_tex->sub_texture);
+}
+
+static VkImage
+_cogl_atlas_texture_get_vulkan_image (CoglTexture *tex)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_get_vulkan_image (atlas_tex->sub_texture);
+}
+
 static VkImageView
 _cogl_atlas_texture_get_vulkan_image_view (CoglTexture *tex)
 {
@@ -1037,6 +1055,27 @@ _cogl_atlas_texture_get_vulkan_image_layout (CoglTexture *tex)
 
   /* Forward on to the sub texture */
   return _cogl_texture_get_vulkan_image_layout (atlas_tex->sub_texture);
+}
+
+static VkComponentMapping
+_cogl_atlas_texture_get_vulkan_component_mapping (CoglTexture *tex)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_get_vulkan_component_mapping (atlas_tex->sub_texture);
+}
+
+static void
+_cogl_atlas_texture_vulkan_move_to (CoglTexture *tex,
+                                    CoglTextureDomain domain,
+                                    VkCommandBuffer cmd_buffer)
+{
+  CoglAtlasTexture *atlas_tex = COGL_ATLAS_TEXTURE (tex);
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_vulkan_move_to (atlas_tex->sub_texture,
+                                       domain, cmd_buffer);
 }
 
 static const CoglTextureVtable
@@ -1062,6 +1101,10 @@ cogl_atlas_texture_vtable =
     _cogl_atlas_texture_get_type,
     NULL, /* is_foreign */
     NULL, /* set_auto_mipmap */
+    _cogl_atlas_texture_get_vulkan_format,
+    _cogl_atlas_texture_get_vulkan_image,
     _cogl_atlas_texture_get_vulkan_image_view,
-    _cogl_atlas_texture_get_vulkan_image_layout
+    _cogl_atlas_texture_get_vulkan_image_layout,
+    _cogl_atlas_texture_get_vulkan_component_mapping,
+    _cogl_atlas_texture_vulkan_move_to
   };

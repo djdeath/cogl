@@ -690,6 +690,7 @@ _cogl_driver_gl =
     _cogl_texture_2d_gl_generate_mipmap,
     _cogl_texture_2d_gl_copy_from_bitmap,
     _cogl_texture_2d_gl_get_data,
+    NULL, /* texture_2d_vulkan_move_to */
     _cogl_gl_flush_attributes_state,
     _cogl_clip_stack_gl_flush,
     _cogl_buffer_gl_create,

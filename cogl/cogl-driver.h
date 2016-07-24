@@ -203,6 +203,11 @@ struct _CoglDriverVtable
                            int rowstride,
                            uint8_t *data);
 
+  void
+  (* texture_2d_vulkan_move_to) (CoglTexture2D *tex_2d,
+                                 CoglTextureDomain domain,
+                                 VkCommandBuffer cmd_buffer);
+
   /* Prepares for drawing by flushing the journal, framebuffer state,
    * pipeline state and attribute state.
    */

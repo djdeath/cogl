@@ -35,9 +35,6 @@
 #include "cogl-context-private.h"
 #include "cogl-texture.h"
 
-VkImage
-_cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d);
-
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d);
 
@@ -113,24 +110,9 @@ CoglBool
 _cogl_texture_2d_vulkan_ready_for_sampling (CoglTexture2D *tex_2d);
 
 void
-_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
-                                      VkCommandBuffer cmd_buffer);
-
-void
-_cogl_texture_2d_vulkan_move_to_device_for_sampling (CoglTexture2D *tex_2d,
-                                                     VkCommandBuffer cmd_buffer);
-
-void
-_cogl_texture_2d_vulkan_move_to_color_attachment (CoglTexture2D *tex_2d,
-                                                  VkCommandBuffer cmd_buffer);
-
-void
-_cogl_texture_2d_vulkan_move_to_transfer_destination (CoglTexture2D *tex_2d,
-                                                      VkCommandBuffer cmd_buffer);
-
-void
-_cogl_texture_2d_vulkan_move_to_transfer_source (CoglTexture2D *tex_2d,
-                                                 VkCommandBuffer cmd_buffer);
+_cogl_texture_2d_vulkan_move_to (CoglTexture2D *tex_2d,
+                                 CoglTextureDomain domain,
+                                 VkCommandBuffer cmd_buffer);
 
 CoglTexture2D *
 _cogl_texture_2d_vulkan_new_for_foreign (CoglContext *ctx,

@@ -336,6 +336,30 @@ cogl_texture_get_gl_texture (CoglTexture *texture,
                                           out_gl_handle, out_gl_target);
 }
 
+VkFormat
+_cogl_texture_get_vulkan_format (CoglTexture *texture)
+{
+  if (!texture->vtable->get_vulkan_format)
+    return VK_FORMAT_UNDEFINED;
+
+  if (!texture->allocated)
+    cogl_texture_allocate (texture, NULL);
+
+  return texture->vtable->get_vulkan_format (texture);
+}
+
+VkImage
+_cogl_texture_get_vulkan_image (CoglTexture *texture)
+{
+  if (!texture->vtable->get_vulkan_image)
+    return VK_NULL_HANDLE;
+
+  if (!texture->allocated)
+    cogl_texture_allocate (texture, NULL);
+
+  return texture->vtable->get_vulkan_image (texture);
+}
+
 VkImageView
 _cogl_texture_get_vulkan_image_view (CoglTexture *texture)
 {
@@ -359,6 +383,35 @@ _cogl_texture_get_vulkan_image_layout (CoglTexture *texture)
 
   return texture->vtable->get_vulkan_image_layout (texture);
 }
+
+VkComponentMapping
+_cogl_texture_get_vulkan_component_mapping (CoglTexture *texture)
+{
+  VkComponentMapping identity_mapping = {
+    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .a = VK_COMPONENT_SWIZZLE_IDENTITY
+  };
+
+  if (!texture->vtable->get_vulkan_component_mapping)
+    return identity_mapping;
+
+  if (!texture->allocated)
+    cogl_texture_allocate (texture, NULL);
+
+  return texture->vtable->get_vulkan_component_mapping (texture);
+}
+
+void
+_cogl_texture_vulkan_move_to (CoglTexture *texture,
+                              CoglTextureDomain domain,
+                              VkCommandBuffer cmd_buffer)
+{
+  if (texture->vtable->vulkan_move_to)
+    texture->vtable->vulkan_move_to (texture, domain, cmd_buffer);
+}
+
 
 CoglTextureType
 _cogl_texture_get_type (CoglTexture *texture)

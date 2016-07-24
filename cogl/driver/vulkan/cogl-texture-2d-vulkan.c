@@ -45,12 +45,6 @@
 #include "cogl-texture-2d-private.h"
 #include "cogl-util-vulkan-private.h"
 
-VkImage
-_cogl_texture_2d_get_vulkan_image (CoglTexture2D *tex_2d)
-{
-  return tex_2d->vk_image;
-}
-
 VkFormat
 _cogl_texture_2d_get_vulkan_format (CoglTexture2D *tex_2d)
 {
@@ -450,7 +444,9 @@ load_bitmap_buffer_to_texture (CoglTexture2D *tex_2d,
 
   _cogl_buffer_vulkan_move_to_device (bitmap->buffer, cmd_buffer);
 
-  _cogl_texture_2d_vulkan_move_to_transfer_destination (tex_2d, cmd_buffer);
+  _cogl_texture_vulkan_move_to (tex,
+                                COGL_TEXTURE_DOMAIN_TRANSFER_DESTINATION,
+                                cmd_buffer);
 
   VK ( ctx,
        vkCmdCopyBufferToImage (cmd_buffer,
@@ -460,7 +456,9 @@ load_bitmap_buffer_to_texture (CoglTexture2D *tex_2d,
                                1,
                                &image_copy) );
 
-  _cogl_texture_2d_vulkan_move_to_device_for_sampling (tex_2d, cmd_buffer);
+  _cogl_texture_vulkan_move_to (tex,
+                                COGL_TEXTURE_DOMAIN_SAMPLING,
+                                cmd_buffer);
 
   if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, error))
     goto error;
@@ -648,7 +646,9 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
   if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
     goto error;
 
-  _cogl_texture_2d_vulkan_move_to_transfer_destination (tex_2d, cmd_buffer);
+  _cogl_texture_vulkan_move_to (tex,
+                                COGL_TEXTURE_DOMAIN_TRANSFER_DESTINATION,
+                                cmd_buffer);
 
   VK ( ctx,
        vkCmdCopyImage (cmd_buffer,
@@ -658,7 +658,7 @@ _cogl_texture_2d_vulkan_copy_from_framebuffer (CoglTexture2D *tex_2d,
                        tex_2d->vk_image_layout,
                        1, &image_copy) );
 
-  _cogl_texture_2d_vulkan_move_to_device_for_sampling (tex_2d, cmd_buffer);
+  _cogl_texture_vulkan_move_to (tex, COGL_TEXTURE_DOMAIN_SAMPLING, cmd_buffer);
 
   if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error))
     goto error;
@@ -755,53 +755,60 @@ _cogl_texture_2d_vulkan_ready_for_sampling (CoglTexture2D *tex_2d)
     tex_2d->vk_image_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
-void
-_cogl_texture_2d_vulkan_move_to_host (CoglTexture2D *tex_2d,
-                                      VkCommandBuffer cmd_buffer)
+static void
+_domain_to_vulkan_layout_and_access_mask (CoglTextureDomain domain,
+                                          VkImageLayout *layout,
+                                          VkAccessFlags *access_mask,
+                                          VkPipelineStageFlagBits *stage)
 {
-  CoglContext *ctx = tex_2d->_parent.context;
-  VkImageMemoryBarrier image_barrier = {
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    .srcAccessMask = tex_2d->vk_access_mask,
-    .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
-    .oldLayout = tex_2d->vk_image_layout,
-    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = tex_2d->vk_image,
-    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
-  };
-
-  if (tex_2d->vk_image_layout == image_barrier.newLayout)
-    return;
-
-  tex_2d->vk_image_layout = image_barrier.newLayout;
-  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
-
-  VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  VK_PIPELINE_STAGE_HOST_BIT,
-                                  0,
-                                  0, NULL,
-                                  0, NULL,
-                                  1, &image_barrier) );
+  switch (domain)
+    {
+    case COGL_TEXTURE_DOMAIN_ATTACHMENT:
+      *layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      *access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+      *stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+      break;
+    case COGL_TEXTURE_DOMAIN_HOST:
+      *layout = VK_IMAGE_LAYOUT_GENERAL;
+      *access_mask = VK_ACCESS_HOST_READ_BIT;
+      *stage = VK_PIPELINE_STAGE_HOST_BIT;
+      break;
+    case COGL_TEXTURE_DOMAIN_SAMPLING:
+      *layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      *access_mask = VK_ACCESS_SHADER_READ_BIT;
+      *stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+      break;
+    case COGL_TEXTURE_DOMAIN_TRANSFER_DESTINATION:
+      *layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      *access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      *stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+      break;
+    case COGL_TEXTURE_DOMAIN_TRANSFER_SOURCE:
+      *layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      *access_mask = VK_ACCESS_TRANSFER_READ_BIT;
+      *stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+      break;
+    default:
+      g_assert_not_reached();
+    }
 }
 
 void
-_cogl_texture_2d_vulkan_move_to_device_for_sampling (CoglTexture2D *tex_2d,
-                                                     VkCommandBuffer cmd_buffer)
+_cogl_texture_2d_vulkan_move_to (CoglTexture2D *tex_2d,
+                                 CoglTextureDomain domain,
+                                 VkCommandBuffer cmd_buffer)
 {
   CoglContext *ctx = tex_2d->_parent.context;
+  VkImageLayout new_layout;
+  VkAccessFlags new_access_mask;
+  VkPipelineStageFlags dst_stage;
   VkImageMemoryBarrier image_barrier = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
     .srcAccessMask = tex_2d->vk_access_mask,
-    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+    .dstAccessMask = 0,
     .oldLayout = tex_2d->vk_image_layout,
-    .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    .newLayout = 0,
     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .image = tex_2d->vk_image,
@@ -812,124 +819,20 @@ _cogl_texture_2d_vulkan_move_to_device_for_sampling (CoglTexture2D *tex_2d,
     .subresourceRange.layerCount = 1,
   };
 
-  if (tex_2d->vk_image_layout == image_barrier.newLayout)
+  _domain_to_vulkan_layout_and_access_mask (domain,
+                                            &new_layout,
+                                            &new_access_mask,
+                                            &dst_stage);
+
+  if (tex_2d->vk_image_layout == new_layout)
     return;
 
-  tex_2d->vk_image_layout = image_barrier.newLayout;
-  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
+  image_barrier.newLayout = new_layout;
+  image_barrier.dstAccessMask = new_access_mask;
 
   VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  0,
-                                  0, NULL,
-                                  0, NULL,
-                                  1, &image_barrier) );
-}
-
-void
-_cogl_texture_2d_vulkan_move_to_color_attachment (CoglTexture2D *tex_2d,
-                                                  VkCommandBuffer cmd_buffer)
-{
-  CoglContext *ctx = tex_2d->_parent.context;
-  VkImageMemoryBarrier image_barrier = {
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    .srcAccessMask = tex_2d->vk_access_mask,
-    .dstAccessMask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT),
-    .oldLayout = tex_2d->vk_image_layout,
-    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = tex_2d->vk_image,
-    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
-  };
-
-  if (tex_2d->vk_image_layout == image_barrier.newLayout)
-    return;
-
-  tex_2d->vk_image_layout = image_barrier.newLayout;
-  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
-
-  VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  0,
-                                  0, NULL,
-                                  0, NULL,
-                                  1, &image_barrier) );
-}
-
-void
-_cogl_texture_2d_vulkan_move_to_transfer_destination (CoglTexture2D *tex_2d,
-                                                      VkCommandBuffer cmd_buffer)
-{
-  CoglContext *ctx = tex_2d->_parent.context;
-  VkImageMemoryBarrier image_barrier = {
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    .srcAccessMask = tex_2d->vk_access_mask,
-    .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-    .oldLayout = tex_2d->vk_image_layout,
-    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = tex_2d->vk_image,
-    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
-  };
-
-  if (tex_2d->vk_image_layout == image_barrier.newLayout)
-    return;
-
-  tex_2d->vk_image_layout = image_barrier.newLayout;
-  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
-
-  VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  0,
-                                  0, NULL,
-                                  0, NULL,
-                                  1, &image_barrier) );
-}
-
-void
-_cogl_texture_2d_vulkan_move_to_transfer_source (CoglTexture2D *tex_2d,
-                                                 VkCommandBuffer cmd_buffer)
-{
-  CoglContext *ctx = tex_2d->_parent.context;
-  VkImageMemoryBarrier image_barrier = {
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    .srcAccessMask = tex_2d->vk_access_mask,
-    .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-    .oldLayout = tex_2d->vk_image_layout,
-    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = tex_2d->vk_image,
-    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
-  };
-
-  if (tex_2d->vk_image_layout == image_barrier.newLayout)
-    return;
-
-  tex_2d->vk_image_layout = image_barrier.newLayout;
-  tex_2d->vk_access_mask = image_barrier.dstAccessMask;
-
-  VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                  dst_stage,
                                   0,
                                   0, NULL,
                                   0, NULL,

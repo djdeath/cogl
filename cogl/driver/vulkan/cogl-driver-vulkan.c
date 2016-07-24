@@ -468,6 +468,7 @@ _cogl_driver_vulkan =
     _cogl_texture_2d_vulkan_generate_mipmap,
     _cogl_texture_2d_vulkan_copy_from_bitmap,
     NULL, /* texture_2d_get_data */
+    _cogl_texture_2d_vulkan_move_to,
     _cogl_vulkan_flush_attributes_state,
     _cogl_clip_stack_vulkan_flush,
     _cogl_buffer_vulkan_create,

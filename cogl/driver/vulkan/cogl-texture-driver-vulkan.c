@@ -185,8 +185,9 @@ _cogl_texture_driver_pre_paint (CoglContext *ctx,
                                                        &error))
         goto error;
 
-      _cogl_texture_2d_vulkan_move_to_device_for_sampling (COGL_TEXTURE_2D (texture),
-                                                           cmd_buffer);
+      _cogl_texture_vulkan_move_to (texture,
+                                    COGL_TEXTURE_DOMAIN_SAMPLING,
+                                    cmd_buffer);
 
       _cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error);
 

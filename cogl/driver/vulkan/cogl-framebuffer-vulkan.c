@@ -844,12 +844,14 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   _cogl_framebuffer_vulkan_end_render_pass (offscreen);
 
   /* Move offscreen framebuffer to host. */
-  _cogl_texture_2d_vulkan_move_to_host (COGL_TEXTURE_2D (dst_texture),
-                                        vk_dst_fb->cmd_buffer);
+  _cogl_texture_vulkan_move_to (dst_texture,
+                                COGL_TEXTURE_DOMAIN_HOST,
+                                vk_dst_fb->cmd_buffer);
 
   /* Put the framebuffer back as an attachment. */
-  _cogl_texture_2d_vulkan_move_to_color_attachment (COGL_TEXTURE_2D (src_texture),
-                                                    vk_dst_fb->cmd_buffer);
+  _cogl_texture_vulkan_move_to (src_texture,
+                                COGL_TEXTURE_DOMAIN_ATTACHMENT,
+                                vk_dst_fb->cmd_buffer);
 
   cogl_framebuffer_finish (offscreen);
 
@@ -921,16 +923,18 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
   CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (offscreen);
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
-  CoglTexture2D *tex_2d = COGL_TEXTURE_2D (offscreen->texture);
   CoglOffscreenVulkan *vk_off = g_slice_new0 (CoglOffscreenVulkan);
   CoglFramebufferVulkan *vk_fb = (CoglFramebufferVulkan *) vk_off;
+  VkFormat format = _cogl_texture_get_vulkan_format (offscreen->texture);
+  VkImage image = _cogl_texture_get_vulkan_image (offscreen->texture);
   VkImageViewCreateInfo image_view_create_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
     .flags = 0,
-    .image = _cogl_texture_2d_get_vulkan_image (tex_2d),
+    .image = image,
     .viewType = VK_IMAGE_VIEW_TYPE_2D,
-    .format = _cogl_texture_2d_get_vulkan_format (tex_2d),
-    .components = tex_2d->vk_component_mapping,
+    .format = format,
+    .components =
+      _cogl_texture_get_vulkan_component_mapping (offscreen->texture),
     .subresourceRange = {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
       .baseMipLevel = 0,
@@ -944,9 +948,7 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
 
   framebuffer->winsys = vk_fb;
 
-  if (!_cogl_framebuffer_vulkan_init (framebuffer,
-                                      _cogl_texture_2d_get_vulkan_format (tex_2d),
-                                      error))
+  if (!_cogl_framebuffer_vulkan_init (framebuffer, format, error))
     return FALSE;
 
   VK_ERROR ( ctx,
@@ -969,14 +971,15 @@ _cogl_offscreen_vulkan_allocate (CoglOffscreen *offscreen,
       goto error;
     }
 
-  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
-                                               vk_off->framebuffer,
-                                               _cogl_texture_2d_get_vulkan_image (tex_2d));
+  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer, vk_off->framebuffer,
+                                               image);
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
 
   /* TODO: maybe check the layout is right before any rendering? */
-  _cogl_texture_2d_vulkan_move_to_color_attachment (tex_2d, vk_fb->cmd_buffer);
+  _cogl_texture_vulkan_move_to (offscreen->texture,
+                                COGL_TEXTURE_DOMAIN_ATTACHMENT,
+                                vk_fb->cmd_buffer);
 
   return TRUE;
 

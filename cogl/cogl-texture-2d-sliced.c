@@ -1528,6 +1528,30 @@ _cogl_texture_2d_sliced_get_type (CoglTexture *tex)
   return COGL_TEXTURE_TYPE_2D;
 }
 
+static VkFormat
+_cogl_texture_2d_sliced_get_vulkan_format (CoglTexture *tex)
+{
+  CoglTexture2D *slice_tex =
+    _cogl_texture_2d_sliced_get_first_texture (COGL_TEXTURE_2D_SLICED (tex));
+
+  if (slice_tex == NULL)
+    return VK_NULL_HANDLE;
+
+  return _cogl_texture_get_vulkan_format (COGL_TEXTURE (slice_tex));
+}
+
+static VkImage
+_cogl_texture_2d_sliced_get_vulkan_image (CoglTexture *tex)
+{
+  CoglTexture2D *slice_tex =
+    _cogl_texture_2d_sliced_get_first_texture (COGL_TEXTURE_2D_SLICED (tex));
+
+  if (slice_tex == NULL)
+    return VK_NULL_HANDLE;
+
+  return _cogl_texture_get_vulkan_image (COGL_TEXTURE (slice_tex));
+}
+
 static VkImageView
 _cogl_texture_2d_sliced_get_vulkan_image_view (CoglTexture *tex)
 {
@@ -1550,6 +1574,40 @@ _cogl_texture_2d_sliced_get_vulkan_image_layout (CoglTexture *tex)
     return VK_IMAGE_LAYOUT_UNDEFINED;
 
   return _cogl_texture_get_vulkan_image_layout (COGL_TEXTURE (slice_tex));
+}
+
+static VkComponentMapping
+_cogl_texture_2d_sliced_get_vulkan_component_mapping (CoglTexture *tex)
+{
+  CoglTexture2D *slice_tex =
+    _cogl_texture_2d_sliced_get_first_texture (COGL_TEXTURE_2D_SLICED (tex));
+  VkComponentMapping identity_mapping = {
+    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+    .a = VK_COMPONENT_SWIZZLE_IDENTITY
+  };
+
+  if (slice_tex == NULL)
+    return identity_mapping;
+
+  return _cogl_texture_get_vulkan_component_mapping (COGL_TEXTURE (slice_tex));
+}
+
+static void
+_cogl_texture_2d_sliced_vulkan_move_to (CoglTexture *tex,
+                                        CoglTextureDomain domain,
+                                        VkCommandBuffer cmd_buffer)
+{
+  CoglTexture2D *slice_tex =
+    _cogl_texture_2d_sliced_get_first_texture (COGL_TEXTURE_2D_SLICED (tex));
+
+  if (slice_tex == NULL)
+    return;
+
+  /* Forward on to the sub texture */
+  return _cogl_texture_vulkan_move_to (COGL_TEXTURE (slice_tex),
+                                       domain, cmd_buffer);
 }
 
 static const CoglTextureVtable
@@ -1575,6 +1633,10 @@ cogl_texture_2d_sliced_vtable =
     _cogl_texture_2d_sliced_get_type,
     _cogl_texture_2d_sliced_is_foreign,
     NULL, /* set_auto_mipmap */
+    _cogl_texture_2d_sliced_get_vulkan_format,
+    _cogl_texture_2d_sliced_get_vulkan_image,
     _cogl_texture_2d_sliced_get_vulkan_image_view,
-    _cogl_texture_2d_sliced_get_vulkan_image_layout
+    _cogl_texture_2d_sliced_get_vulkan_image_layout,
+    _cogl_texture_2d_sliced_get_vulkan_component_mapping,
+    _cogl_texture_2d_sliced_vulkan_move_to
   };

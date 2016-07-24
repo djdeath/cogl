@@ -66,6 +66,14 @@ typedef enum {
   COGL_TEXTURE_NEEDS_MIPMAP = 1
 } CoglTexturePrePaintFlags;
 
+typedef enum {
+  COGL_TEXTURE_DOMAIN_ATTACHMENT,
+  COGL_TEXTURE_DOMAIN_HOST,
+  COGL_TEXTURE_DOMAIN_SAMPLING,
+  COGL_TEXTURE_DOMAIN_TRANSFER_DESTINATION,
+  COGL_TEXTURE_DOMAIN_TRANSFER_SOURCE,
+} CoglTextureDomain;
+
 struct _CoglTextureVtable
 {
   /* Virtual functions that must be implemented for a texture
@@ -151,9 +159,19 @@ struct _CoglTextureVtable
   void (* set_auto_mipmap) (CoglTexture *texture,
                             CoglBool value);
 
+  VkFormat (* get_vulkan_format) (CoglTexture *tex);
+
+  VkImage (* get_vulkan_image) (CoglTexture *tex);
+
   VkImageView (* get_vulkan_image_view) (CoglTexture *tex);
 
   VkImageLayout (* get_vulkan_image_layout) (CoglTexture *tex);
+
+  VkComponentMapping (* get_vulkan_component_mapping) (CoglTexture *tex);
+
+  void (* vulkan_move_to) (CoglTexture *tex,
+                           CoglTextureDomain domain,
+                           VkCommandBuffer cmd_buffer);
 };
 
 typedef enum _CoglTextureSoureType {
@@ -424,10 +442,24 @@ void
 _cogl_texture_copy_internal_format (CoglTexture *src,
                                     CoglTexture *dest);
 
+VkFormat
+_cogl_texture_get_vulkan_format (CoglTexture *texture);
+
+VkImage
+_cogl_texture_get_vulkan_image (CoglTexture *texture);
+
 VkImageView
 _cogl_texture_get_vulkan_image_view (CoglTexture *texture);
 
 VkImageLayout
 _cogl_texture_get_vulkan_image_layout (CoglTexture *texture);
+
+VkComponentMapping
+_cogl_texture_get_vulkan_component_mapping (CoglTexture *texture);
+
+void
+_cogl_texture_vulkan_move_to (CoglTexture *texture,
+                              CoglTextureDomain domain,
+                              VkCommandBuffer cmd_buffer);
 
 #endif /* __COGL_TEXTURE_PRIVATE_H */
