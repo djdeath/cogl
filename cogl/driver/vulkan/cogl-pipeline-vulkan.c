@@ -432,9 +432,6 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
       CoglAttribute *attribute = attributes[i];
       int location = _get_input_attribute_location (shader, pipeline, attribute);
 
-      if (location == -1)
-        continue;
-
       if (attribute->name_state->name_id != COGL_ATTRIBUTE_NAME_ID_CUSTOM_ARRAY)
         attributes_field |= 1 << attribute->name_state->name_id;
 
