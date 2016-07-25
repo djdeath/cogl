@@ -73,6 +73,8 @@ typedef struct _CoglPipelineVulkan
   /* Not owned, this lets us know when a pipeline is being used with
      different framebuffers. */
   CoglFramebuffer *framebuffer;
+
+  CoglUserDataKey framebuffer_pipeline_key;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -134,8 +136,6 @@ static DefaultBuiltinAttribute default_attributes[] =
     }
   };
 
-static CoglUserDataKey framebuffer_pipeline_key;
-
 CoglBuffer *
 _cogl_pipeline_ensure_default_attributes (CoglContext *ctx)
 {
@@ -175,7 +175,7 @@ _cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
     {
       _cogl_framebuffer_vulkan_end (vk_pipeline->framebuffer, TRUE);
       cogl_object_set_user_data (COGL_OBJECT (vk_pipeline->framebuffer),
-                                 &framebuffer_pipeline_key,
+                                 &vk_pipeline->framebuffer_pipeline_key,
                                  NULL, NULL);
     }
 
@@ -184,7 +184,7 @@ _cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
   if (vk_pipeline->framebuffer)
     {
       cogl_object_set_user_data (COGL_OBJECT (framebuffer),
-                                 &framebuffer_pipeline_key,
+                                 &vk_pipeline->framebuffer_pipeline_key,
                                  pipeline,
                                  _cogl_pipeline_vulkan_unset_framebuffer);
     }
