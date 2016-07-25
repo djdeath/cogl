@@ -231,7 +231,7 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
 
   if (framebuffer->depth_writing_enabled)
     {
-      vk_fb->depth_format = VK_FORMAT_D16_UNORM;
+      vk_fb->depth_format = VK_FORMAT_D24_UNORM_S8_UINT;
       if (!_cogl_framebuffer_vulkan_allocate_depth_buffer (framebuffer, error))
         return FALSE;
 
