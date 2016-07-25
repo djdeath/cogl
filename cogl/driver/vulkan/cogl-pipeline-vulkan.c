@@ -602,7 +602,7 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
   VkPipelineMultisampleStateCreateInfo multisample_state;
 
   VkPipelineDynamicStateCreateInfo dynamic_state;
-  VkDynamicState dynamic_states;
+  VkDynamicState dynamic_states[2];
 
   VkGraphicsPipelineCreateInfo pipeline_state;
 
@@ -751,9 +751,9 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
 
     dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamic_state.dynamicStateCount = 1;
-    dynamic_state.pDynamicStates = &dynamic_states;
-    /* TODO: add scissor */
-    dynamic_states = VK_DYNAMIC_STATE_VIEWPORT;
+    dynamic_state.pDynamicStates = dynamic_states;
+    dynamic_states[0] = VK_DYNAMIC_STATE_VIEWPORT;
+    dynamic_states[1] = VK_DYNAMIC_STATE_SCISSOR;
   }
 
   memset (&pipeline_state, 0, sizeof (pipeline_state));
