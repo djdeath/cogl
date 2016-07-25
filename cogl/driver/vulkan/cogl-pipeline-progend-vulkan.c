@@ -1142,8 +1142,8 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
 
 static void
 _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
-                                               CoglPipelineState change,
-                                               const CoglColor *new_color)
+                                                 CoglPipelineState change,
+                                                 const CoglColor *new_color)
 {
   CoglPipelineProgramState *program_state = get_program_state (pipeline);
 
@@ -1154,8 +1154,8 @@ _cogl_pipeline_progend_vulkan_pre_change_notify (CoglPipeline *pipeline,
   if (!program_state)
     return;
 
-  if ((change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
-                 _cogl_pipeline_get_state_for_fragment_codegen (ctx))))
+  if (change & (_cogl_pipeline_get_state_for_vertex_codegen (ctx) |
+                _cogl_pipeline_get_state_for_fragment_codegen (ctx)))
     {
       dirty_program_state (pipeline);
     }
@@ -1201,21 +1201,16 @@ _cogl_pipeline_progend_vulkan_layer_pre_change_notify (
     {
       dirty_program_state (owner);
     }
-  else if (change & COGL_PIPELINE_LAYER_STATE_COMBINE_CONSTANT)
+  else
     {
-      program_state->unit_state[unit_index].dirty_combine_constant = TRUE;
-    }
-  else if (change & COGL_PIPELINE_LAYER_STATE_USER_MATRIX)
-    {
-      program_state->unit_state[unit_index].dirty_texture_matrix = TRUE;
-    }
-  else if (change & COGL_PIPELINE_LAYER_STATE_SAMPLER)
-    {
-      program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
-    }
-  else if (change & COGL_PIPELINE_LAYER_STATE_TEXTURE_DATA)
-    {
-      program_state->unit_state[unit_index].image_view = VK_NULL_HANDLE;
+      if (change & COGL_PIPELINE_LAYER_STATE_COMBINE_CONSTANT)
+        program_state->unit_state[unit_index].dirty_combine_constant = TRUE;
+      if (change & COGL_PIPELINE_LAYER_STATE_USER_MATRIX)
+        program_state->unit_state[unit_index].dirty_texture_matrix = TRUE;
+      if (change & COGL_PIPELINE_LAYER_STATE_SAMPLER)
+        program_state->unit_state[unit_index].sampler = VK_NULL_HANDLE;
+      if (change & COGL_PIPELINE_LAYER_STATE_TEXTURE_DATA)
+        program_state->unit_state[unit_index].image_view = VK_NULL_HANDLE;
     }
 }
 
