@@ -749,6 +749,9 @@ add_layer_to_descriptor_set_layout (CoglPipelineLayer *layer,
   COGL_NOTE (VULKAN, "Descriptor layout cogl_sampler%i binding=%i",
              layer->index, unit_state->binding);
 
+  if (binding->binding == -1)
+    return FALSE;
+
   data->n_bindings++;
   data->n_units++;
 
