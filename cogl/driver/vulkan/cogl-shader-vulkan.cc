@@ -318,6 +318,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
                                 CoglGlslShaderType stage,
                                 const char *string)
 {
+  CoglContext *ctx = shader->context;
   glslang::TShader *gl_shader =
     new glslang::TShader (_cogl_glsl_shader_type_to_es_language (stage));
   gl_shader->setStrings(&string, 1);
@@ -328,7 +329,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
 
   glslang::TShader::ForbidInclude no_include;
   bool success = gl_shader->parse(&kDefaultTBuiltInResource,
-                                  420,
+                                  ctx->glsl_version_to_use,
                                   ENoProfile,
                                   false,
                                   false,
