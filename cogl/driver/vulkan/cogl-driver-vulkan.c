@@ -279,7 +279,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
 
   context->winsys = vk_ctx;
 
-  context->glsl_version_to_use = 420;
+  context->glsl_version_to_use = 430;
 
   cogl_matrix_init_identity (&vk_ctx->mat);
   vk_ctx->mat.yy = -1;
