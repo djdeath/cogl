@@ -339,7 +339,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
                                   no_include);
 
   if (!success)
-    COGL_NOTE (VULKAN, "Shader compilation failed : %s\n%s\n",
+    g_warning ("Shader compilation failed : %s\n%s\n",
                gl_shader->getInfoLog(), gl_shader->getInfoDebugLog());
 
   shader->program->addShader(gl_shader);
