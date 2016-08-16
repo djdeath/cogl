@@ -85,6 +85,9 @@
 /* Vulkan */
 #define _COGL_VULKAN_SHADER_BOILERPLATE_BEGIN                       \
   "#define COGL_VERSION 100\n"                                      \
+  "\n"                                                              \
+  "#define texture2D texture\n"                                     \
+  "#define texture3D texture\n"                                     \
   "\n"
 
 #define _COGL_VULKAN_SHADER_UNIFORM_BEGIN                           \
