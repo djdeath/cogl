@@ -67,9 +67,6 @@ using namespace glslang;
 // Create a language specific version of parseables.
 TBuiltInParseables* CreateBuiltInParseables(TInfoSink& infoSink, EShSource source)
 {
-    // TODO: hardcode to the GLSL path, until HLSL intrinsics are available.
-    source = EShSourceGlsl; // REMOVE
-
     switch (source) {
     case EShSourceGlsl: return new TBuiltIns();              // GLSL builtIns
 
@@ -468,7 +465,11 @@ bool DeduceVersionProfile(TInfoSink& infoSink, EShLanguage stage, bool versionNo
                 infoSink.info.message(EPrefixError, "#version: ES shaders for Vulkan SPIR-V require version 310 or higher");
                 version = 310;
             }
-            // gl_spirv TODO: test versions
+            if (spvVersion.openGl >= 100) {
+                correct = false;
+                infoSink.info.message(EPrefixError, "#version: ES shaders for OpenGL SPIR-V are not supported");
+                version = 310;
+            }
             break;
         case ECompatibilityProfile:
             infoSink.info.message(EPrefixError, "#version: compilation for SPIR-V does not support the compatibility profile");
@@ -479,7 +480,11 @@ bool DeduceVersionProfile(TInfoSink& infoSink, EShLanguage stage, bool versionNo
                 infoSink.info.message(EPrefixError, "#version: Desktop shaders for Vulkan SPIR-V require version 140 or higher");
                 version = 140;
             }
-            // gl_spirv TODO: test versions
+            if (spvVersion.openGl >= 100 && version < 330) {
+                correct = false;
+                infoSink.info.message(EPrefixError, "#version: Desktop shaders for OpenGL SPIR-V require version 330 or higher");
+                version = 330;
+            }
             break;
         }
     }
@@ -623,6 +628,10 @@ bool ProcessDeferred(
     if (messages & EShMsgSpvRules)
         spvVersion.spv = 0x00010000;    // TODO: eventually have this come from the outside
     EShSource source = (messages & EShMsgReadHlsl) ? EShSourceHlsl : EShSourceGlsl;
+    if (messages & EShMsgVulkanRules)
+        spvVersion.vulkan = 100;     // TODO: eventually have this come from the outside
+    else if (spvVersion.spv != 0)
+        spvVersion.openGl = 100;     // TODO: eventually have this come from the outside
     bool goodVersion = DeduceVersionProfile(compiler->infoSink, compiler->getLanguage(), versionNotFirst, defaultVersion, source, version, profile, spvVersion);
     bool versionWillBeError = (versionNotFound || (profile == EEsProfile && version >= 300 && versionNotFirst));
     bool warnVersionNotFirst = false;
@@ -633,10 +642,6 @@ bool ProcessDeferred(
             versionWillBeError = true;
     }
 
-    if (messages & EShMsgVulkanRules)
-        spvVersion.vulkan = 100;     // TODO: eventually have this come from the outside
-    else if (spvVersion.spv != 0)
-        spvVersion.openGl = 100;
     intermediate.setSource(source);
     intermediate.setVersion(version);
     intermediate.setProfile(profile);
@@ -644,23 +649,23 @@ bool ProcessDeferred(
     if (spvVersion.vulkan >= 100)
         intermediate.setOriginUpperLeft();
     SetupBuiltinSymbolTable(version, profile, spvVersion, source);
-    
+
     TSymbolTable* cachedTable = SharedSymbolTables[MapVersionToIndex(version)]
                                                   [MapSpvVersionToIndex(spvVersion)]
                                                   [MapProfileToIndex(profile)]
                                                   [compiler->getLanguage()];
-    
+
     // Dynamically allocate the symbol table so we can control when it is deallocated WRT the pool.
     TSymbolTable* symbolTableMemory = new TSymbolTable;
     TSymbolTable& symbolTable = *symbolTableMemory;
     if (cachedTable)
         symbolTable.adoptLevels(*cachedTable);
-    
+
     // Add built-in symbols that are potentially context dependent;
     // they get popped again further down.
     AddContextSpecificSymbols(resources, compiler->infoSink, symbolTable, version, profile, spvVersion,
                               compiler->getLanguage(), source);
-    
+
     //
     // Now we can process the full shader under proper symbols and rules.
     //
@@ -770,6 +775,8 @@ public:
     void setLineNum(int newLineNum) { lastLine = newLineNum; }
 
 private:
+    SourceLineSynchronizer& operator=(const SourceLineSynchronizer&);
+
     // A function for getting the index of the last valid source string we've
     // read tokens from.
     const std::function<int()> getLastSourceIndex;
@@ -794,8 +801,8 @@ struct DoPreprocessing {
     explicit DoPreprocessing(std::string* string): outputString(string) {}
     bool operator()(TParseContextBase& parseContext, TPpContext& ppContext,
                     TInputScanner& input, bool versionWillBeError,
-                    TSymbolTable& , TIntermediate& ,
-                    EShOptimizationLevel , EShMessages )
+                    TSymbolTable&, TIntermediate&,
+                    EShOptimizationLevel, EShMessages)
     {
         // This is a list of tokens that do not require a space before or after.
         static const std::string unNeededSpaceTokens = ";()[]";

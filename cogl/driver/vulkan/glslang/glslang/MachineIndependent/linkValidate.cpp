@@ -664,12 +664,19 @@ int TIntermediate::addUsedLocation(const TQualifier& qualifier, const TType& typ
             size = computeTypeLocationSize(type);
     }
 
+    // locations...
     TRange locationRange(qualifier.layoutLocation, qualifier.layoutLocation + size - 1);
+
+    // components in this location slot...    
     TRange componentRange(0, 3);
-    if (qualifier.hasComponent()) {
-        componentRange.start = qualifier.layoutComponent;
-        componentRange.last = componentRange.start + type.getVectorSize() - 1;
+    if (qualifier.hasComponent() || type.getVectorSize() > 0) {
+        int consumedComponents = type.getVectorSize() * (type.getBasicType() == EbtDouble ? 2 : 1);
+        if (qualifier.hasComponent())
+            componentRange.start = qualifier.layoutComponent;
+        componentRange.last  = componentRange.start + consumedComponents - 1;
     }
+
+    // both...
     TIoRange range(locationRange, componentRange, type.getBasicType(), qualifier.hasIndex() ? qualifier.layoutIndex : 0);
 
     // check for collisions, except for vertex inputs on desktop
@@ -940,7 +947,7 @@ int TIntermediate::getBaseAlignment(const TType& type, int& size, int& stride, b
     //      components each, according to rule (4).
     //
     //   6. If the member is an array of S column-major matrices with C columns and
-    //      R rows, the matrix is stored identically to a row of S  C column vectors
+    //      R rows, the matrix is stored identically to a row of S X C column vectors
     //      with R components each, according to rule (4).
     //
     //   7. If the member is a row-major matrix with C columns and R rows, the matrix
@@ -948,7 +955,7 @@ int TIntermediate::getBaseAlignment(const TType& type, int& size, int& stride, b
     //      according to rule (4).
     //
     //   8. If the member is an array of S row-major matrices with C columns and R
-    //      rows, the matrix is stored identically to a row of S  R row vectors with C
+    //      rows, the matrix is stored identically to a row of S X R row vectors with C
     //      components each, according to rule (4).
     //
     //   9. If the member is a structure, the base alignment of the structure is N , where
