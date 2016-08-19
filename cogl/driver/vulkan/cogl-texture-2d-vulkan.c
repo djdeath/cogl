@@ -830,6 +830,9 @@ _cogl_texture_2d_vulkan_move_to (CoglTexture2D *tex_2d,
   image_barrier.newLayout = new_layout;
   image_barrier.dstAccessMask = new_access_mask;
 
+  tex_2d->vk_image_layout = new_layout;
+  tex_2d->vk_access_mask = new_access_mask;
+
   VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
                                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
                                   dst_stage,
