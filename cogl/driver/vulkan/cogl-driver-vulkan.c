@@ -66,6 +66,10 @@ _cogl_driver_pixel_format_to_gl (CoglContext *context,
                                  GLenum *out_glformat,
                                  GLenum *out_gltype)
 {
+  if (out_glintformat)
+    *out_glintformat = format;
+  if (out_glformat)
+    *out_glformat = format;
   return format;
 }
 
