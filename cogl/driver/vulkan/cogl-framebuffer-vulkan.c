@@ -186,7 +186,7 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
       .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
     },
     [1] = {
-      .format = VK_FORMAT_D16_UNORM,
+      .format = VK_FORMAT_D24_UNORM_S8_UINT,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
       .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
