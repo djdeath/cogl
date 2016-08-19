@@ -47,6 +47,18 @@
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
+static void
+_cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
+{
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+  CoglOffscreen *offscreen = COGL_OFFSCREEN (framebuffer);
+
+  g_message ("move to attachment");
+  _cogl_texture_2d_vulkan_move_to (COGL_TEXTURE_2D (offscreen->texture),
+                                   COGL_TEXTURE_DOMAIN_ATTACHMENT,
+                                   vk_fb->cmd_buffer);
+}
+
 static CoglBool
 _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
                                                 CoglError **error)
@@ -345,6 +357,9 @@ _cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer)
     return;
 
   _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  if (cogl_is_offscreen (framebuffer))
+    _cogl_offscreen_vulkan_prepare_for_rendering (framebuffer);
 
   memset (clear_values, 0, sizeof (clear_values));
 
