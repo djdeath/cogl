@@ -812,11 +812,13 @@ _cogl_texture_2d_vulkan_move_to (CoglTexture2D *tex_2d,
     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .image = tex_2d->vk_image,
-    .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
   };
 
   _domain_to_vulkan_layout_and_access_mask (domain,
