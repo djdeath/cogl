@@ -34,6 +34,7 @@
 
 #include "cogl-context-private.h"
 #include "cogl-driver-vulkan-private.h"
+#include "cogl-renderer-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-texture-driver.h"
 #include "cogl-util-vulkan-private.h"
@@ -77,6 +78,7 @@ _cogl_texture_driver_upload_subregion_to_gl (CoglContext *ctx,
 				             GLuint source_gl_type,
                                              CoglError **error)
 {
+  VK_TODO();
   return FALSE;
 }
 
@@ -91,6 +93,7 @@ _cogl_texture_driver_upload_to_gl (CoglContext *ctx,
                                    GLuint source_gl_type,
                                    CoglError **error)
 {
+  VK_TODO();
   return FALSE;
 }
 
@@ -107,6 +110,7 @@ _cogl_texture_driver_upload_to_gl_3d (CoglContext *ctx,
                                       GLuint source_gl_type,
                                       CoglError **error)
 {
+  VK_TODO();
   return FALSE;
 }
 
@@ -129,7 +133,18 @@ _cogl_texture_driver_size_supported_3d (CoglContext *ctx,
                                         int height,
                                         int depth)
 {
-  return FALSE;
+  CoglRenderer *renderer = ctx->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  VkPhysicalDeviceLimits *limits =
+    &vk_renderer->physical_device_properties.limits;
+  CoglPixelFormat format = gl_format;
+
+  if (width > limits->maxImageDimension3D ||
+      height > limits->maxImageDimension3D ||
+      depth > limits->maxImageDimension3D)
+    return FALSE;
+
+  return TRUE;
 }
 
 static CoglBool
@@ -141,8 +156,35 @@ _cogl_texture_driver_size_supported (CoglContext *ctx,
                                      int width,
                                      int height)
 {
-  VK_TODO();
-  return FALSE;
+  CoglRenderer *renderer = ctx->display->renderer;
+  CoglRendererVulkan *vk_renderer = renderer->winsys;
+  VkPhysicalDeviceLimits *limits =
+    &vk_renderer->physical_device_properties.limits;
+  CoglPixelFormat format = gl_format;
+  VkFormat vk_format = _cogl_pixel_format_to_vulkan_format (format, NULL);
+  VkFormatProperties vk_format_properties;
+  VkFormatFeatureFlags flags = (VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+
+  if (width > limits->maxImageDimension2D ||
+      height > limits->maxImageDimension2D)
+    return FALSE;
+
+  VK ( ctx,
+       vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
+                                            vk_format,
+                                            &vk_format_properties) );
+
+  g_message ("vk_format=%i linear=%i optimal=%i",
+             vk_format,
+             vk_format_properties.linearTilingFeatures,
+             vk_format_properties.optimalTilingFeatures);
+
+  if ((vk_format_properties.linearTilingFeatures & flags) != flags ||
+      (vk_format_properties.optimalTilingFeatures & flags) != flags)
+    return FALSE;
+
+  return TRUE;
 }
 
 static void
