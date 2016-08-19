@@ -895,12 +895,8 @@ done:
                                     vk_pipeline->attribute_offsets) );
 
   for (i = 0; i < vk_pipeline->n_seen_attribute_buffers; i++)
-    {
-      g_message ("ref buffer=0x%x for pipeline=%p",
-                 vk_pipeline->seen_attribute_buffers[i], pipeline);
-      g_ptr_array_add (vk_fb->attribute_buffers,
-                       cogl_object_ref (vk_pipeline->seen_attribute_buffers[i]));
-    }
+    g_ptr_array_add (vk_fb->attribute_buffers,
+                     cogl_object_ref (vk_pipeline->seen_attribute_buffers[i]));
 
   VK ( ctx, vkCmdBindPipeline (vk_fb->cmd_buffer,
                                VK_PIPELINE_BIND_POINT_GRAPHICS,
