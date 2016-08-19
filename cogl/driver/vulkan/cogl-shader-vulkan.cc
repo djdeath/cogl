@@ -64,6 +64,9 @@ struct _CoglShaderVulkan
   GHashTable *samplers[COGL_SHADER_VULKAN_NB_STAGES];
   GHashTable *uniforms;
 
+  uint32_t input_layout_offset[COGL_SHADER_VULKAN_NB_STAGES];
+  uint32_t output_layout_offset[COGL_SHADER_VULKAN_NB_STAGES];
+
   VkShaderModule modules[COGL_SHADER_VULKAN_NB_STAGES];
 
   int block_size[COGL_SHADER_VULKAN_NB_STAGES];
@@ -346,7 +349,7 @@ _cogl_shader_vulkan_set_source (CoglShaderVulkan *shader,
 }
 
 static void
-_cogl_shader_vulkan_add_vertex_input (CoglShaderVulkan *shader,
+_cogl_shader_vulkan_add_shader_input (CoglShaderVulkan *shader,
                                       CoglGlslShaderType stage,
                                       glslang::TIntermSymbol* symbol)
 {
@@ -360,7 +363,12 @@ _cogl_shader_vulkan_add_vertex_input (CoglShaderVulkan *shader,
       symbol->getQualifier().layoutLocation = previous->location;
   } else {
     symbol->getQualifier().layoutLocation =
-      g_hash_table_size (shader->inputs[stage]);
+      shader->input_layout_offset[stage];
+
+    glslang::TIntermediate* intermediate =
+      shader->program->getIntermediate (_cogl_glsl_shader_type_to_es_language (stage));
+    shader->input_layout_offset[stage] +=
+      intermediate->computeTypeLocationSize(symbol->getType());
   }
 
   attribute->location = symbol->getQualifier().layoutLocation;
@@ -369,7 +377,7 @@ _cogl_shader_vulkan_add_vertex_input (CoglShaderVulkan *shader,
 }
 
 static void
-_cogl_shader_vulkan_add_vertex_output (CoglShaderVulkan *shader,
+_cogl_shader_vulkan_add_shader_output (CoglShaderVulkan *shader,
                                        CoglGlslShaderType stage,
                                        glslang::TIntermSymbol* symbol)
 {
@@ -378,9 +386,14 @@ _cogl_shader_vulkan_add_vertex_output (CoglShaderVulkan *shader,
 
   attribute->location =
     symbol->getQualifier().layoutLocation =
-    g_hash_table_size (shader->outputs[stage]);
+    shader->output_layout_offset[stage];
 
   g_hash_table_insert (shader->outputs[stage], attribute->name, attribute);
+
+  glslang::TIntermediate* intermediate =
+    shader->program->getIntermediate (_cogl_glsl_shader_type_to_es_language (stage));
+  shader->output_layout_offset[stage] +=
+    intermediate->computeTypeLocationSize(symbol->getType());
 }
 
 static void
@@ -617,12 +630,12 @@ _cogl_shader_vulkan_link (CoglShaderVulkan *shader)
         } else if (symbol->getQualifier().storage == glslang::EvqIn ||
                    symbol->getQualifier().storage == glslang::EvqInOut ||
                    symbol->getQualifier().storage == glslang::EvqVaryingIn) {
-          _cogl_shader_vulkan_add_vertex_input (shader,
+          _cogl_shader_vulkan_add_shader_input (shader,
                                                 (CoglGlslShaderType) stage,
                                                 symbol);
         } else if (symbol->getQualifier().storage == glslang::EvqOut ||
                    symbol->getQualifier().storage == glslang::EvqVaryingOut) {
-          _cogl_shader_vulkan_add_vertex_output (shader,
+          _cogl_shader_vulkan_add_shader_output (shader,
                                                  (CoglGlslShaderType) stage,
                                                  symbol);
         } else if (symbol->getBasicType() == glslang::EbtSampler) {
