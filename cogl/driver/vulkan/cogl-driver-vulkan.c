@@ -316,7 +316,6 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
            vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
                                                 i,
                                                 &vk_ctx->supported_formats[i]) );
-      g_message ("querying %i = %x/%x", i, vk_ctx->supported_formats[i].linearTilingFeatures, vk_ctx->supported_formats[i].optimalTilingFeatures);
     }
 
   return TRUE;
