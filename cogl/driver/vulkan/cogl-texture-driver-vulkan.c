@@ -162,27 +162,13 @@ _cogl_texture_driver_size_supported (CoglContext *ctx,
     &vk_renderer->physical_device_properties.limits;
   CoglPixelFormat format = gl_format;
   VkFormat vk_format =
-    _cogl_pixel_format_to_vulkan_format (ctx, format, NULL, NULL);
-  VkFormatProperties vk_format_properties;
-  VkFormatFeatureFlags flags = (VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                                VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+    _cogl_pixel_format_to_vulkan_format_for_sampling (ctx, format, NULL, NULL);
+
+  if (vk_format == VK_FORMAT_UNDEFINED)
+    return FALSE;
 
   if (width > limits->maxImageDimension2D ||
       height > limits->maxImageDimension2D)
-    return FALSE;
-
-  VK ( ctx,
-       vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
-                                            vk_format,
-                                            &vk_format_properties) );
-
-  g_message ("vk_format=%i linear=%i optimal=%i",
-             vk_format,
-             vk_format_properties.linearTilingFeatures,
-             vk_format_properties.optimalTilingFeatures);
-
-  if ((vk_format_properties.linearTilingFeatures & flags) != flags ||
-      (vk_format_properties.optimalTilingFeatures & flags) != flags)
     return FALSE;
 
   return TRUE;
