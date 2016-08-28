@@ -666,7 +666,8 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     vk_raster_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     vk_raster_state.rasterizerDiscardEnable = VK_FALSE;
-    vk_raster_state.polygonMode = VK_POLYGON_MODE_FILL;
+    vk_raster_state.polygonMode =
+      _cogl_vertices_mode_to_vulkan_polygon_mode (vk_pipeline->vertices_mode);
     vk_raster_state.cullMode =
       _cogl_cull_mode_to_vulkan_cull_mode (cogl_pipeline_get_cull_face_mode (pipeline));
     vk_raster_state.frontFace =

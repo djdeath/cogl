@@ -613,7 +613,8 @@ _cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode)
     case COGL_VERTICES_MODE_LINES:
       return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
     case COGL_VERTICES_MODE_LINE_LOOP:
-      g_assert_not_reached(); /* ¯\_(ツ)_/¯ */
+      /* ¯\_(ツ)_/¯ */
+      return VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
     case COGL_VERTICES_MODE_LINE_STRIP:
       return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
     case COGL_VERTICES_MODE_TRIANGLES:
@@ -622,6 +623,26 @@ _cogl_vertices_mode_to_vulkan_primitive_topology (CoglVerticesMode mode)
       return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     case COGL_VERTICES_MODE_TRIANGLE_FAN:
       return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+    default:
+      g_assert_not_reached();
+    }
+}
+
+VkPolygonMode
+_cogl_vertices_mode_to_vulkan_polygon_mode (CoglVerticesMode mode)
+{
+  switch (mode)
+    {
+    case COGL_VERTICES_MODE_POINTS:
+      return VK_POLYGON_MODE_POINT;
+    case COGL_VERTICES_MODE_LINES:
+    case COGL_VERTICES_MODE_LINE_LOOP:
+    case COGL_VERTICES_MODE_LINE_STRIP:
+      return VK_POLYGON_MODE_LINE;
+    case COGL_VERTICES_MODE_TRIANGLES:
+    case COGL_VERTICES_MODE_TRIANGLE_STRIP:
+    case COGL_VERTICES_MODE_TRIANGLE_FAN:
+      return VK_POLYGON_MODE_FILL;
     default:
       g_assert_not_reached();
     }
