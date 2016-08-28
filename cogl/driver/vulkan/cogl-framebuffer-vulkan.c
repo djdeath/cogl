@@ -53,7 +53,6 @@ _cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   CoglOffscreen *offscreen = COGL_OFFSCREEN (framebuffer);
 
-  g_message ("move to attachment");
   _cogl_texture_2d_vulkan_move_to (COGL_TEXTURE_2D (offscreen->texture),
                                    COGL_TEXTURE_DOMAIN_ATTACHMENT,
                                    vk_fb->cmd_buffer);
