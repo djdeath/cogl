@@ -112,12 +112,16 @@ _cogl_pixel_format_compatible_with_vulkan_format (CoglPixelFormat cogl_format,
                                                   VkFormat vk_format);
 
 VkFormat
-_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
-                                     CoglBool *premultiplied);
+_cogl_pixel_format_to_vulkan_format (CoglContext *context,
+                                     CoglPixelFormat format,
+                                     CoglBool *premultiplied,
+                                     VkComponentMapping *mapping);
 
 VkFormat
-_cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
-                                                  CoglBool *premultiplied);
+_cogl_pixel_format_to_vulkan_format_for_sampling (CoglContext *context,
+                                                  CoglPixelFormat format,
+                                                  CoglBool *premultiplied,
+                                                  VkComponentMapping *mapping);
 
 VkFormat
 _cogl_attribute_type_to_vulkan_format (CoglAttributeType type,

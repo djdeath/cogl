@@ -280,6 +280,7 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
   CoglRenderer *renderer = context->display->renderer;
   CoglRendererVulkan *vk_renderer = renderer->winsys;
   CoglContextVulkan *vk_ctx = g_slice_new0 (CoglContextVulkan);
+  int i;
 
   context->winsys = vk_ctx;
 
@@ -307,6 +308,16 @@ _cogl_vulkan_context_init (CoglContext *context, CoglError **error)
   /* Create a default set of attributes. */
   vk_ctx->default_attributes =
     _cogl_pipeline_ensure_default_attributes (context);
+
+  /* Query all pixel format support we can get. */
+  for (i = 0; i < G_N_ELEMENTS (vk_ctx->supported_formats); i++)
+    {
+      VK ( context,
+           vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
+                                                i,
+                                                &vk_ctx->supported_formats[i]) );
+      g_message ("querying %i = %x/%x", i, vk_ctx->supported_formats[i].linearTilingFeatures, vk_ctx->supported_formats[i].optimalTilingFeatures);
+    }
 
   return TRUE;
 

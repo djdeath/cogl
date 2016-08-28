@@ -77,7 +77,9 @@ _cogl_texture_2d_vulkan_can_create (CoglContext *ctx,
   CoglRenderer *renderer = ctx->display->renderer;
   CoglRendererVulkan *vk_renderer = renderer->winsys;
 
-  if (_cogl_pixel_format_to_vulkan_format_for_sampling (internal_format,
+  if (_cogl_pixel_format_to_vulkan_format_for_sampling (ctx,
+                                                        internal_format,
+                                                        NULL,
                                                         NULL) == VK_FORMAT_UNDEFINED)
     return FALSE;
 
@@ -95,128 +97,9 @@ _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
   tex_2d->vk_image_view = VK_NULL_HANDLE;
   tex_2d->vk_memory = VK_NULL_HANDLE;
 
-  tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_ZERO;
-  tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_ZERO;
-  tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_ZERO;
-  tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_ZERO;
-
-  switch (COGL_TEXTURE (tex_2d)->components)
-    {
-    case COGL_TEXTURE_COMPONENTS_A:
-      /* Map A to R because COGL_PIXEL_FORMAT_A_8 can only be represented as
-         VK_FORMAT_R8_*. */
-      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_R;
-      break;
-    case COGL_TEXTURE_COMPONENTS_RGBA:
-    case COGL_TEXTURE_COMPONENTS_DEPTH:
-      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
-      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
-      tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
-      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_A;
-      break;
-    case COGL_TEXTURE_COMPONENTS_RGB:
-      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
-      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
-      tex_2d->vk_component_mapping.b = VK_COMPONENT_SWIZZLE_B;
-      tex_2d->vk_component_mapping.a = VK_COMPONENT_SWIZZLE_ONE;
-      break;
-    case COGL_TEXTURE_COMPONENTS_RG:
-      tex_2d->vk_component_mapping.r = VK_COMPONENT_SWIZZLE_R;
-      tex_2d->vk_component_mapping.g = VK_COMPONENT_SWIZZLE_G;
-      break;
-    }
-
   tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
   tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-}
-
-static CoglBool
-is_format_available (CoglTexture2D *tex_2d,
-                     VkFormat format,
-                     VkImageUsageFlags usage,
-                     VkImageTiling tiling)
-{
-  CoglContext *ctx = tex_2d->_parent.context;
-  CoglRenderer *renderer = ctx->display->renderer;
-  CoglRendererVulkan *vk_renderer = renderer->winsys;
-  VkFormatProperties properties;
-  VkFormatFeatureFlags requested_flags = 0;
-
-  if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-    requested_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-  if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
-    requested_flags |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-  if (usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
-    requested_flags |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-  if (usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-    requested_flags |= VK_FORMAT_FEATURE_BLIT_DST_BIT;
-  /* TODO: add more checks here. */
-
-  VK ( ctx, vkGetPhysicalDeviceFormatProperties (vk_renderer->physical_device,
-                                                 format,
-                                                 &properties) );
-
-  if (tiling == VK_IMAGE_TILING_OPTIMAL)
-    return ((properties.optimalTilingFeatures & requested_flags) ==
-            requested_flags);
-  if (tiling == VK_IMAGE_TILING_LINEAR)
-    return ((properties.linearTilingFeatures & requested_flags) ==
-            requested_flags);
-  return FALSE;
-}
-
-static CoglBool
-super_seeding_format (VkFormat format,
-                      VkComponentMapping mapping,
-                      VkFormat *next_format,
-                      VkComponentMapping *next_mapping)
-{
-  switch (format)
-    {
-    case VK_FORMAT_R8_UNORM:
-      *next_format = VK_FORMAT_R8G8_UNORM;
-      *next_mapping = mapping;
-      return TRUE;
-    case VK_FORMAT_R8G8_UNORM:
-      *next_format = VK_FORMAT_R8G8B8_UNORM;
-      *next_mapping = mapping;
-      return TRUE;
-    case VK_FORMAT_R8G8B8_UNORM:
-      *next_format = VK_FORMAT_R8G8B8A8_UNORM;
-      *next_mapping = mapping;
-      next_mapping->a = VK_COMPONENT_SWIZZLE_ONE;
-      return TRUE;
-    case VK_FORMAT_R8G8B8A8_UNORM:
-      *next_format = format;
-      *next_mapping = mapping;
-      return TRUE;
-    default:
-      return FALSE;
-    }
-}
-
-/* Try to find a suitable backing format. For example, we can add some more
-   components and map them to 0 or 1. */
-static VkFormat
-find_best_format_available (CoglTexture2D *tex_2d,
-                            VkFormat format,
-                            VkImageUsageFlags usage,
-                            VkImageTiling tiling)
-{
-  VkFormat next_format = format;
-
-  while (!is_format_available (tex_2d, next_format, usage, tiling))
-    {
-      if (!super_seeding_format (next_format, tex_2d->vk_component_mapping,
-                                 &next_format, &tex_2d->vk_component_mapping))
-        return VK_FORMAT_UNDEFINED;
-    }
-
-  COGL_NOTE (VULKAN, "Selecting format=%i for requested format=%i",
-             next_format, format);
-
-  return next_format;
 }
 
 static CoglBool
@@ -340,11 +223,11 @@ allocate_with_size (CoglTexture2D *tex_2d,
   VkImageUsageFlags usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
   VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
-  VkFormat format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (internal_format, NULL);
 
   tex_2d->vk_format =
-    find_best_format_available (tex_2d, format, usage, tiling);
+    _cogl_pixel_format_to_vulkan_format_for_sampling (tex->context,
+                                                      internal_format, NULL,
+                                                      &tex_2d->vk_component_mapping);
 
   if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
     {
@@ -354,7 +237,8 @@ allocate_with_size (CoglTexture2D *tex_2d,
       return FALSE;
     }
 
-  if (!create_image (tex_2d, usage, tiling, width, height, 1, error))
+  if (!create_image (tex_2d, usage, tiling, width, height,
+                     1 + floor (log2 (MAX (width, height))), error))
     return FALSE;
 
   if (!allocate_image_memory (tex_2d, NULL, error))
@@ -483,8 +367,6 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
   CoglBitmap *bitmap = loader->src.bitmap.bitmap;
   int width = bitmap->width, height = bitmap->height;
   uint32_t memory_size;
-  VkFormat format =
-    _cogl_pixel_format_to_vulkan_format_for_sampling (bitmap->format, NULL);
   VkImageUsageFlags usage;
 
   /* Override default tiling.
@@ -506,9 +388,10 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
 
-  tex_2d->vk_format = format;
-
-    /* find_best_format_available (tex_2d, format, usage, tiling); */
+  tex_2d->vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (tex->context,
+                                                      bitmap->format, NULL,
+                                                      &tex_2d->vk_component_mapping);
   if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
     {
       _cogl_set_error (error, COGL_TEXTURE_ERROR,

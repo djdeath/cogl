@@ -31,8 +31,8 @@
 #ifndef _COGL_DRIVER_VULKAN_PRIVATE_H_
 #define _COGL_DRIVER_VULKAN_PRIVATE_H_
 
-#include "cogl-types.h"
 #include "cogl-context.h"
+#include "cogl-matrix.h"
 #include "cogl-vulkan-header.h"
 
 typedef struct _CoglRendererVulkan
@@ -66,6 +66,8 @@ typedef struct _CoglContextVulkan
 
   /* Not owned, this is a copy from CoglRendererVulkan. */
   VkDevice device;
+
+  VkFormatProperties supported_formats[VK_FORMAT_END_RANGE];
 } CoglContextVulkan;
 
 CoglBool

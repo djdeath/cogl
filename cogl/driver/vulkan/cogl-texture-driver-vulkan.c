@@ -161,7 +161,8 @@ _cogl_texture_driver_size_supported (CoglContext *ctx,
   VkPhysicalDeviceLimits *limits =
     &vk_renderer->physical_device_properties.limits;
   CoglPixelFormat format = gl_format;
-  VkFormat vk_format = _cogl_pixel_format_to_vulkan_format (format, NULL);
+  VkFormat vk_format =
+    _cogl_pixel_format_to_vulkan_format (ctx, format, NULL, NULL);
   VkFormatProperties vk_format_properties;
   VkFormatFeatureFlags flags = (VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
                                 VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);

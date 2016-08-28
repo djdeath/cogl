@@ -32,6 +32,8 @@
 #include "config.h"
 #endif
 
+#include "cogl-context-private.h"
+#include "cogl-driver-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
 
 CoglPixelFormat
@@ -39,6 +41,12 @@ _cogl_vulkan_format_to_pixel_format (VkFormat format)
 {
   switch (_cogl_vulkan_format_unorm (format))
     {
+    case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+      return COGL_PIXEL_FORMAT_RGBA_4444;
+    case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
+      return COGL_PIXEL_FORMAT_RGBA_5551;
+    case VK_FORMAT_R5G6B5_UNORM_PACK16:
+      return COGL_PIXEL_FORMAT_RGB_565;
     case VK_FORMAT_R8_UNORM:
       return COGL_PIXEL_FORMAT_G_8;
     case VK_FORMAT_R8G8_UNORM:
@@ -51,21 +59,54 @@ _cogl_vulkan_format_to_pixel_format (VkFormat format)
       return COGL_PIXEL_FORMAT_RGBA_8888;
     case VK_FORMAT_B8G8R8A8_UNORM:
       return COGL_PIXEL_FORMAT_BGRA_8888;
+    case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+      return COGL_PIXEL_FORMAT_ABGR_8888;
     default:
       return COGL_PIXEL_FORMAT_ANY;
     }
 }
 
+static const VkFormat _format_to_unorm[] = {
+  [VK_FORMAT_R4G4B4A4_UNORM_PACK16] = VK_FORMAT_R4G4B4A4_UNORM_PACK16,
+
+  [VK_FORMAT_R5G5B5A1_UNORM_PACK16] = VK_FORMAT_R5G5B5A1_UNORM_PACK16,
+
+  [VK_FORMAT_R5G6B5_UNORM_PACK16] = VK_FORMAT_R5G6B5_UNORM_PACK16,
+
+  [VK_FORMAT_R8_UNORM] = VK_FORMAT_R8_UNORM,
+  [VK_FORMAT_R8_SRGB] = VK_FORMAT_R8_UNORM,
+
+  [VK_FORMAT_R8G8_UNORM] = VK_FORMAT_R8G8_UNORM,
+  [VK_FORMAT_R8G8_SRGB] = VK_FORMAT_R8G8_UNORM,
+
+  [VK_FORMAT_R8G8B8_UNORM] = VK_FORMAT_R8G8B8_UNORM,
+  [VK_FORMAT_R8G8B8_SRGB] = VK_FORMAT_R8G8B8_UNORM,
+
+  [VK_FORMAT_B8G8R8_UNORM] = VK_FORMAT_B8G8R8_UNORM,
+  [VK_FORMAT_B8G8R8_SRGB] = VK_FORMAT_B8G8R8_UNORM,
+
+  [VK_FORMAT_R8G8B8A8_UNORM] = VK_FORMAT_R8G8B8A8_UNORM,
+  [VK_FORMAT_R8G8B8A8_SRGB] = VK_FORMAT_R8G8B8A8_UNORM,
+
+  [VK_FORMAT_B8G8R8A8_UNORM] = VK_FORMAT_B8G8R8A8_UNORM,
+  [VK_FORMAT_B8G8R8A8_SRGB] = VK_FORMAT_B8G8R8A8_UNORM,
+
+  [VK_FORMAT_A8B8G8R8_UNORM_PACK32] = VK_FORMAT_A8B8G8R8_UNORM_PACK32,
+  [VK_FORMAT_A8B8G8R8_SRGB_PACK32] = VK_FORMAT_A8B8G8R8_UNORM_PACK32,
+
+  [VK_FORMAT_A2B10G10R10_UNORM_PACK32] = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+  [VK_FORMAT_A2R10G10B10_UINT_PACK32] = VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+
+  [VK_FORMAT_A2B10G10R10_UNORM_PACK32] = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+  [VK_FORMAT_A2B10G10R10_UINT_PACK32] = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+};
+
 VkFormat
 _cogl_vulkan_format_unorm (VkFormat format)
 {
-  VkFormat diff = VK_FORMAT_R8G8_UNORM - VK_FORMAT_R8_UNORM;
-  VkFormat delta = (format - VK_FORMAT_R8_UNORM) % diff;
-
-  if (format == VK_FORMAT_UNDEFINED)
-    return format;
-
-  return format - delta;
+  if (_format_to_unorm[format] == VK_FORMAT_UNDEFINED)
+    return VK_FORMAT_UNDEFINED;
+  return _format_to_unorm[format];
 }
 
 CoglBool
@@ -93,69 +134,274 @@ _cogl_pixel_format_compatible_with_vulkan_format (CoglPixelFormat cogl_format,
     case VK_FORMAT_R8_SRGB:
       return (cogl_format == COGL_PIXEL_FORMAT_G_8);
 
-      // TODO: Add RGB565 etc...
     default:
       return FALSE;
     }
 }
 
-VkFormat
-_cogl_pixel_format_to_vulkan_format (CoglPixelFormat format,
-                                     CoglBool *premultiplied)
+#define SWIZ(_r,_g,_b,_a)                           \
+  {                                                 \
+    .r = VK_COMPONENT_SWIZZLE_##_r,                 \
+    .g = VK_COMPONENT_SWIZZLE_##_g,                 \
+    .b = VK_COMPONENT_SWIZZLE_##_b,                 \
+    .a = VK_COMPONENT_SWIZZLE_##_a                  \
+  }
+
+#define SWIZ_RGBA SWIZ(R,G,B,A)
+#define SWIZ_RGB1 SWIZ(R,G,B,ONE)
+
+#define COGL_VK_VIEW(_format, _swiz)                    \
+  {                                                     \
+    .format = VK_FORMAT_##_format,                      \
+    .mapping = _swiz,                                   \
+  }
+
+#define COGL_VK_VIEW_NONE                       \
+  {                                             \
+    .format = VK_FORMAT_UNDEFINED               \
+  }
+
+#define RETURN_COGL_VK_VIEWS(_views...) do {        \
+    static const CoglVulkanFormat __views[] = {     \
+      _views                                        \
+    };                                              \
+    return __views;                                 \
+  } while (0)
+
+typedef struct
 {
+  VkFormat format;
+  VkComponentMapping mapping;
+} CoglVulkanFormat;
 
-  if (premultiplied)
-    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
-
+static const CoglVulkanFormat *
+_get_pixel_format_guesses_for_render (CoglPixelFormat format)
+{
   switch (format)
     {
+    case COGL_PIXEL_FORMAT_ARGB_2101010:
+    case COGL_PIXEL_FORMAT_ARGB_2101010_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (A2R10G10B10_UINT_PACK32, SWIZ_RGBA),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_ABGR_2101010:
+    case COGL_PIXEL_FORMAT_ABGR_2101010_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (A2R10G10B10_UINT_PACK32, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
     case COGL_PIXEL_FORMAT_RGBA_8888:
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      return VK_FORMAT_R8G8B8A8_SRGB;
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8B8A8_SRGB, SWIZ_RGBA),
+                            COGL_VK_VIEW (B8G8R8A8_SRGB, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW (A8B8G8R8_SRGB_PACK32, SWIZ (A, B, G, R)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_BGRA_8888:
+    case COGL_PIXEL_FORMAT_BGRA_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8A8_SRGB, SWIZ_RGBA),
+                            COGL_VK_VIEW (R8G8B8A8_SRGB, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW (A8B8G8R8_SRGB_PACK32, SWIZ (A, G, R, B)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_ARGB_8888:
+    case COGL_PIXEL_FORMAT_ARGB_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (A8B8G8R8_SRGB_PACK32, SWIZ_RGBA),
+                            COGL_VK_VIEW (B8G8R8A8_SRGB, SWIZ (G, B, A, R)),
+                            COGL_VK_VIEW (R8G8B8A8_SRGB, SWIZ (A, B, G, R)),
+                            COGL_VK_VIEW_NONE);
+
     case COGL_PIXEL_FORMAT_RGB_888:
-      return VK_FORMAT_R8G8B8_SRGB;
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8B8_SRGB, SWIZ_RGB1),
+                            COGL_VK_VIEW (B8G8R8_SRGB, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW (R8G8B8A8_SRGB, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW_NONE);
     case COGL_PIXEL_FORMAT_BGR_888:
-      return VK_FORMAT_B8G8R8_SRGB;
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8_SRGB, SWIZ_RGB1),
+                            COGL_VK_VIEW (R8G8B8_SRGB, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW (B8G8R8A8_SRGB, SWIZ_RGB1),
+                            COGL_VK_VIEW_NONE);
 
-      /* TODO(dixit Mesa): Figure out what all the formats mean and make
-       * this table correct.
-       */
-    /* case COGL_PIXEL_FORMAT_RGB_565: */
-    /*   return VK_FORMAT_R5G6B5_UNORM_PACK16; */
-    /* case COGL_PIXEL_FORMAT_RGBA_4444: */
-    /*   return VK_FORMAT_R4G4B4A4_UNORM_PACK16; */
-    /* case COGL_PIXEL_FORMAT_RGBA_5551: */
-    /*   return VK_FORMAT_R5G5B5A1_UNORM_PACK16; */
+    case COGL_PIXEL_FORMAT_RGBA_4444:
+    case COGL_PIXEL_FORMAT_RGBA_4444_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R4G4B4A4_UNORM_PACK16, SWIZ_RGBA),
+                            COGL_VK_VIEW (B4G4R4A4_UNORM_PACK16, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RGB_565:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R5G6B5_UNORM_PACK16, SWIZ_RGB1),
+                            COGL_VK_VIEW (B5G6R5_UNORM_PACK16, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_RGBA_5551:
+    case COGL_PIXEL_FORMAT_RGBA_5551_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R5G5B5A1_UNORM_PACK16, SWIZ_RGBA),
+                            COGL_VK_VIEW (B5G5R5A1_UNORM_PACK16, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
     case COGL_PIXEL_FORMAT_RG_88:
-      return VK_FORMAT_R8G8_SRGB;
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8_SRGB, SWIZ (R, G, ZERO, ONE)),
+                            COGL_VK_VIEW_NONE);
+      break;
     case COGL_PIXEL_FORMAT_G_8:
-      return VK_FORMAT_R8_SRGB;
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8_SRGB, SWIZ (R, ZERO, ZERO, ONE)),
+                            COGL_VK_VIEW_NONE);
+      break;
     case COGL_PIXEL_FORMAT_A_8:
-      return VK_FORMAT_R8_SRGB;
-
-    /* case COGL_PIXEL_FORMAT_RGBA_8888: */
-    /* case COGL_PIXEL_FORMAT_RGBA_8888_PRE: */
-    /*   return VK_FORMAT_R8G8B8A8_SRGB; */
-    /* case COGL_PIXEL_FORMAT_BGRA_8888: */
-    /* case COGL_PIXEL_FORMAT_BGRA_8888_PRE: */
-    /*   return VK_FORMAT_B8G8R8A8_SRGB; */
-    /* case COGL_PIXEL_FORMAT_ABGR_8888: */
-    /* case COGL_PIXEL_FORMAT_ABGR_8888_PRE: */
-    /*   return VK_FORMAT_A8B8G8R8_SRGB_PACK32; */
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8_SRGB, SWIZ (ZERO, ZERO, ZERO, R)),
+                            COGL_VK_VIEW_NONE);
+      break;
 
     default:
-      return VK_FORMAT_UNDEFINED;
+      g_warning ("Unsupported CoglPixelFormat %i alpha=%i bgr=%i a_first=%i form=%i",
+                 format,
+                 (format & COGL_A_BIT) != 0,
+                 (format & COGL_BGR_BIT) != 0,
+                 (format & COGL_AFIRST_BIT) != 0,
+                 format & 0xff);
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW_NONE);
+    }
+}
+
+static const CoglVulkanFormat *
+_get_pixel_format_guesses_for_sampling (CoglPixelFormat format)
+{
+  switch (format)
+    {
+    case COGL_PIXEL_FORMAT_ARGB_2101010:
+    case COGL_PIXEL_FORMAT_ARGB_2101010_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (A2R10G10B10_UNORM_PACK32, SWIZ_RGBA),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_ABGR_2101010:
+    case COGL_PIXEL_FORMAT_ABGR_2101010_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (A2R10G10B10_UNORM_PACK32, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RGBA_8888:
+    case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8B8A8_UNORM, SWIZ_RGBA),
+                            COGL_VK_VIEW (B8G8R8A8_UNORM, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_BGRA_8888:
+    case COGL_PIXEL_FORMAT_BGRA_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8A8_UNORM, SWIZ_RGBA),
+                            COGL_VK_VIEW (R8G8B8A8_UNORM, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_ARGB_8888:
+    case COGL_PIXEL_FORMAT_ARGB_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8A8_UNORM, SWIZ (G, R, A, B)),
+                            COGL_VK_VIEW (R8G8B8A8_UNORM, SWIZ (G, B, A, R)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_ABGR_8888:
+    case COGL_PIXEL_FORMAT_ABGR_8888_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8A8_UNORM, SWIZ (A, R, G, B)),
+                            COGL_VK_VIEW (R8G8B8A8_UNORM, SWIZ (A, B, G, R)),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RGB_888:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8B8_UNORM, SWIZ_RGB1),
+                            COGL_VK_VIEW (B8G8R8_UNORM, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW (R8G8B8A8_SRGB, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_BGR_888:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (B8G8R8_UNORM, SWIZ_RGB1),
+                            COGL_VK_VIEW (R8G8B8_UNORM, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW (B8G8R8A8_UNORM, SWIZ_RGB1),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RGBA_4444:
+    case COGL_PIXEL_FORMAT_RGBA_4444_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R4G4B4A4_UNORM_PACK16, SWIZ_RGBA),
+                            COGL_VK_VIEW (B4G4R4A4_UNORM_PACK16, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RGB_565:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R5G6B5_UNORM_PACK16, SWIZ_RGB1),
+                            COGL_VK_VIEW (B5G6R5_UNORM_PACK16, SWIZ (B, G, R, ONE)),
+                            COGL_VK_VIEW_NONE);
+    case COGL_PIXEL_FORMAT_RGBA_5551:
+    case COGL_PIXEL_FORMAT_RGBA_5551_PRE:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R5G5B5A1_UNORM_PACK16, SWIZ_RGBA),
+                            COGL_VK_VIEW (B5G5R5A1_UNORM_PACK16, SWIZ (B, G, R, A)),
+                            COGL_VK_VIEW_NONE);
+
+    case COGL_PIXEL_FORMAT_RG_88:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8G8_UNORM, SWIZ (R, G, ZERO, ONE)),
+                            COGL_VK_VIEW_NONE);
+      break;
+    case COGL_PIXEL_FORMAT_G_8:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8_UNORM, SWIZ (R, ZERO, ZERO, ONE)),
+                            COGL_VK_VIEW_NONE);
+      break;
+    case COGL_PIXEL_FORMAT_A_8:
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW (R8_UNORM, SWIZ (ZERO, ZERO, ZERO, R)),
+                            COGL_VK_VIEW_NONE);
+      break;
+
+    default:
+      g_warning ("Unsupported CoglPixelFormat %i alpha=%i bgr=%i a_first=%i form=%i",
+                 format,
+                 format & COGL_A_BIT,
+                 format & COGL_BGR_BIT,
+                 format & COGL_AFIRST_BIT,
+                 format & 0xff);
+      RETURN_COGL_VK_VIEWS (COGL_VK_VIEW_NONE);
     }
 }
 
 VkFormat
-_cogl_pixel_format_to_vulkan_format_for_sampling (CoglPixelFormat format,
-                                                  CoglBool *premultiplied)
+_cogl_pixel_format_to_vulkan_format (CoglContext *context,
+                                     CoglPixelFormat format,
+                                     CoglBool *premultiplied,
+                                     VkComponentMapping *mapping)
 {
-  VkFormat vk_format = _cogl_pixel_format_to_vulkan_format (format,
-                                                            premultiplied);
+  CoglContextVulkan *vk_ctx = context->winsys;
+  const CoglVulkanFormat *formats_guesses = _get_pixel_format_guesses_for_render (format);
+  int i;
 
-  return _cogl_vulkan_format_unorm (vk_format);
+  for (i = 0; formats_guesses[i].format != VK_FORMAT_UNDEFINED; i++)
+    {
+      VkFormat selected_format = formats_guesses[i].format;
+      VkFormatProperties *properties =
+        &vk_ctx->supported_formats[selected_format];
+      const VkFormatFeatureFlags requested_flags =
+        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+
+      if ((properties->linearTilingFeatures & requested_flags) == requested_flags &&
+          (properties->optimalTilingFeatures & requested_flags) == requested_flags)
+        break;
+    }
+
+  if (mapping)
+    *mapping = formats_guesses[i].mapping;
+  if (premultiplied)
+    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
+  return formats_guesses[i].format;
+}
+
+VkFormat
+_cogl_pixel_format_to_vulkan_format_for_sampling (CoglContext *context,
+                                                  CoglPixelFormat format,
+                                                  CoglBool *premultiplied,
+                                                  VkComponentMapping *mapping)
+{
+  CoglContextVulkan *vk_ctx = context->winsys;
+  const CoglVulkanFormat *formats_guesses = _get_pixel_format_guesses_for_sampling (format);
+  int i;
+
+  for (i = 0; formats_guesses[i].format != VK_FORMAT_UNDEFINED; i++)
+    {
+      VkFormat selected_format = formats_guesses[i].format;
+      VkFormatProperties *properties =
+        &vk_ctx->supported_formats[selected_format];
+      const VkFormatFeatureFlags requested_flags =
+        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+
+      if ((properties->linearTilingFeatures & requested_flags) == requested_flags &&
+          (properties->optimalTilingFeatures & requested_flags) == requested_flags)
+        break;
+    }
+
+  if (mapping)
+    *mapping = formats_guesses[i].mapping;
+  if (premultiplied)
+    *premultiplied = (COGL_PREMULT_BIT & format) != 0;
+  return formats_guesses[i].format;
 }
 
 static VkFormat _attributes_to_formats[5][4] = {

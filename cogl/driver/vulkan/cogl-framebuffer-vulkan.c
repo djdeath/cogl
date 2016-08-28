@@ -727,17 +727,13 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   CoglBool ret = FALSE;
   VkImage dst_image = VK_NULL_HANDLE;
   VkDeviceMemory dst_image_memory = VK_NULL_HANDLE;
-  VkComponentMapping vk_component_mapping = {
-    .r = VK_COMPONENT_SWIZZLE_R,
-    .g = VK_COMPONENT_SWIZZLE_G,
-    .b = VK_COMPONENT_SWIZZLE_B,
-    .a = VK_COMPONENT_SWIZZLE_A,
-  };
+  VkComponentMapping vk_src_component_mapping, vk_dst_component_mapping;
   VkImageCreateInfo image_create_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
     .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
     .imageType = VK_IMAGE_TYPE_2D,
-    .format = _cogl_pixel_format_to_vulkan_format (bitmap->format, NULL),
+    .format = _cogl_pixel_format_to_vulkan_format (ctx, bitmap->format, NULL,
+                                                   &vk_dst_component_mapping),
     .extent = {
       .width = bitmap->width,
       .height = bitmap->height,
@@ -800,13 +796,15 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
   _cogl_journal_flush (framebuffer->journal);
   _cogl_framebuffer_vulkan_end_render_pass (framebuffer);
 
+  _cogl_pixel_format_to_vulkan_format (ctx, framebuffer->internal_format, NULL,
+                                       &vk_src_component_mapping);
   src_texture =
     COGL_TEXTURE (_cogl_texture_2d_vulkan_new_for_foreign (ctx,
                                                            framebuffer->width,
                                                            framebuffer->height,
                                                            vk_fb->color_image,
                                                            _cogl_vulkan_format_unorm (vk_fb->color_format),
-                                                           vk_component_mapping,
+                                                           vk_src_component_mapping,
                                                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                                            (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                                                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)));
@@ -821,7 +819,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                            bitmap->height,
                                                            dst_image,
                                                            _cogl_vulkan_format_unorm (image_create_info.format),
-                                                           vk_component_mapping,
+                                                           vk_dst_component_mapping,
                                                            image_create_info.initialLayout,
                                                            (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                                                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)));
