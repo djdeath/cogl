@@ -1250,6 +1250,8 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
 
   if (program_state->n_write_descriptor_sets > 0)
     {
+      _cogl_framebuffer_vulkan_ensure_clean_command_buffer (framebuffer);
+
       VK ( ctx,
            vkUpdateDescriptorSets (vk_ctx->device,
                                    program_state->n_write_descriptor_sets,
@@ -1257,8 +1259,6 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
                                    0, NULL) );
       program_state->n_write_descriptor_sets = 0;
     }
-
-  _cogl_framebuffer_vulkan_ensure_clean_command_buffer (framebuffer);
 }
 
 static void
