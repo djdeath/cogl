@@ -58,6 +58,22 @@ _cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
                                    vk_fb->cmd_buffer);
 }
 
+static void
+_cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
+{
+  CoglContext *ctx = framebuffer->context;
+  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
+
+  if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
+    return;
+
+  if (!_cogl_vulkan_context_create_command_buffer (ctx,
+                                                   &vk_fb->cmd_buffer, NULL))
+    return;
+
+  g_array_append_val (vk_fb->cmd_buffers, vk_fb->cmd_buffer);
+}
+
 static CoglBool
 _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
                                                 CoglError **error)
@@ -82,7 +98,7 @@ _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
     .tiling = VK_IMAGE_TILING_OPTIMAL,
     .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
     .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
   };
   VkImageViewCreateInfo image_view_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -103,6 +119,23 @@ _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
   };
   VkMemoryRequirements mem_reqs;
+  VkImageMemoryBarrier image_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = 0,
+    .dstAccessMask = (VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT),
+    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+  };
 
   VK_RET_VAL_ERROR ( ctx,
                      vkCreateImage (vk_ctx->device, &image_info, NULL,
@@ -140,6 +173,18 @@ _cogl_framebuffer_vulkan_allocate_depth_buffer (CoglFramebuffer *framebuffer,
                      FALSE,
                      error, COGL_FRAMEBUFFER_ERROR,
                      COGL_FRAMEBUFFER_ERROR_ALLOCATE );
+
+  _cogl_framebuffer_vulkan_ensure_command_buffer (framebuffer);
+
+  image_barrier.image = vk_fb->depth_image;
+
+  VK ( ctx, vkCmdPipelineBarrier (vk_fb->cmd_buffer,
+                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                  0,
+                                  0, NULL,
+                                  0, NULL,
+                                  1, &image_barrier) );
 
   return TRUE;
 }
@@ -240,6 +285,12 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
     .pDependencies = NULL,
   };
 
+  vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
+  vk_fb->attribute_buffers =
+    g_ptr_array_new_full (20, (GDestroyNotify) cogl_object_unref);
+  vk_fb->pipelines = g_ptr_array_new_full (10,
+                                           (GDestroyNotify) cogl_object_unref);
+
   if (framebuffer->depth_writing_enabled)
     {
       vk_fb->depth_format = VK_FORMAT_D24_UNORM_S8_UINT;
@@ -268,12 +319,6 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
                      FALSE,
                      error, COGL_FRAMEBUFFER_ERROR,
                      COGL_FRAMEBUFFER_ERROR_ALLOCATE );
-
-  vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
-  vk_fb->attribute_buffers =
-    g_ptr_array_new_full (20, (GDestroyNotify) cogl_object_unref);
-  vk_fb->pipelines = g_ptr_array_new_full (10,
-                                           (GDestroyNotify) cogl_object_unref);
 
   return TRUE;
 }
@@ -315,22 +360,6 @@ _cogl_framebuffer_vulkan_update_framebuffer (CoglFramebuffer *framebuffer,
 
   vk_fb->framebuffer = vk_framebuffer;
   vk_fb->color_image = vk_image;
-}
-
-static void
-_cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
-{
-  CoglContext *ctx = framebuffer->context;
-  CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-
-  if (vk_fb->cmd_buffer != VK_NULL_HANDLE)
-    return;
-
-  if (!_cogl_vulkan_context_create_command_buffer (ctx,
-                                                   &vk_fb->cmd_buffer, NULL))
-    return;
-
-  g_array_append_val (vk_fb->cmd_buffers, vk_fb->cmd_buffer);
 }
 
 void
@@ -745,7 +774,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
     .usage = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
               VK_IMAGE_USAGE_TRANSFER_DST_BIT),
     .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
   };
   VkMemoryRequirements reqs;
 
@@ -820,8 +849,7 @@ _cogl_framebuffer_vulkan_read_pixels_into_bitmap (CoglFramebuffer *framebuffer,
                                                            _cogl_vulkan_format_unorm (image_create_info.format),
                                                            vk_dst_component_mapping,
                                                            image_create_info.initialLayout,
-                                                           (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                                                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)));
+                                                           0));
 
   if (!cogl_texture_allocate (dst_texture, error))
     goto error;

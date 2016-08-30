@@ -97,9 +97,8 @@ _cogl_texture_2d_vulkan_init (CoglTexture2D *tex_2d)
   tex_2d->vk_image_view = VK_NULL_HANDLE;
   tex_2d->vk_memory = VK_NULL_HANDLE;
 
-  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
-  tex_2d->vk_access_mask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+  tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  tex_2d->vk_access_mask = 0;
 }
 
 static CoglBool
@@ -376,14 +375,14 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
    */
   if (bitmap->shared_bmp || bitmap->buffer)
     {
-      tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
       usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                VK_IMAGE_USAGE_SAMPLED_BIT |
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
   else
     {
-      tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_GENERAL;
+      tex_2d->vk_image_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+      tex_2d->vk_access_mask = VK_ACCESS_HOST_WRITE_BIT;
       usage = (VK_IMAGE_USAGE_SAMPLED_BIT |
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
