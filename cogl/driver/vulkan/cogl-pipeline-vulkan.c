@@ -633,7 +633,9 @@ _cogl_pipeline_vulkan_create_pipeline (CoglPipeline *pipeline,
     return;
 
   vk_pipeline->color_mask = framebuffer->color_mask;
-  vk_pipeline->vertices_mode = vk_fb->vertices_mode;
+  vk_pipeline->vertices_mode = vk_fb->vertices_modes[vk_fb->n_vertices_modes - 1];
+  vk_pipeline->color_format = vk_fb->color_format;
+  vk_pipeline->depth_format = vk_fb->depth_format;
 
   /* Blending */
   {
@@ -839,7 +841,7 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
       _cogl_pipeline_vertend_vulkan_get_shader (pipeline) != NULL &&
       _cogl_pipeline_fragend_vulkan_get_shader (pipeline) != NULL)
     {
-      if (vk_fb->vertices_mode != vk_pipeline->vertices_mode ||
+      if (vk_fb->vertices_modes[vk_fb->n_vertices_modes - 1] != vk_pipeline->vertices_mode ||
           framebuffer->color_mask != vk_pipeline->color_mask ||
           vk_pipeline->color_format != vk_fb->color_format ||
           vk_pipeline->depth_format != vk_fb->depth_format)
@@ -856,9 +858,6 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
 
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
-
-  vk_pipeline->color_format = vk_fb->color_format;
-  vk_pipeline->depth_format = vk_fb->depth_format;
 
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);

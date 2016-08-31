@@ -68,9 +68,11 @@ typedef struct _CoglFramebufferVulkan
 
   /* This is a temporary variable used to work around Cogl internal API that
      is doesn't currently propagate vertices mode down to the pipeline
-     flushing. The API should be reworked to better fit Vulkan's pipeline
-     setup. */
-  CoglVerticesMode vertices_mode;
+     flushing. We need to have an array of those because of reentrancy when
+     the journal gets flushed as a result of a draw call. The API should be
+     reworked to better fit Vulkan's pipeline setup. */
+  CoglVerticesMode vertices_modes[10];
+  uint32_t n_vertices_modes;
 } CoglFramebufferVulkan;
 
 typedef struct _CoglOffscreenVulkan

@@ -699,7 +699,8 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
   int i;
 
-  vk_fb->vertices_mode = mode;
+  vk_fb->vertices_modes[vk_fb->n_vertices_modes++] = mode;
+  g_assert(vk_fb->n_vertices_modes < G_N_ELEMENTS (vk_fb->vertices_modes));
 
   _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
 
@@ -711,6 +712,7 @@ _cogl_framebuffer_vulkan_draw_attributes (CoglFramebuffer *framebuffer,
   VK ( ctx, vkCmdDraw (vk_fb->cmd_buffer, n_vertices, 1, first_vertex, 0) );
   vk_fb->cmd_buffer_length++;
 
+  vk_fb->n_vertices_modes--;
 }
 
 void
@@ -728,9 +730,9 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   CoglBufferVulkan *vk_buf = indices_buffer->winsys;
   CoglContext *ctx = framebuffer->context;
   CoglFramebufferVulkan *vk_fb = framebuffer->winsys;
-  int i;
 
-  vk_fb->vertices_mode = mode;
+  vk_fb->vertices_modes[vk_fb->n_vertices_modes++] = mode;
+  g_assert(vk_fb->n_vertices_modes < G_N_ELEMENTS (vk_fb->vertices_modes));
 
   _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
 
@@ -750,6 +752,8 @@ _cogl_framebuffer_vulkan_draw_indexed_attributes (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffer_length++;
 
   g_ptr_array_add (vk_fb->attribute_buffers, cogl_object_ref (indices->buffer));
+
+  vk_fb->n_vertices_modes--;
 }
 
 CoglBool
