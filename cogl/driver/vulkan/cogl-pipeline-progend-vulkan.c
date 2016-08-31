@@ -167,6 +167,9 @@ typedef struct
   int n_layers;
 
   CoglPipelineCacheEntry *cache_entry;
+
+  /* Pipelines currently used by the GPU and using this program. */
+  GHashTable *pipelines;
 } CoglPipelineProgramState;
 
 
@@ -245,6 +248,7 @@ program_state_new (int n_layers,
   program_state->cache_entry = cache_entry;
   _cogl_matrix_entry_cache_init (&program_state->modelview_cache);
   _cogl_matrix_entry_cache_init (&program_state->projection_cache);
+  program_state->pipelines = g_hash_table_new (g_direct_hash, g_direct_equal);
 
   return program_state;
 }
@@ -316,6 +320,8 @@ destroy_program_state (void *user_data,
       if (program_state->shader)
         _cogl_shader_vulkan_free (program_state->shader);
 
+      g_hash_table_unref (program_state->pipelines);
+
       g_slice_free (CoglPipelineProgramState, program_state);
     }
 }
@@ -351,6 +357,24 @@ dirty_program_state (CoglPipeline *pipeline)
   _cogl_pipeline_vulkan_invalidate (pipeline);
 }
 
+/* Waits for all pipeline using this program to have completed their
+   work. */
+static void
+program_state_end (CoglPipelineProgramState *program_state)
+{
+  CoglPipeline *pipeline;
+  GHashTableIter iter;
+
+  if (g_hash_table_size (program_state->pipelines) < 1)
+    return;
+
+  g_hash_table_iter_init (&iter, program_state->pipelines);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &pipeline, NULL)) {
+    g_hash_table_iter_remove (&iter);
+    _cogl_pipeline_vulkan_end (pipeline);
+  }
+}
+
 static CoglShaderVulkanUniform *
 get_program_state_uniform_location (CoglPipelineProgramState *program_state,
                                     const char *name)
@@ -377,6 +401,8 @@ set_program_state_uniform (CoglPipelineProgramState *program_state,
   int i;
 
   g_assert (program_state->shader);
+
+  program_state_end (program_state);
 
   for (i = 0; i < COGL_SHADER_VULKAN_NB_STAGES; i++)
     {
@@ -801,6 +827,7 @@ typedef struct
 {
   CoglContext *context;
   CoglPipelineProgramState *program_state;
+  CoglPipeline *pipeline;
 } FlushDescriptors;
 
 static CoglBool
@@ -860,11 +887,21 @@ _cogl_pipeline_progend_flush_descriptors (CoglContext *context,
   FlushDescriptors data = {
     .context = context,
     .program_state = get_program_state (pipeline),
+    .pipeline = pipeline,
   };
 
   _cogl_pipeline_foreach_layer_internal (pipeline,
                                          compare_layer_differences_cb,
                                          &data);
+}
+
+void
+_cogl_pipeline_progend_discard_pipeline (CoglPipeline *pipeline)
+{
+  CoglPipelineProgramState *program_state = get_program_state (pipeline);
+
+  if (program_state)
+    g_hash_table_remove (program_state->pipelines, pipeline);
 }
 
 static CoglBool
@@ -1239,7 +1276,9 @@ _cogl_pipeline_progend_write_descriptors (CoglPipelineProgramState *program_stat
 
   if (program_state->n_write_descriptor_sets > 0)
     {
-      _cogl_framebuffer_vulkan_ensure_clean_command_buffer (framebuffer);
+      program_state_end (program_state);
+      _cogl_framebuffer_vulkan_begin_render_pass (framebuffer);
+
 
       VK ( ctx,
            vkUpdateDescriptorSets (vk_ctx->device,
@@ -1350,6 +1389,8 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
     }
 
   _cogl_pipeline_progend_write_descriptors (program_state, framebuffer);
+
+  g_hash_table_insert (program_state->pipelines, pipeline, pipeline);
 }
 
 static void

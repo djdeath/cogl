@@ -70,11 +70,12 @@ typedef struct _CoglPipelineVulkan
   CoglColorMask color_mask;
   CoglVerticesMode vertices_mode;
 
-  /* Not owned, this lets us know when a pipeline is being used with
-     different framebuffers. */
-  CoglFramebuffer *framebuffer;
+  VkFormat color_format;
+  VkFormat depth_format;
 
-  CoglUserDataKey framebuffer_pipeline_key;
+  /* List of framebuffers on which the GPU is currently working and using
+     this pipeline. */
+  GHashTable *framebuffers;
 } CoglPipelineVulkan;
 
 static CoglUserDataKey vk_pipeline_key;
@@ -159,39 +160,32 @@ get_vk_pipeline (CoglPipeline *pipeline)
 }
 
 static void
-_cogl_pipeline_vulkan_unset_framebuffer (void *user_data)
+_cogl_pipeline_vulkan_end_internal (CoglPipeline *pipeline,
+                                    CoglPipelineVulkan *vk_pipeline,
+                                    CoglBool keep_alive)
 {
-  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (COGL_PIPELINE (user_data));
+  CoglFramebuffer *framebuffer;
+  GHashTableIter iter;
 
-  vk_pipeline->framebuffer = NULL;
+  if (g_hash_table_size (vk_pipeline->framebuffers) < 1)
+    return;
+
+  if (keep_alive)
+    cogl_object_ref (pipeline);
+
+  g_hash_table_iter_init (&iter, vk_pipeline->framebuffers);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &framebuffer, NULL)) {
+    g_hash_table_iter_remove (&iter);
+    _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
+  }
+
+  if (keep_alive)
+    cogl_object_unref (pipeline);
 }
 
 static void
-_cogl_pipeline_vulkan_set_framebuffer (CoglPipeline *pipeline,
-                                       CoglPipelineVulkan *vk_pipeline,
-                                       CoglFramebuffer *framebuffer)
-{
-  if (vk_pipeline->framebuffer)
-    {
-      _cogl_framebuffer_vulkan_end (vk_pipeline->framebuffer, TRUE);
-      cogl_object_set_user_data (COGL_OBJECT (vk_pipeline->framebuffer),
-                                 &vk_pipeline->framebuffer_pipeline_key,
-                                 NULL, NULL);
-    }
-
-  vk_pipeline->framebuffer = framebuffer;
-
-  if (vk_pipeline->framebuffer)
-    {
-      cogl_object_set_user_data (COGL_OBJECT (framebuffer),
-                                 &vk_pipeline->framebuffer_pipeline_key,
-                                 pipeline,
-                                 _cogl_pipeline_vulkan_unset_framebuffer);
-    }
-}
-
-static void
-_cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
+_cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline,
+                                           CoglBool keep_alive)
 {
   CoglContextVulkan *vk_ctx;
   CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
@@ -202,7 +196,7 @@ _cogl_pipeline_vulkan_invalidate_internal (CoglPipeline *pipeline)
   if (!vk_pipeline)
     return;
 
-  _cogl_pipeline_vulkan_set_framebuffer (pipeline, vk_pipeline, NULL);
+  _cogl_pipeline_vulkan_end_internal (pipeline, vk_pipeline, keep_alive);
 
   if (vk_pipeline->pipeline != VK_NULL_HANDLE)
     {
@@ -238,7 +232,13 @@ vk_pipeline_destroy (void *user_data,
 {
   CoglPipelineVulkan *vk_pipeline = user_data;
 
-  _cogl_pipeline_vulkan_invalidate_internal (instance);
+  _cogl_pipeline_vulkan_invalidate_internal (instance, FALSE);
+
+  if (vk_pipeline->framebuffers)
+    {
+      g_hash_table_unref (vk_pipeline->framebuffers);
+      vk_pipeline->framebuffers = NULL;
+    }
 
   g_slice_free (CoglPipelineVulkan, vk_pipeline);
 }
@@ -250,6 +250,8 @@ vk_pipeline_new (CoglPipeline *pipeline)
 
   vk_pipeline = g_slice_new0 (CoglPipelineVulkan);
 
+  vk_pipeline->framebuffers = g_hash_table_new (g_direct_hash, g_direct_equal);
+
   _cogl_object_set_user_data (COGL_OBJECT (pipeline),
                               &vk_pipeline_key,
                               vk_pipeline,
@@ -259,9 +261,30 @@ vk_pipeline_new (CoglPipeline *pipeline)
 }
 
 void
+_cogl_pipeline_vulkan_discard_framebuffer (CoglPipeline *pipeline,
+                                           CoglFramebuffer *framebuffer)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  if (vk_pipeline) {
+    g_hash_table_remove (vk_pipeline->framebuffers, framebuffer);
+    _cogl_pipeline_progend_discard_pipeline (pipeline);
+  }
+}
+
+void
+_cogl_pipeline_vulkan_end (CoglPipeline *pipeline)
+{
+  CoglPipelineVulkan *vk_pipeline = get_vk_pipeline (pipeline);
+
+  if (vk_pipeline)
+    _cogl_pipeline_vulkan_end_internal (pipeline, vk_pipeline, TRUE);
+}
+
+void
 _cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline)
 {
-  _cogl_pipeline_vulkan_invalidate_internal (pipeline);
+  _cogl_pipeline_vulkan_invalidate_internal (pipeline, TRUE);
 }
 
 typedef struct
@@ -818,7 +841,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
     {
       if (vk_fb->vertices_mode != vk_pipeline->vertices_mode ||
           framebuffer->color_mask != vk_pipeline->color_mask ||
-          vk_pipeline->framebuffer != framebuffer) /* TODO: we can refine*/
+          vk_pipeline->color_format != vk_fb->color_format ||
+          vk_pipeline->depth_format != vk_fb->depth_format)
         _cogl_pipeline_vulkan_invalidate (pipeline);
       else
         _cogl_pipeline_vulkan_compute_attributes (ctx,
@@ -833,7 +857,8 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
   if (!vk_pipeline)
     vk_pipeline = vk_pipeline_new (pipeline);
 
-  _cogl_pipeline_vulkan_set_framebuffer (pipeline, vk_pipeline, framebuffer);
+  vk_pipeline->color_format = vk_fb->color_format;
+  vk_pipeline->depth_format = vk_fb->depth_format;
 
   if (pipeline->progend == COGL_PIPELINE_PROGEND_UNDEFINED)
     _cogl_pipeline_set_progend (pipeline, COGL_PIPELINE_PROGEND_VULKAN);
@@ -915,6 +940,8 @@ done:
                                      pipeline_layout,
                                      0, 1, &descriptor_set,
                                      0, NULL) );
+
+  g_hash_table_insert (vk_pipeline->framebuffers, framebuffer, framebuffer);
 
   COGL_TIMER_STOP (_cogl_uprof_context, pipeline_flush_timer);
 }

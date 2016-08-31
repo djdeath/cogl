@@ -54,6 +54,13 @@ _cogl_pipeline_flush_vulkan_state (CoglFramebuffer *framebuffer,
                                    int n_attributes);
 
 void
+_cogl_pipeline_vulkan_discard_framebuffer (CoglPipeline *pipeline,
+                                           CoglFramebuffer *framebuffer);
+
+void
+_cogl_pipeline_vulkan_end (CoglPipeline *pipeline);
+
+void
 _cogl_pipeline_vulkan_invalidate (CoglPipeline *pipeline);
 
 void

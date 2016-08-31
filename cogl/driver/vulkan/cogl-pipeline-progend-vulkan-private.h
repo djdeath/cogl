@@ -54,4 +54,7 @@ void
 _cogl_pipeline_progend_flush_descriptors (CoglContext *context,
                                           CoglPipeline *pipeline);
 
+void
+_cogl_pipeline_progend_discard_pipeline (CoglPipeline *pipeline);
+
 #endif /* __COGL_PIPELINE_PROGEND_VULKAN_PRIVATE_H */

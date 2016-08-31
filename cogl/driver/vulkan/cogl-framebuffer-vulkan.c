@@ -42,10 +42,25 @@
 #include "cogl-framebuffer-private.h"
 #include "cogl-framebuffer-vulkan-private.h"
 #include "cogl-indices-private.h"
+#include "cogl-pipeline-vulkan-private.h"
 #include "cogl-texture-private.h"
 #include "cogl-texture-2d-private.h"
 #include "cogl-texture-2d-vulkan-private.h"
 #include "cogl-util-vulkan-private.h"
+
+static void
+_cogl_framebuffer_vulkan_unref_pipelines (CoglFramebuffer *framebuffer,
+                                          CoglFramebufferVulkan *vk_fb)
+{
+  guint i;
+
+  for (i = 0; i < vk_fb->pipelines->len; i++) {
+    CoglPipeline *pipeline = g_ptr_array_index (vk_fb->pipelines, i);
+    _cogl_pipeline_vulkan_discard_framebuffer (pipeline, framebuffer);
+    cogl_object_unref (pipeline);
+  }
+  g_ptr_array_set_size (vk_fb->pipelines, 0);
+}
 
 static void
 _cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
@@ -207,6 +222,7 @@ _cogl_framebuffer_vulkan_deinit (CoglFramebuffer *framebuffer)
   g_array_unref (vk_fb->cmd_buffers);
 
   g_ptr_array_unref (vk_fb->attribute_buffers);
+  _cogl_framebuffer_vulkan_unref_pipelines (framebuffer, vk_fb);
   g_ptr_array_unref (vk_fb->pipelines);
 
   if (vk_fb->render_pass != VK_NULL_HANDLE)
@@ -288,8 +304,7 @@ _cogl_framebuffer_vulkan_init (CoglFramebuffer *framebuffer,
   vk_fb->cmd_buffers = g_array_new (FALSE, TRUE, sizeof (VkCommandBuffer));
   vk_fb->attribute_buffers =
     g_ptr_array_new_full (20, (GDestroyNotify) cogl_object_unref);
-  vk_fb->pipelines = g_ptr_array_new_full (10,
-                                           (GDestroyNotify) cogl_object_unref);
+  vk_fb->pipelines = g_ptr_array_new_full (10, NULL);
 
   if (framebuffer->depth_writing_enabled)
     {
@@ -522,7 +537,7 @@ _cogl_framebuffer_vulkan_end (CoglFramebuffer *framebuffer, CoglBool wait_fence)
 
       g_array_set_size (vk_fb->cmd_buffers, 0);
       g_ptr_array_set_size (vk_fb->attribute_buffers, 0);
-      g_ptr_array_set_size (vk_fb->pipelines, 0);
+      _cogl_framebuffer_vulkan_unref_pipelines (framebuffer, vk_fb);
     }
   else
     {
