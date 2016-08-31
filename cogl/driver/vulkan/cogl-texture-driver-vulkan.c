@@ -196,6 +196,13 @@ _cogl_texture_driver_find_best_gl_get_data_format
                                              GLenum *closest_gl_format,
                                              GLenum *closest_gl_type)
 {
+  VkFormat vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (context, format,
+                                                      NULL, NULL);
+
+  if (vk_format == VK_FORMAT_UNDEFINED)
+    return COGL_PIXEL_FORMAT_RGBA_8888;
+
   return format;
 }
 

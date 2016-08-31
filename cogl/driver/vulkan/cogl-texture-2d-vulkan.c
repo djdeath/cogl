@@ -364,9 +364,22 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
 {
   CoglTexture *tex = COGL_TEXTURE (tex_2d);
   CoglBitmap *bitmap = loader->src.bitmap.bitmap;
+  CoglPixelFormat internal_format;
+  CoglBool ret = FALSE;
   int width = bitmap->width, height = bitmap->height;
   uint32_t memory_size;
   VkImageUsageFlags usage;
+
+  internal_format =
+    _cogl_texture_determine_internal_format (tex,
+                                             cogl_bitmap_get_format (bitmap));
+
+  tex_2d->vk_format =
+    _cogl_pixel_format_to_vulkan_format_for_sampling (tex->context,
+                                                      internal_format, NULL,
+                                                      &tex_2d->vk_component_mapping);
+  if (tex_2d->vk_format == VK_FORMAT_UNDEFINED)
+    internal_format = COGL_PIXEL_FORMAT_RGBA_8888;
 
   /* Override default tiling.
 
@@ -387,6 +400,14 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     }
 
+  bitmap =
+    _cogl_bitmap_convert_for_upload (bitmap,
+                                     internal_format,
+                                     loader->src.bitmap.can_convert_in_place,
+                                     error);
+  if (bitmap == NULL)
+    goto error;
+
   tex_2d->vk_format =
     _cogl_pixel_format_to_vulkan_format_for_sampling (tex->context,
                                                       bitmap->format, NULL,
@@ -396,15 +417,15 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
                        COGL_TEXTURE_ERROR_BAD_PARAMETER,
                        "Failed to create texture 2d due to format constraints");
-      return FALSE;
+      goto error;
     }
 
   if (!create_image (tex_2d, usage, VK_IMAGE_TILING_LINEAR,
                      width, height, 1, error))
-    return FALSE;
+    goto error;
 
   if (!allocate_image_memory (tex_2d, &memory_size, error))
-    return FALSE;
+    goto error;
 
   if (bitmap->shared_bmp)
     {
@@ -412,26 +433,32 @@ allocate_from_bitmap (CoglTexture2D *tex_2d,
       _cogl_set_error (error, COGL_TEXTURE_ERROR,
                        COGL_TEXTURE_ERROR_BAD_PARAMETER,
                        "Unsupported shared bitmap load to texture");
-      return FALSE;
+      goto error;
     }
   else if (bitmap->buffer)
     {
       if (!load_bitmap_buffer_to_texture (tex_2d, bitmap, 0, 0, error))
-        return FALSE;
+        goto error;
     }
   else
     {
       if (!load_bitmap_data_to_texture (tex_2d, bitmap, memory_size, error))
-        return FALSE;
+        goto error;
     }
 
   if (!create_image_view (tex_2d, error))
-    return FALSE;
+    goto error;
 
   tex_2d->internal_format = bitmap->format;
   _cogl_texture_set_allocated (tex, bitmap->format, width, height);
 
-  return TRUE;
+  ret = TRUE;
+
+ error:
+  if (bitmap)
+    cogl_object_unref (bitmap);
+
+  return ret;
 }
 
 static CoglBool
