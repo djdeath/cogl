@@ -153,13 +153,6 @@ typedef struct
      uniform is actually set */
   GArray *uniform_locations;
 
-  /* The 'flip' uniform is used to flip the geometry upside-down when
-     the framebuffer requires it only when there are vertex
-     snippets. Otherwise this is acheived using the projection
-     matrix */
-  CoglShaderVulkanUniform *flip_uniform;
-  int flushed_flip_state;
-
   /* Array of descriptors to write before doing any drawing. This array is
      allocated with (n_layer + 2) elements (including 1 uniform vertex
      buffer & 1 uniform fragment buffer). */
@@ -1085,10 +1078,6 @@ _cogl_pipeline_progend_vulkan_end (CoglPipeline *pipeline,
       cogl_pipeline_foreach_layer (pipeline,
                                    get_uniform_cb,
                                    &state);
-
-      program_state->flip_uniform =
-        get_program_state_uniform_location (program_state, "_cogl_flip_vector");
-      program_state->flushed_flip_state = -1;
     }
 
   state.unit = 0;
@@ -1297,7 +1286,6 @@ _cogl_pipeline_progend_vulkan_pre_paint (CoglPipeline *pipeline,
   modelview_changed =
     _cogl_matrix_entry_cache_maybe_update (&program_state->modelview_cache,
                                            modelview_entry,
-                                           /* never flip modelview */
                                            FALSE);
 
   if (modelview_changed || projection_changed)
