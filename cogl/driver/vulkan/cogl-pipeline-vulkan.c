@@ -417,6 +417,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
                                    sizeof (VkVertexInputAttributeDescription)));
   uint32_t attributes_field = 0;
   VkPipelineVertexInputStateCreateInfo *info;
+  const char **default_attributes_names =
+    g_alloca (G_N_ELEMENTS (default_attributes) * sizeof (char *));
 
   info = ptr;
   info->pVertexBindingDescriptions = (VkVertexInputBindingDescription *)
@@ -449,7 +451,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
   vk_pipeline->n_seen_attribute_buffers = 0;
 
-  /* Process vertex given by the user. */
+  /* Process attributes given by the user. */
   for (i = 0; i < n_user_attributes; i++)
     {
       CoglAttribute *attribute = attributes[i];
@@ -508,7 +510,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
         }
     }
 
-  /* Verify that we aren't missing any default GL attribute. */
+  /* Add any default missing GL attribute. */
   n_attributes = n_user_attributes;
   for (i = 0; i < G_N_ELEMENTS (default_attributes); i++)
     {
@@ -527,6 +529,9 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
 
       if (location == -1)
         continue;
+
+      default_attributes_names[n_attributes - n_user_attributes] =
+        attribute->name;
 
       vertex_bind->binding = n_attributes;
       vertex_bind->stride = 0;
@@ -587,7 +592,8 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
                 (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[i];
 
               COGL_NOTE (VULKAN,
-                         "Default attribute location=%i vk_format=%i",
+                         "Default attribute '%s' location=%i vk_format=%i",
+                         default_attributes_names[i - n_user_attributes],
                          vertex_desc->location, vertex_desc->format);
             }
         }
