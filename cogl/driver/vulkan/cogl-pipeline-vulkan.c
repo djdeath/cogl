@@ -70,8 +70,12 @@ typedef struct _CoglPipelineVulkan
   CoglColorMask color_mask;
   CoglVerticesMode vertices_mode;
 
+  /* Color & depth format of the last */
   VkFormat color_format;
   VkFormat depth_format;
+
+  /* Holds the color of a pipeline if required. */
+  CoglBuffer *color_buffer;
 
   /* List of framebuffers on which the GPU is currently working and using
      this pipeline. */
@@ -90,11 +94,13 @@ typedef struct
 
 typedef struct
 {
+  /* Leave the color attribute at the beginning as we're storing it in a
+     separate buffer. */
   struct {
-    float r;
-    float g;
-    float b;
-    float a;
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
   } cogl_color_in;
   struct {
     float x;
@@ -121,7 +127,7 @@ static DefaultBuiltinAttribute default_attributes[] =
       COGL_ATTRIBUTE_NAME_ID_COLOR_ARRAY,
       "cogl_color_in",
       G_STRUCT_OFFSET (DefaultBuiltinAttributeValues, cogl_color_in),
-      VK_FORMAT_R32G32B32A32_SFLOAT,
+      VK_FORMAT_R8G8B8A8_UNORM,
     },
     {
       COGL_ATTRIBUTE_NAME_ID_NORMAL_ARRAY,
@@ -234,6 +240,12 @@ vk_pipeline_destroy (void *user_data,
 
   _cogl_pipeline_vulkan_invalidate_internal (instance, FALSE);
 
+  if (vk_pipeline->color_buffer)
+    {
+      cogl_object_unref (vk_pipeline->color_buffer);
+      vk_pipeline->color_buffer = NULL;
+    }
+
   if (vk_pipeline->framebuffers)
     {
       g_hash_table_unref (vk_pipeline->framebuffers);
@@ -337,6 +349,22 @@ fragend_add_layer_cb (CoglPipelineLayer *layer,
     }
 
   return TRUE;
+}
+
+static void
+_cogl_pipeline_vulkan_update_color_buffer (CoglContext *ctx,
+                                           CoglPipeline *pipeline,
+                                           CoglPipelineVulkan *vk_pipeline)
+{
+  uint8_t colors[4];
+
+  _cogl_pipeline_get_colorubv (pipeline, colors);
+
+  if (!vk_pipeline->color_buffer)
+    vk_pipeline->color_buffer =
+      COGL_BUFFER (cogl_attribute_buffer_new (ctx, sizeof (colors), colors));
+  else
+    cogl_buffer_set_data (vk_pipeline->color_buffer, 0, colors, sizeof (colors));
 }
 
 static int
@@ -519,16 +547,24 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
       VkVertexInputAttributeDescription *vertex_desc =
         (VkVertexInputAttributeDescription *) &info->pVertexAttributeDescriptions[n_attributes];
       DefaultBuiltinAttribute *attribute = &default_attributes[i];
-      int location =
-        _cogl_shader_vulkan_get_input_attribute_location (shader,
-                                                          COGL_GLSL_SHADER_TYPE_VERTEX,
-                                                          attribute->name);
+      CoglBufferVulkan *vk_buf = vk_buf_default_attributes;
+      int location;
 
       if (_COGL_VULKAN_HAS_ATTRIBUTE (attributes_field, attribute->name_id))
         continue;
 
+      location =
+        _cogl_shader_vulkan_get_input_attribute_location (shader,
+                                                          COGL_GLSL_SHADER_TYPE_VERTEX,
+                                                          attribute->name);
       if (location == -1)
         continue;
+
+      if (attribute->name_id == COGL_ATTRIBUTE_NAME_ID_COLOR_ARRAY)
+        {
+          _cogl_pipeline_vulkan_update_color_buffer (ctx, pipeline, vk_pipeline);
+          vk_buf = vk_pipeline->color_buffer->winsys;
+        }
 
       default_attributes_names[n_attributes - n_user_attributes] =
         attribute->name;
@@ -542,8 +578,7 @@ _cogl_pipeline_vulkan_compute_attributes (CoglContext *ctx,
       vertex_desc->offset = 0;
       vertex_desc->format = attribute->vk_format;
 
-      vk_pipeline->attribute_buffers[n_attributes] =
-        vk_buf_default_attributes->buffer;
+      vk_pipeline->attribute_buffers[n_attributes] = vk_buf->buffer;
       vk_pipeline->attribute_offsets[n_attributes] = attribute->offset;
 
       if (vk_pipeline->vertex_inputs &&
