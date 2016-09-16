@@ -92,7 +92,7 @@ _cogl_gl_util_parse_gl_version (const char *version_string,
                                 int *minor_out);
 
 GLint
-_cogl_gl_util_blend_equation_to_gl (CoglPipelineBlendEnable equation);
+_cogl_gl_util_blend_equation_to_gl (CoglPipelineBlendEquation equation);
 
 GLenum
 _cogl_gl_util_blend_factor_to_gl (CoglPipelineBlendFactor factor);

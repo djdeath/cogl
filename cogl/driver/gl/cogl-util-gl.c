@@ -191,7 +191,7 @@ _cogl_blend_equation_to_gl[COGL_PIPELINE_BLEND_EQUATION_N_EQUATIONS] = {
 };
 
 GLint
-_cogl_gl_util_blend_equation_to_gl (CoglPipelineBlendEnable equation)
+_cogl_gl_util_blend_equation_to_gl (CoglPipelineBlendEquation equation)
 {
   if (equation >= COGL_PIPELINE_BLEND_EQUATION_N_EQUATIONS)
     {
