@@ -636,7 +636,6 @@ cogl_renderer_connect (CoglRenderer *renderer, CoglError **error)
 {
   int i;
   GString *error_message;
-  CoglBool constraints_failed = FALSE;
 
   if (renderer->connected)
     return TRUE;
@@ -681,7 +680,9 @@ cogl_renderer_connect (CoglRenderer *renderer, CoglError **error)
         }
       if (skip_due_to_constraints)
         {
-          constraints_failed |= TRUE;
+          g_string_append_printf (error_message,
+                                  "> couldn't use \"%s\" winsys, due to failed constraints\n",
+                                  winsys->name);
           continue;
         }
 
@@ -692,8 +693,10 @@ cogl_renderer_connect (CoglRenderer *renderer, CoglError **error)
 
       if (!winsys->renderer_connect (renderer, &tmp_error))
         {
-          g_string_append_c (error_message, '\n');
-          g_string_append (error_message, tmp_error->message);
+          g_string_append_printf (error_message,
+                                  "> failed to connect to \"%s\" winsys: %s\n",
+                                  winsys->name,
+                                  tmp_error->message);
           cogl_error_free (tmp_error);
         }
       else
@@ -706,18 +709,10 @@ cogl_renderer_connect (CoglRenderer *renderer, CoglError **error)
 
   if (!renderer->connected)
     {
-      if (constraints_failed)
-        {
-          _cogl_set_error (error, COGL_RENDERER_ERROR,
-                       COGL_RENDERER_ERROR_BAD_CONSTRAINT,
-                       "Failed to connected to any renderer due to constraints");
-          return FALSE;
-        }
-
       renderer->winsys_vtable = NULL;
       _cogl_set_error (error, COGL_WINSYS_ERROR,
                    COGL_WINSYS_ERROR_INIT,
-                   "Failed to connected to any renderer: %s",
+                   "Failed to connected to any renderer:\n%s",
                    error_message->str);
       g_string_free (error_message, TRUE);
       return FALSE;
