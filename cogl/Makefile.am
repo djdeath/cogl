@@ -44,7 +44,7 @@ AM_CPPFLAGS += \
 endif
 
 
-AM_CFLAGS = $(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS)
+AM_CFLAGS = $(COGL_DEP_CFLAGS) $(COGL_EXTRA_CFLAGS) $(MAINTAINER_CFLAGS) -DSTBI_SIMD=0
 
 BUILT_SOURCES += cogl-defines.h cogl-egl-defines.h cogl-gl-header.h
 DISTCLEANFILES += cogl-defines.h cogl-egl-defines.h cogl-gl-header.h
