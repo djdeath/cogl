@@ -101,7 +101,7 @@ main (int argc, char **argv)
 
   ADD_TEST (test_offscreen, 0, 0);
   ADD_TEST (test_framebuffer_get_bits,
-            TEST_REQUIREMENT_OFFSCREEN | TEST_REQUIREMENT_GL,
+            TEST_REQUIREMENT_OFFSCREEN | TEST_REQUIREMENT_NO_GLES,
             0);
 
   ADD_TEST (test_point_size, 0, 0);

@@ -20,9 +20,9 @@ static CoglBool
 check_flags (TestFlags flags,
              CoglRenderer *renderer)
 {
-  if (flags & TEST_REQUIREMENT_GL &&
-      cogl_renderer_get_driver (renderer) != COGL_DRIVER_GL &&
-      cogl_renderer_get_driver (renderer) != COGL_DRIVER_GL3)
+  if (flags & TEST_REQUIREMENT_NO_GLES &&
+      (cogl_renderer_get_driver (renderer) == COGL_DRIVER_GLES1 ||
+       cogl_renderer_get_driver (renderer) == COGL_DRIVER_GLES2))
     {
       return FALSE;
     }
