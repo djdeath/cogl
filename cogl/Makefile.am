@@ -14,6 +14,7 @@ DISTCLEANFILES =
 
 noinst_LTLIBRARIES =
 lib_LTLIBRARIES =
+noinst_PROGRAMS =
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)				\
@@ -411,6 +412,41 @@ cogl_driver_sources += \
 	driver/vulkan/cogl-util-vulkan-private.h \
 	$(NULL)
 endif
+
+compiler/cogl.leg.c: $(srcdir)/compiler/cogl.leg
+	$(GEN) $(LEG) -o $@ $<
+
+compiler/coglpeg.c: compiler/cogl.leg.c
+
+# BUILT_SOURCES += \
+# 	compiler/cogl.peg.c
+
+cogl_compiler_sources = \
+	compiler/coglpeg.c \
+	$(NULL)
+
+cogl_compiler_SOURCES = \
+	$(cogl_compiler_sources) \
+	$(NULL)
+cogl_compiler_CFLAGS = \
+	$(COGL_DEP_CFLAGS) \
+	$(NULL)
+cogl_compiler_LDADD = \
+	$(COGL_DEP_LIBS) \
+	$(NULL)
+
+
+cogl_compiler_tests = \
+	compiler/test1.cosh \
+	compiler/test2.cosh \
+	$(NULL)
+
+noinst_PROGRAMS += cogl-compiler
+
+cogl-compiler-test: cogl-compiler
+	for t in $(cogl_compiler_tests); do \
+		$(builddir)/cogl-compiler < $$t; \
+	done
 
 # winsys sources, common to all backends
 cogl_winsys_common_sources = \

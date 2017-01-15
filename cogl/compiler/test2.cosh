@@ -1,0 +1,10 @@
+MySnippet {
+        typedef coin vec4;
+
+        In {
+           coin plop;
+        }
+        Out {
+           coin gruik;
+        }
+}

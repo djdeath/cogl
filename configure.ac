@@ -161,6 +161,8 @@ AM_PROG_CC_C_O
 AC_ISC_POSIX
 AC_C_CONST
 
+AC_CHECK_TOOL([LEG], [leg])
+
 dnl     ============================================================
 dnl     Compiler features
 dnl     ============================================================

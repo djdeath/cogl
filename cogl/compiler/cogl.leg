@@ -1,0 +1,178 @@
+Snippet = n:Name Space '{' Space           { snippet_start(&yy->ctx, n.string); }
+          Section*
+          '}' Space                        { snippet_end(&yy->ctx); }
+
+Section = n:Name '{' Space                 { block_start(&yy->ctx, n.string); }
+          TypesDecl?
+          '}' Space                        { block_end(&yy->ctx); }
+        | t:Type n:Name '(' Space a:DeclArguments ')' Space
+          '{' Space                        { function_start(&yy->ctx, t.type,
+                                                            n.string, a.list); }
+           Sources
+          '}' Space                        { function_end(&yy->ctx); }
+        | t:TypeDef                        { $$.type = t.type; }
+
+
+# Types
+
+ArrayType = b:Name ('[' Space n:Number ']')+ Space
+                                           { $$.type = type_array_new(&yy->ctx,
+                                                                      b.type, n.integer); }
+
+Struct     = 'struct' Space
+StructType = s:Struct Space '{' Space      { $$.list = NULL; }
+             (m:TypesDecl                  { $$.list = s.list = g_list_append(s.list, m.type); } )*
+             '}' Space                     { $$.type = type_struct_new(&yy->ctx, s.list); }
+
+Type = Name
+     | ArrayType
+     | StructType
+
+TypeDef = 'typedef' Space
+          n:Name t:Type SemiColon Space    { $$.type = type_named_new(&yy->ctx,
+                                                                      n.string, t.type); }
+
+TypeDecl = t:Type n:Name                   { $$.var = variable_new(&yy->ctx,
+                                                                   t.type, n.string); }
+         | t:TypeDef                       { $$.type = t.type; }
+         | Space                           { $$.type = NULL; }
+
+TypesDecl = f:TypeDecl SemiColon           { $$.list = f.list = g_list_append(NULL, f.type);  }
+            ( l:TypeDecl SemiColon         { $$.list = f.list = g_list_append(f.list, l.type); } )*
+
+# Instructions
+
+Expr = l:OrExpr ( '='   Space r:Expr       { $$.exp = expression_new2("=", l.exp, r.exp); }
+                | '+='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("+",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '-='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("-",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '*='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("*",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '/='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("/",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '%='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("%",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '|='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("|",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '&='  Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("&",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '>>=' Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2(">>",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | '<<=' Space r:Expr       { $$.exp = expression_new2("=",
+                                                                     l.exp,
+                                                                     expression_new2("<<",
+                                                                                    l.exp,
+                                                                                    r.exp)); }
+                | Space                    { $$.exp = l.exp; } ) Space
+
+OrExpr = l:AndExpr ( '||' Space r:AndExpr  { $$.exp =  expression_new2("||", l.exp, r.exp); }
+                   | Space                 { $$.exp = l.exp; } ) Space
+
+AndExpr = l:EqExpr ( '&&' Space r:EqExpr   { $$.exp =  expression_new2("&&", l.exp, r.exp); }
+                   | Space                 { $$.exp = l.exp; } ) Space
+
+EqExpr = l:RelExpr ( '==' Space r:RelExpr  { $$.exp =  expression_new2("==", l.exp, r.exp); }
+                   | '!=' Space r:RelExpr  { $$.exp =  expression_new2("!=", l.exp, r.exp); }
+                   | Space                 { $$.exp = l.exp; } ) Space
+
+RelExpr = l:AddExpr ( '>'  Space r:AddExpr { $$.exp =  expression_new2(">", l.exp, r.exp); }
+                    | '>=' Space r:AddExpr { $$.exp =  expression_new2(">=", l.exp, r.exp); }
+                    | '<'  Space r:AddExpr { $$.exp =  expression_new2("<", l.exp, r.exp); }
+                    | '<=' Space r:AddExpr { $$.exp =  expression_new2("<=", l.exp, r.exp); }
+                    | Space                { $$.exp = l.exp; } ) Space
+
+AddExpr = l:MulExpr ( '+' Space r:MulExpr  { $$.exp =  expression_new2("+", l.exp, r.exp); }
+                    | '-' Space r:MulExpr  { $$.exp =  expression_new2("-", l.exp, r.exp); }
+                    | Space                { $$.exp = l.exp; } ) Space
+
+MulExpr = l:UnExpr ( '*' Space r:UnExpr    { $$.exp =  expression_new2("*", l.exp, r.exp); }
+                   | '/' Space r:UnExpr    { $$.exp =  expression_new2("/", l.exp, r.exp); }
+                   | '%' Space r:UnExpr    { $$.exp =  expression_new2("%", l.exp, r.exp); }
+                   | Space                 { $$.exp = l.exp; } ) Space
+
+UnExpr = ( '-' Space e:PostExpr            { $$.exp =  expression_new1("-", e.exp); }
+         | '+' Space e:PostExpr            { $$.exp =  expression_new1("+", e.exp); }
+         | '!' Space e:PostExpr            { $$.exp =  expression_new1("!", e.exp); }
+         | e:PostExpr                      { $$.exp = e.exp; } ) Space
+
+PostExpr = ( e:PrimExpr '++'               { $$.exp =  expression_new1("++", e.exp); }
+           | e:PrimExpr '--'               { $$.exp =  expression_new1("--", e.exp); }
+           | e:PrimExpr                    { $$.exp = e.exp; } ) Space
+
+PrimExpr = l:PrimExprHd ( '[' Space r:Expr ']'
+                                           { $$.exp =  expression_new2("[]", l.exp, r.exp); }
+                        | '.' Name '(' a:Arguments ')'
+                                           { $$.exp =  expression_new2("()", l.exp, r.exp); }
+                        | '.' Name
+                                           { $$.exp =  expression_new2(".", l.exp, r.exp); }
+                        | '(' Arguments ')'
+                        | Space            { $$.exp = l.exp; } ) Space
+
+PrimExprHd = '(' Space e:Expr ')' Space    { $$.exp = e.exp; }
+           |  n:Name                       { $$.var_ref = variable_ref_new(n.string); }
+           |  n:Number                     { $$.value = const_value_new(n.integer); }
+
+Arguments = e:Expr                         { $$.list = e.list = g_list_append(NULL, e.exp); }
+            ( ',' Space l:Expr             { $$.list = e.list = g_list_append(e.list, l.exp); } )*
+          | Space                          { $$.list = NULL; }
+
+Condition = If Space '(' Expr ')' Block
+             ( Else Block )?
+
+DeclArgument = t:Type n:Name               { $$.var = variable_new(&yy->ctx, t.type, n.string); }
+
+DeclArguments = a:DeclArgument             { $$.list = a.list = g_list_append(NULL, a.var); }
+                ( ',' Space l:DeclArgument { $$.list = a.list = g_list_append(a.list, l.var);} )*
+              | Space                      { $$.list = NULL; }
+
+NameAffect = '=' Space Expr
+
+ListOfDecl = (Name NameAffect? ',' Space)* Name NameAffect?
+
+Instruction = Condition Space
+            |  Expr SemiColon
+            |  Return ( Expr )? SemiColon
+            |  Discard SemiColon
+            |  Type ListOfDecl SemiColon
+
+Block = Instruction
+      |  '{' Space Instruction* '}' Space
+
+Sources   = (TypesDecl | Block)*
+
+# Lexems
+
+If        = 'if' Space
+Else      = 'else' Space
+SemiColon = ';' Space
+Return    = 'return' Space
+Discard   = 'discard' Space
+
+Number    = < [0-9]+ >                     { $$.integer = atoi(yytext); } Space
+Name	  = < [A-Za-z0-9]+ >               { $$.string = yytext; } Space
+Space	  = [ \t\n]*

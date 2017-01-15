@@ -1,0 +1,19 @@
+MySnippet {
+        In {
+           vec4 plop;
+           vec2 plop2;
+        }
+        Out {
+           float coin;
+        }
+        Uniform {
+
+        }
+
+        vec4 ComputeColor(float arg1, vec2 arg2) {
+        }
+
+        void Main() {
+           vec4 c = a + b, d = 2;
+        }
+}
