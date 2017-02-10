@@ -142,8 +142,9 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
 #undef VK_SYM
   };
 
+  VkQueueFamilyProperties queue_properties;
   VkResult result;
-  uint32_t i, device_count;
+  uint32_t i, count;
 
   renderer->libgl_module = g_module_open(COGL_VULKAN_LIBNAME,
                                          G_MODULE_BIND_LAZY);
@@ -175,7 +176,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
     }
 
   result = vk_renderer->vkEnumeratePhysicalDevices (vk_renderer->instance,
-                                                    &device_count,
+                                                    &count,
                                                     NULL);
   if (result != VK_SUCCESS)
     {
@@ -186,7 +187,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
       goto error;
     }
 
-  if (device_count < 1)
+  if (count < 1)
     {
       _cogl_set_error (error, COGL_DRIVER_ERROR,
                        COGL_DRIVER_ERROR_INTERNAL,
@@ -194,10 +195,10 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
       goto error;
     }
 
-  devices = g_alloca (sizeof (VkPhysicalDevice) * device_count);
+  devices = g_alloca (sizeof (VkPhysicalDevice) * count);
 
   result = vk_renderer->vkEnumeratePhysicalDevices (vk_renderer->instance,
-                                                    &device_count,
+                                                    &count,
                                                     devices);
   if (result != VK_SUCCESS)
     {
@@ -210,7 +211,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
 
   if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_VULKAN)))
     {
-      for (i = 0; i < device_count; i++)
+      for (i = 0; i < count; i++)
         {
           vk_renderer->vkGetPhysicalDeviceProperties (devices[i],
                                                       &device_properties);
@@ -227,6 +228,15 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
   vk_renderer->vkGetPhysicalDeviceMemoryProperties (vk_renderer->physical_device,
                                                     &vk_renderer->physical_device_memory_properties);
 
+  vk_renderer->vkGetPhysicalDeviceQueueFamilyProperties(vk_renderer->physical_device,
+                                                        &count, NULL);
+  g_assert(count >= 1);
+
+  count = 1;
+  vk_renderer->vkGetPhysicalDeviceQueueFamilyProperties(vk_renderer->physical_device,
+                                                        &count, &queue_properties);
+  g_assert(queue_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT);
+  g_assert(queue_properties.queueCount >= 1);
 
   result = vk_renderer->vkCreateDevice(vk_renderer->physical_device, &(VkDeviceCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -235,6 +245,7 @@ _cogl_vulkan_renderer_init (CoglRenderer *renderer,
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .queueFamilyIndex = 0,
         .queueCount = 1,
+        .pQueuePriorities = (float []) { 0.0f, },
       },
       .enabledExtensionCount = n_device_extensions,
       .ppEnabledExtensionNames = device_extensions,
