@@ -1482,7 +1482,7 @@ _cogl_onscreen_vulkan_swap_buffers_with_damage (CoglOnscreen *onscreen,
                     .swapchainCount = 1,
                     .pSwapchains = (VkSwapchainKHR[]) { vk_onscreen->swap_chain, },
                     .pImageIndices = (uint32_t[]) { vk_onscreen->image_index, },
-                    .pResults = &result,
+                    .pResults = NULL,
                    }) );
   if (result != VK_SUCCESS && result != VK_ERROR_OUT_OF_DATE_KHR)
     {
