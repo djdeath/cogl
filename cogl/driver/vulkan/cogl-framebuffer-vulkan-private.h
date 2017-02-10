@@ -38,6 +38,7 @@ typedef struct _CoglFramebufferVulkan
   VkFramebuffer framebuffer;
   VkImage color_image;
   VkFormat color_format;
+  VkColorSpaceKHR color_space;
 
   VkRect2D scissor_rect;
 
@@ -95,6 +96,8 @@ typedef struct _CoglOnscreenVulkan
 
   VkSwapchainKHR swap_chain;
   VkSurfaceKHR wsi_surface;
+
+  VkSurfaceCapabilitiesKHR wsi_capabilities;
 
   uint32_t image_index;
   uint32_t image_count;

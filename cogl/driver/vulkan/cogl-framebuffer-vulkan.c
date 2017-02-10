@@ -1079,9 +1079,12 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
   CoglRenderer *renderer = ctx->display->renderer;
   CoglRendererVulkan *vk_renderer = renderer->winsys;
   CoglPixelFormat cogl_format = onscreen->_parent.internal_format;
-  VkFormat vk_format = VK_FORMAT_UNDEFINED;
-  VkColorSpaceKHR vk_color_space;
-  VkSurfaceFormatKHR *vk_formats;
+  VkImageUsageFlags required_usages = (VK_IMAGE_USAGE_SAMPLED_BIT |
+                                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+    requested_usages = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT |
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
   uint32_t i, vk_format_count;
   VkResult result;
 
@@ -1089,6 +1092,36 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
      again. */
   if (vk_fb->color_format == VK_FORMAT_UNDEFINED)
     {
+      VkSurfaceFormatKHR *vk_formats;
+
+      VK_RET_VAL_ERROR ( ctx,
+                         vkGetPhysicalDeviceSurfaceCapabilitiesKHR (vk_renderer->physical_device,
+                                                                    vk_onscreen->wsi_surface,
+                                                                    &vk_onscreen->wsi_capabilities),
+                         FALSE,
+                         error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+      g_assert ((vk_onscreen->wsi_capabilities.supportedUsageFlags & required_usages) == required_usages);
+
+      if (vk_onscreen->wsi_capabilities.maxImageExtent.width < framebuffer->width ||
+          vk_onscreen->wsi_capabilities.maxImageExtent.height < framebuffer->height) {
+        _cogl_set_error (error, COGL_WINSYS_ERROR,
+                         COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                         "Onscreen size too large (limit=%ux%u)",
+                         vk_onscreen->wsi_capabilities.maxImageExtent.width,
+                         vk_onscreen->wsi_capabilities.maxImageExtent.height);
+        return FALSE;
+      }
+
+      if (vk_onscreen->wsi_capabilities.minImageExtent.width > framebuffer->width ||
+          vk_onscreen->wsi_capabilities.minImageExtent.height > framebuffer->height) {
+        _cogl_set_error (error, COGL_WINSYS_ERROR,
+                         COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                         "Onscreen size too small (limit=%ux%u)",
+                         vk_onscreen->wsi_capabilities.minImageExtent.width,
+                         vk_onscreen->wsi_capabilities.minImageExtent.height);
+        return FALSE;
+      }
+
       VK_RET_VAL_ERROR ( ctx,
                          vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
                                                                vk_onscreen->wsi_surface,
@@ -1098,18 +1131,18 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                          error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
       vk_formats = g_alloca (sizeof (VkSurfaceFormatKHR) * vk_format_count);
       VK_RET_VAL_ERROR ( ctx,
-                     vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
-                                                           vk_onscreen->wsi_surface,
-                                                           &vk_format_count,
-                                                           vk_formats),
+                         vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
+                                                               vk_onscreen->wsi_surface,
+                                                               &vk_format_count,
+                                                               vk_formats),
                          FALSE,
                          error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
       if (!find_compatible_format (cogl_format, vk_formats, vk_format_count, TRUE,
-                                   &vk_format, &vk_color_space))
+                                   &vk_fb->color_format, &vk_fb->color_space))
         {
           if (!find_compatible_format (cogl_format, vk_formats, vk_format_count, FALSE,
-                                       &vk_format, &vk_color_space))
+                                       &vk_fb->color_format, &vk_fb->color_space))
             {
               _cogl_set_error (error, COGL_WINSYS_ERROR,
                                COGL_WINSYS_ERROR_CREATE_ONSCREEN,
@@ -1118,8 +1151,6 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
             }
         }
     }
-  else
-    vk_format = vk_fb->color_format;
 
   VK_RET_VAL_ERROR ( ctx,
                      vkCreateFence (vk_ctx->device, &(VkFenceCreateInfo) {
@@ -1131,20 +1162,19 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                      FALSE,
                      error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-
   VK_RET_VAL_ERROR ( ctx,
                      vkCreateSwapchainKHR (vk_ctx->device, &(VkSwapchainCreateInfoKHR) {
                          .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                          .surface = vk_onscreen->wsi_surface,
-                         .minImageCount = 2,
-                         .imageFormat = vk_format,
-                         .imageColorSpace = vk_color_space,
+                         .minImageCount = CLAMP(2,
+                                                vk_onscreen->wsi_capabilities.minImageCount,
+                                                vk_onscreen->wsi_capabilities.maxImageCount == 0 ?
+                                                2 : vk_onscreen->wsi_capabilities.maxImageCount),
+                         .imageFormat = vk_fb->color_format,
+                         .imageColorSpace = vk_fb->color_space,
                          .imageExtent = { framebuffer->width, framebuffer->height },
                          .imageArrayLayers = 1,
-                         .imageUsage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                        VK_IMAGE_USAGE_SAMPLED_BIT |
-                                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+                         .imageUsage = vk_onscreen->wsi_capabilities.supportedUsageFlags & requested_usages,
                          .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
                          .queueFamilyIndexCount = 1,
                          .pQueueFamilyIndices = (uint32_t[]) { 0 },
@@ -1177,7 +1207,7 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                      FALSE,
                      error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-  if (!_cogl_framebuffer_vulkan_init (framebuffer, vk_format, error))
+  if (!_cogl_framebuffer_vulkan_init (framebuffer, vk_fb->color_format, error))
     return FALSE;
 
   for (i = 0; i < vk_onscreen->image_count; i++)
@@ -1187,7 +1217,7 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                              .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                              .image = vk_onscreen->images[i],
                              .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                             .format = vk_format,
+                             .format = vk_fb->color_format,
                              .components = {
                                .r = VK_COMPONENT_SWIZZLE_R,
                                .g = VK_COMPONENT_SWIZZLE_G,
