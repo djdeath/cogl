@@ -1085,14 +1085,33 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                         VK_IMAGE_USAGE_SAMPLED_BIT |
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-  uint32_t i, vk_format_count;
+  uint32_t i;
   VkResult result;
 
-  /* If we've already found the color format, don't go through that logic
-     again. */
+  /* If we've already found the color format, don't go through that
+     logic again. */
   if (vk_fb->color_format == VK_FORMAT_UNDEFINED)
     {
+      uint32_t count;
       VkSurfaceFormatKHR *vk_formats;
+      VkPresentModeKHR *vk_present_modes;
+      VkBool32 supported = VK_FALSE;
+
+      VK_RET_VAL_ERROR ( ctx,
+                         vkGetPhysicalDeviceSurfaceSupportKHR (vk_renderer->physical_device,
+                                                               0,
+                                                               vk_onscreen->wsi_surface,
+                                                               &supported),
+                         FALSE,
+                         error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+      if (!supported) {
+        _cogl_set_error (error, COGL_WINSYS_ERROR,
+                         COGL_WINSYS_ERROR_CREATE_ONSCREEN,
+                         "Unsupported surface for presentation (limit=%ux%u)",
+                         vk_onscreen->wsi_capabilities.maxImageExtent.width,
+                         vk_onscreen->wsi_capabilities.maxImageExtent.height);
+        return FALSE;
+      }
 
       VK_RET_VAL_ERROR ( ctx,
                          vkGetPhysicalDeviceSurfaceCapabilitiesKHR (vk_renderer->physical_device,
@@ -1123,25 +1142,48 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
       }
 
       VK_RET_VAL_ERROR ( ctx,
-                         vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
-                                                               vk_onscreen->wsi_surface,
-                                                               &vk_format_count,
-                                                               NULL),
+                         vkGetPhysicalDeviceSurfacePresentModesKHR (vk_renderer->physical_device,
+                                                                    vk_onscreen->wsi_surface,
+                                                                    &count,
+                                                                    NULL),
                          FALSE,
                          error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
-      vk_formats = g_alloca (sizeof (VkSurfaceFormatKHR) * vk_format_count);
+      vk_present_modes = g_alloca (sizeof (VkPresentModeKHR) * count);
+      VK_RET_VAL_ERROR ( ctx,
+                         vkGetPhysicalDeviceSurfacePresentModesKHR (vk_renderer->physical_device,
+                                                                    vk_onscreen->wsi_surface,
+                                                                    &count,
+                                                                    vk_present_modes),
+                         FALSE,
+                         error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+      for (i = 0; i < count; i++) {
+        if (vk_present_modes[i] == VK_PRESENT_MODE_FIFO_KHR &&
+            vk_onscreen->wsi_present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+          vk_onscreen->wsi_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+        else if (vk_present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+          vk_onscreen->wsi_present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+      }
+
       VK_RET_VAL_ERROR ( ctx,
                          vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
                                                                vk_onscreen->wsi_surface,
-                                                               &vk_format_count,
+                                                               &count,
+                                                               NULL),
+                         FALSE,
+                         error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
+      vk_formats = g_alloca (sizeof (VkSurfaceFormatKHR) * count);
+      VK_RET_VAL_ERROR ( ctx,
+                         vkGetPhysicalDeviceSurfaceFormatsKHR (vk_renderer->physical_device,
+                                                               vk_onscreen->wsi_surface,
+                                                               &count,
                                                                vk_formats),
                          FALSE,
                          error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
 
-      if (!find_compatible_format (cogl_format, vk_formats, vk_format_count, TRUE,
+      if (!find_compatible_format (cogl_format, vk_formats, count, TRUE,
                                    &vk_fb->color_format, &vk_fb->color_space))
         {
-          if (!find_compatible_format (cogl_format, vk_formats, vk_format_count, FALSE,
+          if (!find_compatible_format (cogl_format, vk_formats, count, FALSE,
                                        &vk_fb->color_format, &vk_fb->color_space))
             {
               _cogl_set_error (error, COGL_WINSYS_ERROR,
@@ -1180,7 +1222,7 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                          .pQueueFamilyIndices = (uint32_t[]) { 0 },
                          .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
                          .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
-                         .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
+                         .presentMode = vk_onscreen->wsi_present_mode,
                        },
                        NULL,
                        &vk_onscreen->swap_chain),

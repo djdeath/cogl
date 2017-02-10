@@ -98,6 +98,7 @@ typedef struct _CoglOnscreenVulkan
   VkSurfaceKHR wsi_surface;
 
   VkSurfaceCapabilitiesKHR wsi_capabilities;
+  VkPresentModeKHR wsi_present_mode;
 
   uint32_t image_index;
   uint32_t image_count;
