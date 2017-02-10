@@ -75,6 +75,81 @@ _cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
 }
 
 static void
+_cogl_onscreen_vulkan_move_to_layout (CoglFramebuffer *framebuffer,
+                                      VkImageLayout new_layout)
+{
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglOnscreenVulkan *vk_onscreen = framebuffer->winsys;
+  VkImageMemoryBarrier image_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = vk_onscreen->image_accesses[vk_onscreen->image_index],
+    .oldLayout = vk_onscreen->image_layouts[vk_onscreen->image_index],
+    .newLayout = new_layout,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .image = vk_onscreen->images[vk_onscreen->image_index],
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    },
+  };
+  CoglError *error = NULL;
+  VkCommandBuffer cmd_buffer = VK_NULL_HANDLE;
+
+  if (vk_onscreen->image_layouts[vk_onscreen->image_index] == new_layout)
+    return;
+
+  if (!_cogl_vulkan_context_create_command_buffer (ctx, &cmd_buffer, &error))
+    goto error;
+
+  switch (new_layout)
+    {
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+      image_barrier.dstAccessMask = (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+      break;
+
+    case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+      image_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+      break;
+
+    default:
+      g_warning ("Unhandled onscreen image transfer");
+      break;
+    }
+
+  VK ( ctx, vkCmdPipelineBarrier (cmd_buffer,
+                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                                  0,
+                                  0, NULL,
+                                  0, NULL,
+                                  1, &image_barrier) );
+
+  if (!_cogl_vulkan_context_submit_command_buffer (ctx, cmd_buffer, &error))
+    goto error;
+
+  vk_onscreen->image_layouts[vk_onscreen->image_index] = new_layout;
+  vk_onscreen->image_accesses[vk_onscreen->image_index] = image_barrier.dstAccessMask;
+
+ error:
+
+  if (cmd_buffer)
+    VK ( ctx, vkFreeCommandBuffers (vk_ctx->device, vk_ctx->cmd_pool,
+                                    1, &cmd_buffer) );
+
+  if (error)
+    {
+      g_warning ("Unable to change onscreen image layout : %s", error->message);
+      cogl_error_free (error);
+    }
+}
+
+static void
 _cogl_onscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
 {
 
@@ -114,6 +189,9 @@ _cogl_onscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
   _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
                                                vk_onscreen->framebuffers[vk_onscreen->image_index],
                                                vk_onscreen->images[vk_onscreen->image_index]);
+
+  _cogl_onscreen_vulkan_move_to_layout (framebuffer,
+                                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
 
 static void
@@ -1389,6 +1467,9 @@ _cogl_onscreen_vulkan_swap_buffers_with_damage (CoglOnscreen *onscreen,
   VkResult result;
 
   _cogl_framebuffer_vulkan_end (framebuffer, TRUE);
+
+  _cogl_onscreen_vulkan_move_to_layout (framebuffer,
+                                        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
   /* VK_ERROR_OUT_OF_DATE_KHR means we're probably about to get a resize
    * event which will force us to destroy the swapchain and recreate a new

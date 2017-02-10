@@ -103,6 +103,8 @@ typedef struct _CoglOnscreenVulkan
   int32_t image_index;
   uint32_t image_count;
   VkImage images[MAX_SWAP_CHAIN_LENGTH];
+  VkImageLayout image_layouts[MAX_SWAP_CHAIN_LENGTH];
+  VkAccessFlags image_accesses[MAX_SWAP_CHAIN_LENGTH];
   VkImageView image_views[MAX_SWAP_CHAIN_LENGTH];
   VkFramebuffer framebuffers[MAX_SWAP_CHAIN_LENGTH];
 } CoglOnscreenVulkan;
