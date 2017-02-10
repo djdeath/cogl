@@ -100,7 +100,7 @@ typedef struct _CoglOnscreenVulkan
   VkSurfaceCapabilitiesKHR wsi_capabilities;
   VkPresentModeKHR wsi_present_mode;
 
-  uint32_t image_index;
+  int32_t image_index;
   uint32_t image_count;
   VkImage images[MAX_SWAP_CHAIN_LENGTH];
   VkImageView image_views[MAX_SWAP_CHAIN_LENGTH];

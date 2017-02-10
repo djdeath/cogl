@@ -75,6 +75,48 @@ _cogl_offscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
 }
 
 static void
+_cogl_onscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
+{
+
+  CoglContext *ctx = framebuffer->context;
+  CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglOnscreenVulkan *vk_onscreen = framebuffer->winsys;
+  uint32_t image_index;
+
+  if (vk_onscreen->image_index >= 0)
+    return;
+
+  VK_RET ( ctx,
+           vkResetFences (vk_ctx->device, 1, &vk_onscreen->wsi_fence) );
+
+  VK_RET ( ctx,
+           vkAcquireNextImageKHR (vk_ctx->device,
+                                  vk_onscreen->swap_chain, UINT64_MAX,
+                                  VK_NULL_HANDLE, vk_onscreen->wsi_fence,
+                                  &image_index) );
+
+  vk_onscreen->image_index = (int32_t) image_index;
+
+  /* VK_RET_VAL_ERROR ( ctx, */
+  /*                    vkQueueSubmit (vk_ctx->queue, 1, */
+
+  /*                                   &(VkSubmitInfo) { */
+  /*                                     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, */
+  /*                                   }, vk_onscreen->wsi_fence), */
+  /*                    FALSE, */
+  /*                    error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL ); */
+
+  VK_RET (ctx,
+          vkWaitForFences (vk_ctx->device,
+                           1, (VkFence[]) { vk_onscreen->wsi_fence },
+                           VK_TRUE, INT64_MAX) );
+
+  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
+                                               vk_onscreen->framebuffers[vk_onscreen->image_index],
+                                               vk_onscreen->images[vk_onscreen->image_index]);
+}
+
+static void
 _cogl_framebuffer_vulkan_ensure_command_buffer (CoglFramebuffer *framebuffer)
 {
   CoglContext *ctx = framebuffer->context;
@@ -387,7 +429,6 @@ _cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer)
   VkRenderPassBeginInfo render_begin_info = {
     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
     .renderPass = vk_fb->render_pass,
-    .framebuffer = vk_fb->framebuffer,
     .renderArea = {
       { 0, 0 },
       { cogl_framebuffer_get_width (framebuffer),
@@ -404,8 +445,12 @@ _cogl_framebuffer_vulkan_begin_render_pass (CoglFramebuffer *framebuffer)
 
   if (cogl_is_offscreen (framebuffer))
     _cogl_offscreen_vulkan_prepare_for_rendering (framebuffer);
+  else
+    _cogl_onscreen_vulkan_prepare_for_rendering (framebuffer);
 
   memset (clear_values, 0, sizeof (clear_values));
+
+  render_begin_info.framebuffer = vk_fb->framebuffer,
 
   VK ( ctx,
        vkCmdBeginRenderPass (vk_fb->cmd_buffer, &render_begin_info,
@@ -1088,6 +1133,8 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
   uint32_t i;
   VkResult result;
 
+  vk_onscreen->image_index = -1;
+
   /* If we've already found the color format, don't go through that
      logic again. */
   if (vk_fb->color_format == VK_FORMAT_UNDEFINED)
@@ -1221,7 +1268,7 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
                          .queueFamilyIndexCount = 1,
                          .pQueueFamilyIndices = (uint32_t[]) { 0 },
                          .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-                         .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+                         .compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
                          .presentMode = vk_onscreen->wsi_present_mode,
                        },
                        NULL,
@@ -1294,38 +1341,6 @@ _cogl_onscreen_vulkan_init (CoglOnscreen *onscreen, CoglError **error)
         }
     }
 
-  VK_RET_VAL_ERROR ( ctx, vkResetFences (vk_ctx->device, 1, &vk_onscreen->wsi_fence),
-                     FALSE,
-                     error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
-
-  VK_RET_VAL_ERROR ( ctx,
-                     vkAcquireNextImageKHR (vk_ctx->device,
-                                            vk_onscreen->swap_chain, UINT64_MAX,
-                                            VK_NULL_HANDLE, vk_onscreen->wsi_fence,
-                                            &vk_onscreen->image_index),
-                     FALSE,
-                     error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
-
-  /* VK_RET_VAL_ERROR ( ctx, */
-  /*                    vkQueueSubmit (vk_ctx->queue, 1, */
-
-  /*                                   &(VkSubmitInfo) { */
-  /*                                     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, */
-  /*                                   }, vk_onscreen->wsi_fence), */
-  /*                    FALSE, */
-  /*                    error, COGL_DRIVER_ERROR, COGL_DRIVER_ERROR_INTERNAL ); */
-
-  VK_RET_VAL_ERROR (ctx,
-                    vkWaitForFences (vk_ctx->device,
-                                     1, (VkFence[]) { vk_onscreen->wsi_fence },
-                                     VK_TRUE, INT64_MAX),
-                    FALSE,
-                     error, COGL_WINSYS_ERROR, COGL_WINSYS_ERROR_CREATE_ONSCREEN );
-
-  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
-                                               vk_onscreen->framebuffers[vk_onscreen->image_index],
-                                               vk_onscreen->images[vk_onscreen->image_index]);
-
   return TRUE;
 }
 
@@ -1394,32 +1409,6 @@ _cogl_onscreen_vulkan_swap_buffers_with_damage (CoglOnscreen *onscreen,
                  _cogl_vulkan_error_to_string (result));
       return;
     }
-  else if (result == VK_ERROR_OUT_OF_DATE_KHR)
-    return;
 
-  VK_RET ( ctx, vkResetFences (vk_ctx->device, 1, &vk_onscreen->wsi_fence) );
-
-  result = VK ( ctx,
-                vkAcquireNextImageKHR (vk_ctx->device,
-                                       vk_onscreen->swap_chain, UINT64_MAX,
-                                       VK_NULL_HANDLE, vk_onscreen->wsi_fence,
-                                       &vk_onscreen->image_index) );
-  if (result != VK_SUCCESS && result != VK_ERROR_OUT_OF_DATE_KHR)
-    {
-      g_warning ("%s: Cannot present image: %s", G_STRLOC,
-                 _cogl_vulkan_error_to_string (result));
-      return;
-    }
-  else if (result == VK_ERROR_OUT_OF_DATE_KHR)
-    return;
-
-  VK_RET (ctx,
-          vkWaitForFences (vk_ctx->device,
-                           1, (VkFence[]) { vk_onscreen->wsi_fence },
-                           VK_TRUE, INT64_MAX) );
-
-
-  _cogl_framebuffer_vulkan_update_framebuffer (framebuffer,
-                                               vk_onscreen->framebuffers[vk_onscreen->image_index],
-                                               vk_onscreen->images[vk_onscreen->image_index]);
+  vk_onscreen->image_index = -1;
 }
