@@ -44,16 +44,10 @@ typedef struct _CoglRendererVulkan
   VkPhysicalDeviceProperties physical_device_properties;
   VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
 
-  PFN_vkCreateInstance vkCreateInstance;
-  PFN_vkDestroyInstance vkDestroyInstance;
-  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
-  PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
-  PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
-  PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
-  PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
-  PFN_vkCreateDevice vkCreateDevice;
-  PFN_vkDestroyDevice vkDestroyDevice;
-  PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
+#define VK_SYM(NAME)                            \
+  PFN_##NAME NAME;
+#include "cogl-vulkan-symbols.x"
+#undef VK_SYM
 } CoglRendererVulkan;
 
 typedef struct _CoglContextVulkan
