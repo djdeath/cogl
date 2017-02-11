@@ -155,8 +155,10 @@ _cogl_onscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
 
   CoglContext *ctx = framebuffer->context;
   CoglContextVulkan *vk_ctx = ctx->winsys;
+  CoglOnscreen *onscreen = (CoglOnscreen *) framebuffer;
   CoglOnscreenVulkan *vk_onscreen = framebuffer->winsys;
   uint32_t image_index;
+  VkResult result;
 
   if (vk_onscreen->image_index >= 0)
     return;
@@ -164,11 +166,36 @@ _cogl_onscreen_vulkan_prepare_for_rendering (CoglFramebuffer *framebuffer)
   VK_RET ( ctx,
            vkResetFences (vk_ctx->device, 1, &vk_onscreen->wsi_fence) );
 
-  VK_RET ( ctx,
-           vkAcquireNextImageKHR (vk_ctx->device,
-                                  vk_onscreen->swap_chain, UINT64_MAX,
-                                  VK_NULL_HANDLE, vk_onscreen->wsi_fence,
-                                  &image_index) );
+  result = VK ( ctx,
+                vkAcquireNextImageKHR (vk_ctx->device,
+                                       vk_onscreen->swap_chain, UINT64_MAX,
+                                       VK_NULL_HANDLE, vk_onscreen->wsi_fence,
+                                       &image_index) );
+
+  while (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+      CoglError *error = NULL;
+
+      _cogl_onscreen_vulkan_deinit (onscreen);
+      if (!_cogl_onscreen_vulkan_init (onscreen, &error)) {
+        g_warning ("Failed to resize: %s", error->message);
+        cogl_error_free (error);
+        continue;
+      }
+
+      result = VK ( ctx,
+                    vkAcquireNextImageKHR (vk_ctx->device,
+                                           vk_onscreen->swap_chain, UINT64_MAX,
+                                           VK_NULL_HANDLE, vk_onscreen->wsi_fence,
+                                           &image_index) );
+    }
+
+  if (result != VK_SUCCESS)
+    {
+      g_warning ("Unable to acquire image : %s",
+                 _cogl_vulkan_error_to_string (result));
+      return;
+    }
 
   vk_onscreen->image_index = (int32_t) image_index;
 
