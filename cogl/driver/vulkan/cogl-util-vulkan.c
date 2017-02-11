@@ -441,6 +441,8 @@ _cogl_vulkan_error_to_string (VkResult error)
 {
   switch (error)
     {
+    case VK_SUCCESS:
+      return "success";
     case VK_NOT_READY:
       return "not ready";
     case VK_TIMEOUT:
@@ -479,6 +481,12 @@ _cogl_vulkan_error_to_string (VkResult error)
       return "incompatible display khr";
     case VK_ERROR_VALIDATION_FAILED_EXT:
       return "validation failed ext";
+    case VK_ERROR_INVALID_SHADER_NV:
+      return "invalid shader nv";
+    case VK_ERROR_OUT_OF_POOL_MEMORY_KHR:
+      return "out of pool memory khr";
+    case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX:
+      return "invalid external handle khx";
     default:
       return "unknown";
     }
